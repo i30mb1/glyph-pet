@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.os.BatteryManager
 import kotlin.random.Random
+import n7.glyphpet.GameClock
 
 /** The whole save as the screens see it: needs of the active pet, today's egg, the collection and the supporter unlock. */
 data class Nursery(
@@ -29,12 +30,12 @@ class PetStore(context: Context) {
 
     fun isCharging(): Boolean = battery?.isCharging == true
 
-    fun asleep(stats: PetStats, nowMs: Long = System.currentTimeMillis()): Boolean =
+    fun asleep(stats: PetStats, nowMs: Long = GameClock.now()): Boolean =
         PetRules.isAsleep(stats, PetRules.localHour(nowMs), isCharging())
 
     /** Brings everything up to now and returns it. */
     @Synchronized
-    fun nursery(nowMs: Long = System.currentTimeMillis()): Nursery {
+    fun nursery(nowMs: Long = GameClock.now()): Nursery {
         val stats = PetRules.advance(loadStats(nowMs), nowMs, isCharging())
         saveStats(stats)
         val state = NurseryRules.advance(loadState(), nowMs, Random(nowMs))
@@ -53,14 +54,14 @@ class PetStore(context: Context) {
 
     /** Changes the needs of the active pet. */
     @Synchronized
-    fun update(nowMs: Long = System.currentTimeMillis(), change: (PetStats) -> PetStats = { it }): PetStats {
+    fun update(nowMs: Long = GameClock.now(), change: (PetStats) -> PetStats = { it }): PetStats {
         val stats = change(PetRules.advance(loadStats(nowMs), nowMs, isCharging()))
         saveStats(stats)
         return stats
     }
 
     /** Feeds the active pet; false when it was full and refused. */
-    fun feed(nowMs: Long = System.currentTimeMillis()): Boolean {
+    fun feed(nowMs: Long = GameClock.now()): Boolean {
         var ate = false
         update(nowMs) { stats -> PetRules.feed(stats).also { ate = it.second }.first }
         return ate
@@ -68,11 +69,11 @@ class PetStore(context: Context) {
 
     /** Warms today's egg (long-press); false while cooling down or when there is no egg. */
     @Synchronized
-    fun warmEgg(nowMs: Long = System.currentTimeMillis()): Boolean = changeState { NurseryRules.warm(it, nowMs) }
+    fun warmEgg(nowMs: Long = GameClock.now()): Boolean = changeState { NurseryRules.warm(it, nowMs) }
 
     /** Supporters hatch one egg a day right away. */
     @Synchronized
-    fun hatchNow(nowMs: Long = System.currentTimeMillis()): Boolean = changeState { NurseryRules.hatchNow(it, nowMs) }
+    fun hatchNow(nowMs: Long = GameClock.now()): Boolean = changeState { NurseryRules.hatchNow(it, nowMs) }
 
     /** Makes a collected pet the one on the matrix. */
     @Synchronized

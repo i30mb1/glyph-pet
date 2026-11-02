@@ -39,6 +39,39 @@
     <string name="step_play">Shake gently to play, tilt to make it slide</string>
     <string name="step_aod">Set it as the Always-on Glyph Toy to keep it with you</string>
 
+    <string name="intro_1_title">An egg every day</string>
+    <string name="intro_1_text">Every morning a new egg appears. By the evening a pet hatches from it. Which one is a surprise: one of 18.</string>
+    <string name="intro_2_title">One button</string>
+    <string name="intro_2_text">The pet lives on the back of your phone. Hold the Glyph button and it eats, cheers up, or the egg hatches sooner. The app always tells you which.</string>
+    <string name="intro_3_title">Collect all 18</string>
+    <string name="intro_3_text">Every new pet joins your nursery. Some are rare, three are legendary.</string>
+    <string name="intro_next">Next</string>
+    <string name="intro_start">Start</string>
+
+    <string name="setup_title">Step 1. Turn on the toy</string>
+    <string name="setup_text">Without it the pet will not show up on the back of your phone. Add Glyph Pet to your Glyph Toys.</string>
+    <string name="setup_button">Turn on</string>
+
+    <string name="now_title">Right now</string>
+    <string name="now_egg_first">Your first pet is inside this egg</string>
+    <string name="now_hatched">%1$s has hatched!</string>
+    <string name="now_egg_hatch_first">It hatches at %1$s.</string>
+    <string name="now_egg_hatch">A new egg is waiting next to your pet. It hatches at %1$s.</string>
+    <string name="now_sleeping">%1$s is asleep</string>
+    <string name="now_hungry">%1$s is hungry</string>
+    <string name="now_tired">%1$s is sleepy</string>
+    <string name="now_sad">%1$s is bored</string>
+    <string name="now_happy">%1$s is happy</string>
+    <string name="now_content">%1$s is fine</string>
+    <string name="button_now">If you hold the Glyph button now: %1$s.</string>
+    <string name="button_warm">the egg hatches 45 minutes sooner</string>
+    <string name="button_feed">your pet eats</string>
+    <string name="button_pet">your pet cheers up</string>
+    <string name="button_nothing">nothing happens</string>
+    <string name="next_after_egg">Next: the pet from this egg joins your nursery.</string>
+    <string name="next_egg_soon">Next: your second egg of the day, any moment now.</string>
+    <string name="next_egg_tomorrow">Next: a new egg tomorrow at 6:00.</string>
+
     <string name="mood_sleeping">Sleeping. It wakes up in the morning or when you unplug the charger.</string>
     <string name="mood_hungry">Hungry. Long-press the Glyph button or tap Feed.</string>
     <string name="mood_tired">Tired. It will nap soon.</string>

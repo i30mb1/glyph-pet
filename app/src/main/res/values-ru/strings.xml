@@ -37,6 +37,39 @@
     <string name="step_play">Потряси, чтобы поиграть, наклони — и он покатится</string>
     <string name="step_aod">Сделай его Always-on игрушкой, чтобы он всегда был с тобой</string>
 
+    <string name="intro_1_title">Каждый день — яйцо</string>
+    <string name="intro_1_text">Каждое утро появляется новое яйцо. К вечеру из него вылупляется питомец. Кто именно — сюрприз: один из 18.</string>
+    <string name="intro_2_title">Одна кнопка</string>
+    <string name="intro_2_text">Питомец живёт на задней панели телефона. Зажми кнопку Glyph — и он поест, обрадуется или яйцо вылупится быстрее. Что именно, приложение всегда подскажет.</string>
+    <string name="intro_3_title">Собери всех 18</string>
+    <string name="intro_3_text">Каждый новый питомец попадает в питомник. Некоторые редкие, а трое — легендарные.</string>
+    <string name="intro_next">Дальше</string>
+    <string name="intro_start">Начать</string>
+
+    <string name="setup_title">Шаг 1. Включи игрушку</string>
+    <string name="setup_text">Без этого питомца не будет видно на задней панели. Добавь Glyph Pet в Glyph-игрушки.</string>
+    <string name="setup_button">Включить</string>
+
+    <string name="now_title">Сейчас</string>
+    <string name="now_egg_first">В этом яйце — твой первый питомец</string>
+    <string name="now_hatched">Вылупился %1$s!</string>
+    <string name="now_egg_hatch_first">Вылупится в %1$s.</string>
+    <string name="now_egg_hatch">Рядом с питомцем лежит новое яйцо. Вылупится в %1$s.</string>
+    <string name="now_sleeping">%1$s спит</string>
+    <string name="now_hungry">%1$s хочет есть</string>
+    <string name="now_tired">%1$s хочет спать</string>
+    <string name="now_sad">%1$s скучает</string>
+    <string name="now_happy">%1$s счастлив</string>
+    <string name="now_content">У %1$s всё хорошо</string>
+    <string name="button_now">Если сейчас зажать кнопку Glyph: %1$s.</string>
+    <string name="button_warm">яйцо вылупится на 45 минут раньше</string>
+    <string name="button_feed">питомец поест</string>
+    <string name="button_pet">питомец обрадуется</string>
+    <string name="button_nothing">ничего не случится</string>
+    <string name="next_after_egg">Дальше: питомец из яйца попадёт в питомник.</string>
+    <string name="next_egg_soon">Дальше: второе яйцо дня, прямо сейчас.</string>
+    <string name="next_egg_tomorrow">Дальше: новое яйцо завтра в 6:00.</string>
+
     <string name="mood_sleeping">Спит. Проснётся утром или когда отключишь зарядку.</string>
     <string name="mood_hungry">Голодный. Зажми кнопку Glyph или нажми «Покормить».</string>
     <string name="mood_tired">Устал и скоро уснёт.</string>

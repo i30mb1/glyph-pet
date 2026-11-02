@@ -6,6 +6,7 @@
     <uses-feature android:name="com.nothing.feature" android:required="true" />
 
     <application
+        android:name=".GlyphPetApp"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"

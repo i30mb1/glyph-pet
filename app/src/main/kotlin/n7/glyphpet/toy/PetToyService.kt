@@ -12,6 +12,7 @@ import android.util.Log
 import com.nothing.ketchum.Glyph
 import com.nothing.ketchum.GlyphMatrixManager
 import com.nothing.ketchum.GlyphToy
+import n7.glyphpet.GameClock
 import n7.glyphpet.pet.ButtonAction
 import n7.glyphpet.pet.ButtonRules
 import n7.glyphpet.pet.EggRules
@@ -151,7 +152,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
 
     private fun scene(tilt: Float = 0f): Scene {
         val n = nursery ?: return Scene(null, Mood.CONTENT)
-        val now = System.currentTimeMillis()
+        val now = GameClock.now()
         return Scene(
             species = n.active,
             mood = mood,
