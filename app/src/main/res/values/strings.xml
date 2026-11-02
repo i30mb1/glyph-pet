@@ -1,0 +1,26 @@
+<resources>
+    <string name="app_name" translatable="false">Glyph Pet</string>
+    <string name="toy_name" translatable="false">Glyph Pet</string>
+    <string name="toy_summary">A tiny pet that lives on your Glyph Matrix. Long-press to feed, shake to play.</string>
+
+    <string name="main_hint">Lives on the back of your phone</string>
+    <string name="age_days">Age, days</string>
+    <string name="need_food">Food</string>
+    <string name="need_joy">Joy</string>
+    <string name="need_sleep">Sleep</string>
+    <string name="action_feed">Feed</string>
+    <string name="action_pet">Pet</string>
+    <string name="activate_toy">Activate toy</string>
+
+    <string name="step_activate">Activate Glyph Pet in Glyph Toys</string>
+    <string name="step_feed">Long-press the Glyph button to feed it</string>
+    <string name="step_play">Shake gently to play, tilt to make it slide</string>
+    <string name="step_aod">Set it as the Always-on Glyph Toy to keep it with you</string>
+
+    <string name="mood_sleeping">Sleeping. It wakes up in the morning or when you unplug the charger.</string>
+    <string name="mood_hungry">Hungry. Long-press the Glyph button or tap Feed.</string>
+    <string name="mood_tired">Tired. It will nap soon.</string>
+    <string name="mood_sad">Bored. Shake the phone or tap Pet.</string>
+    <string name="mood_happy">Happy and full.</string>
+    <string name="mood_content">Doing fine.</string>
+</resources>

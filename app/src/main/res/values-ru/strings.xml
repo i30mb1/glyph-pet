@@ -1,0 +1,24 @@
+<resources>
+    <string name="toy_summary">Маленький питомец живёт на твоей Glyph Matrix. Зажми кнопку, чтобы покормить, потряси, чтобы поиграть.</string>
+
+    <string name="main_hint">Живёт на задней панели</string>
+    <string name="age_days">Возраст, дней</string>
+    <string name="need_food">Еда</string>
+    <string name="need_joy">Радость</string>
+    <string name="need_sleep">Сон</string>
+    <string name="action_feed">Покормить</string>
+    <string name="action_pet">Погладить</string>
+    <string name="activate_toy">Активировать игрушку</string>
+
+    <string name="step_activate">Включи Glyph Pet в Glyph-игрушках</string>
+    <string name="step_feed">Зажми кнопку Glyph, чтобы покормить</string>
+    <string name="step_play">Потряси, чтобы поиграть, наклони — и он покатится</string>
+    <string name="step_aod">Сделай его Always-on игрушкой, чтобы он всегда был с тобой</string>
+
+    <string name="mood_sleeping">Спит. Проснётся утром или когда отключишь зарядку.</string>
+    <string name="mood_hungry">Голодный. Зажми кнопку Glyph или нажми «Покормить».</string>
+    <string name="mood_tired">Устал и скоро уснёт.</string>
+    <string name="mood_sad">Скучает. Потряси телефон или погладь.</string>
+    <string name="mood_happy">Сытый и довольный.</string>
+    <string name="mood_content">Всё хорошо.</string>
+</resources>
