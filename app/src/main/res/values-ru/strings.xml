@@ -1,8 +1,7 @@
 <resources>
-    <string name="toy_summary">Маленький питомец живёт на твоей Glyph Matrix. Зажми кнопку, чтобы покормить, потряси, чтобы поиграть.</string>
+    <string name="toy_summary">Каждый день новое яйцо. Вылупи одного из 18 питомцев на Glyph Matrix и заботься о нём.</string>
 
-    <string name="main_hint">Живёт на задней панели</string>
-    <string name="age_days">Возраст, дней</string>
+    <string name="main_hint">Каждый день новое яйцо</string>
     <string name="need_food">Еда</string>
     <string name="need_joy">Радость</string>
     <string name="need_sleep">Сон</string>
@@ -10,8 +9,31 @@
     <string name="action_pet">Погладить</string>
     <string name="activate_toy">Активировать игрушку</string>
 
+    <string name="egg_title">Яйцо дня</string>
+    <string name="egg_hatches_in">Вылупится через %1$d ч %2$d мин</string>
+    <string name="egg_any_second">Вот-вот вылупится</string>
+    <string name="egg_hint">Внутри кто-то шевелится. Погрей его долгим нажатием кнопки Glyph, и он вылупится быстрее.</string>
+    <string name="egg_warm">Погреть</string>
+    <string name="egg_hatch_now">Вылупить сейчас</string>
+    <string name="egg_tomorrow">Сегодняшнее яйцо уже вылупилось. Новое появится завтра.</string>
+    <string name="egg_tomorrow_supporter">С Supporter каждый день приходит второе яйцо.</string>
+
+    <string name="collection_title">Питомник · %1$d из %2$d</string>
+    <string name="collection_odds">Обычный 70% · Редкий 25% · Легендарный 5%. Нажми на питомца, чтобы поселить его на матрицу.</string>
+    <string name="rarity_common">Обычный</string>
+    <string name="rarity_rare">Редкий</string>
+    <string name="rarity_legendary">Легендарный</string>
+
+    <string name="supporter_title">Supporter</string>
+    <string name="supporter_thanks">Спасибо, что поддерживаешь n7!</string>
+    <string name="supporter_perk_egg">Второе яйцо каждый день</string>
+    <string name="supporter_perk_golden">Золотые яйца, которые светятся на матрице</string>
+    <string name="supporter_perk_instant">Раз в день вылупить яйцо сразу</string>
+    <string name="supporter_buy">Стать Supporter · %1$s</string>
+    <string name="supporter_unavailable">Скоро в Google Play</string>
+
     <string name="step_activate">Включи Glyph Pet в Glyph-игрушках</string>
-    <string name="step_feed">Зажми кнопку Glyph, чтобы покормить</string>
+    <string name="step_button">Зажми кнопку Glyph: она кормит, греет яйцо или гладит — что сейчас нужнее</string>
     <string name="step_play">Потряси, чтобы поиграть, наклони — и он покатится</string>
     <string name="step_aod">Сделай его Always-on игрушкой, чтобы он всегда был с тобой</string>
 

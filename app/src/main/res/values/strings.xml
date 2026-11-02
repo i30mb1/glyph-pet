@@ -1,10 +1,9 @@
 <resources>
     <string name="app_name" translatable="false">Glyph Pet</string>
     <string name="toy_name" translatable="false">Glyph Pet</string>
-    <string name="toy_summary">A tiny pet that lives on your Glyph Matrix. Long-press to feed, shake to play.</string>
+    <string name="toy_summary">A new egg every day. Hatch one of 18 pets on your Glyph Matrix and look after it.</string>
 
-    <string name="main_hint">Lives on the back of your phone</string>
-    <string name="age_days">Age, days</string>
+    <string name="main_hint">A new egg every day</string>
     <string name="need_food">Food</string>
     <string name="need_joy">Joy</string>
     <string name="need_sleep">Sleep</string>
@@ -12,8 +11,31 @@
     <string name="action_pet">Pet</string>
     <string name="activate_toy">Activate toy</string>
 
+    <string name="egg_title">Egg of the day</string>
+    <string name="egg_hatches_in">Hatches in %1$d h %2$d min</string>
+    <string name="egg_any_second">Hatching any second</string>
+    <string name="egg_hint">Something moves inside. Warm it with a long-press of the Glyph button to hatch it sooner.</string>
+    <string name="egg_warm">Warm up</string>
+    <string name="egg_hatch_now">Hatch now</string>
+    <string name="egg_tomorrow">Today\'s egg has hatched. A new one arrives tomorrow.</string>
+    <string name="egg_tomorrow_supporter">Supporters get a second egg every day.</string>
+
+    <string name="collection_title">Nursery · %1$d of %2$d</string>
+    <string name="collection_odds">Common 70% · Rare 25% · Legendary 5%. Tap a pet to put it on the matrix.</string>
+    <string name="rarity_common">Common</string>
+    <string name="rarity_rare">Rare</string>
+    <string name="rarity_legendary">Legendary</string>
+
+    <string name="supporter_title">Supporter</string>
+    <string name="supporter_thanks">Thank you for supporting n7!</string>
+    <string name="supporter_perk_egg">A second egg every day</string>
+    <string name="supporter_perk_golden">Golden eggs that glow on the matrix</string>
+    <string name="supporter_perk_instant">Hatch one egg right away, once a day</string>
+    <string name="supporter_buy">Become a supporter · %1$s</string>
+    <string name="supporter_unavailable">Coming soon on Google Play</string>
+
     <string name="step_activate">Activate Glyph Pet in Glyph Toys</string>
-    <string name="step_feed">Long-press the Glyph button to feed it</string>
+    <string name="step_button">Long-press the Glyph button: it feeds, warms the egg or pets, whatever is needed most</string>
     <string name="step_play">Shake gently to play, tilt to make it slide</string>
     <string name="step_aod">Set it as the Always-on Glyph Toy to keep it with you</string>
 

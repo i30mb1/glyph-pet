@@ -2,103 +2,113 @@ package n7.glyphpet.pet
 
 import n7.glyph.ui.matrix.Cell
 import n7.glyph.ui.matrix.GlyphMatrixSpec
-import n7.glyphpet.pet.PetSprite.Eyes
-import n7.glyphpet.pet.PetSprite.Mouth
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sign
 import kotlin.random.Random
 
+/** Everything the matrix needs to know right now. [species] is null before the first egg hatches. */
+data class Scene(
+    val species: Species?,
+    val mood: Mood,
+    val tilt: Float = 0f,
+    val charging: Boolean = false,
+    val egg: EggView? = null,
+)
+
 /**
- * Animates the pet: wandering, blinking, eating, sleeping, reactions.
+ * Animates the pet and today's egg: wandering, blinking, eating, reactions, wobbling egg.
  * [tick] returns one 25x25 frame of LED brightness, row by row.
  */
 class PetEngine(private val random: Random = Random.Default) {
 
     companion object {
         const val SIZE = GlyphMatrixSpec.SIZE
-        const val BRIGHT = 4000
-        const val BODY = 1200
-        const val BODY_ASLEEP = 500
-        const val FLOOR = 180
-        private const val FEET_ROW = 19
-        private const val MIN_X = 7f
-        private const val MAX_X = 17f
+        const val BRIGHT = SpeciesRenderer.BRIGHT
+        const val BODY = SpeciesRenderer.BODY
 
-        /**
-         * Frame brightness to the 0..1 levels the Compose preview draws. Scaled to the body, not to the
-         * maximum: the real LEDs glow, so a body at a third of full power still reads as white on the phone.
-         */
+        /** Frame brightness to the 0..1 levels the Compose preview draws, scaled so the body reads as white. */
         fun toCells(frame: IntArray): List<Cell> = buildList {
             for (i in frame.indices) if (frame[i] > 0) add(Cell(i % SIZE, i / SIZE, (frame[i] / BODY.toFloat()).coerceIn(0.15f, 1f)))
         }
     }
 
-    private enum class Action { NONE, EATING, REFUSING, HAPPY, DIZZY }
-    private enum class Kind { HEART, Z }
-    private class Particle(var x: Float, var y: Float, val kind: Kind, var lifeMs: Long, val totalMs: Long)
+    private enum class Action { NONE, EATING, REFUSING, LOVED, DIZZY, CELEBRATING }
 
-    private var x = 12f
-    private var targetX = 12f
     private var time = 0L
+    private var x = 0f
+    private var targetX = 0f
     private var wanderInMs = 2000L
     private var stepMs = 0L
-    private var stepping = false
     private var blinkInMs = 3000L
     private var blinkLeftMs = 0L
     private var action = Action.NONE
     private var actionLeftMs = 0L
     private var foodY: Float? = null
-    private var zInMs = 0L
-    private var heartInMs = 0L
-    private val particles = mutableListOf<Particle>()
+    private var wobbleInMs = 3000L
+    private var wobbleLeftMs = 0L
+    private var yawnInMs = 6000L
+    private var yawnLeftMs = 0L
 
-    /** Drops food from the top; a full pet shakes its head instead. */
+    /** Food drops from the top; a full pet frowns instead. */
     fun feed(accepted: Boolean) {
         if (accepted) foodY = 0f else start(Action.REFUSING, 1200)
     }
 
-    /** Stroked: hops and sends hearts. */
-    fun pet() {
-        start(Action.HAPPY, 1600)
-        spawnHeart()
-    }
+    /** Stroked: heart eyes and a heart. Also the reaction to warming the egg. */
+    fun pet() = start(Action.LOVED, 1600)
 
-    /** Shaken: dizzy for a moment. */
     fun shake() = start(Action.DIZZY, 2500)
 
-    /** A still frame for Always-on: no animation state needed. */
-    fun still(mood: Mood): IntArray {
+    /** A new pet just hatched. */
+    fun celebrate() = start(Action.CELEBRATING, 3000)
+
+    /** One calm frame for Always-on. */
+    fun still(scene: Scene): IntArray {
         val frame = IntArray(SIZE * SIZE)
-        drawFloor(frame)
-        val asleep = mood == Mood.SLEEPING
-        drawPet(frame, 12, FEET_ROW - PetSprite.HEIGHT + 1, face(mood, asleep, sliding = false), stepping = false, asleep)
-        if (asleep) drawGlyph(frame, PetSprite.Z, 18, 6, BRIGHT)
+        val species = scene.species
+        if (species == null) {
+            scene.egg?.let { EggRenderer.big(frame, it) }
+            return frame
+        }
+        val face = when (scene.mood) {
+            Mood.SLEEPING -> Face.SLEEP
+            Mood.HUNGRY, Mood.SAD -> Face.HUNGRY
+            Mood.TIRED -> Face.YAWN
+            Mood.HAPPY -> Face.CONTENT
+            Mood.CONTENT -> Face.IDLE
+        }
+        val dx = if (scene.egg != null) -3 else 0
+        SpeciesRenderer.render(species, face, dx = dx, charging = scene.charging, frame = frame)
+        scene.egg?.let { EggRenderer.mini(frame, it) }
         return frame
     }
 
-    fun tick(dtMs: Long, mood: Mood, tilt: Float): IntArray {
+    fun tick(dtMs: Long, scene: Scene): IntArray {
         time += dtMs
-        val asleep = mood == Mood.SLEEPING
         updateAction(dtMs)
-        updateFood(dtMs)
-        val sliding = !asleep && action == Action.NONE && abs(tilt) > 0.3f
-        updateMovement(dtMs, mood, tilt, asleep, sliding)
-        updateBlink(dtMs, asleep)
-        updateParticles(dtMs, asleep)
-
+        updateWobble(dtMs)
         val frame = IntArray(SIZE * SIZE)
-        drawFloor(frame)
-        val jitter = if (action == Action.REFUSING) (if ((time / 120) % 2 == 0L) -1 else 1) else 0
-        val hop = if (action == Action.HAPPY && (time / 200) % 2 == 0L) -1 else 0
-        val top = FEET_ROW - PetSprite.HEIGHT + 1 + hop
-        drawPet(frame, x.roundToInt() + jitter, top, face(mood, asleep, sliding), stepping && !asleep, asleep)
-        foodY?.let { fy -> drawBlock(frame, x.roundToInt() - 1, fy.toInt(), 2, 2, BRIGHT) }
-        particles.forEach { p ->
-            val glyph = if (p.kind == Kind.HEART) PetSprite.HEART else PetSprite.Z
-            val fade = (p.lifeMs / p.totalMs.toFloat()).coerceIn(0.2f, 1f)
-            drawGlyph(frame, glyph, p.x.roundToInt(), p.y.roundToInt(), (BRIGHT * fade).toInt())
+        val species = scene.species
+        if (species == null) {
+            scene.egg?.let { EggRenderer.big(frame, it, wobble()) }
+            return frame
         }
+
+        val asleep = scene.mood == Mood.SLEEPING
+        val range = wanderRange(species, scene.egg != null)
+        val sliding = !asleep && action == Action.NONE && abs(scene.tilt) > 0.3f
+        updateFood(dtMs, species)
+        updateMovement(dtMs, scene, range, asleep, sliding)
+        updateBlink(dtMs, asleep)
+        updateYawn(dtMs, scene.mood)
+
+        val face = face(scene.mood, asleep, sliding)
+        val jitter = if (action == Action.REFUSING) (if ((time / 120) % 2 == 0L) -1 else 1) else 0
+        val dx = x.roundToInt() + jitter
+        SpeciesRenderer.render(species, face, blink = blinkLeftMs > 0, dx = dx, charging = scene.charging && asleep, frame = frame)
+        foodY?.let { fy -> SpeciesRenderer.glyph(frame, listOf("oo", "oo"), species.ox + dx + species.width / 2 - 1, fy.toInt()) }
+        scene.egg?.let { EggRenderer.mini(frame, it, wobble()) }
         return frame
     }
 
@@ -110,16 +120,17 @@ class PetEngine(private val random: Random = Random.Default) {
     private fun updateAction(dtMs: Long) {
         if (action == Action.NONE) return
         actionLeftMs -= dtMs
-        if (action == Action.HAPPY) {
-            heartInMs -= dtMs
-            if (heartInMs <= 0) { spawnHeart(); heartInMs = 600 }
-        }
         if (actionLeftMs <= 0) action = Action.NONE
     }
 
-    private fun updateFood(dtMs: Long) {
+    private fun updateFood(dtMs: Long, species: Species) {
         val fy = foodY ?: return
-        val mouthRow = FEET_ROW - PetSprite.HEIGHT + 1 + 6
+        if (Face.EAT in species.replaces) {
+            foodY = null
+            start(Action.EATING, 2000)
+            return
+        }
+        val mouthRow = species.oy + (species.mouth?.second ?: (species.height / 2))
         val next = fy + dtMs * 0.012f
         if (next >= mouthRow - 2) {
             foodY = null
@@ -129,18 +140,25 @@ class PetEngine(private val random: Random = Random.Default) {
         }
     }
 
-    private fun updateMovement(dtMs: Long, mood: Mood, tilt: Float, asleep: Boolean, sliding: Boolean) {
-        stepping = false
+    /** How far a species may walk from its home spot without leaving the round matrix. */
+    private fun wanderRange(species: Species, eggBeside: Boolean): IntRange {
+        if (eggBeside) return -3..-3
+        val room = ((19 - species.width) / 2).coerceIn(0, 4)
+        return -room..room
+    }
+
+    private fun updateMovement(dtMs: Long, scene: Scene, range: IntRange, asleep: Boolean, sliding: Boolean) {
+        if (x < range.first || x > range.last) x = x.coerceIn(range.first.toFloat(), range.last.toFloat())
         if (asleep || action != Action.NONE) return
         if (sliding) {
-            x = (x + tilt * dtMs * 0.01f).coerceIn(MIN_X, MAX_X)
+            x = (x + scene.tilt * dtMs * 0.01f).coerceIn(range.first.toFloat(), range.last.toFloat())
             targetX = x
             return
         }
         wanderInMs -= dtMs
         if (wanderInMs <= 0) {
-            targetX = random.nextInt(MIN_X.toInt(), MAX_X.toInt() + 1).toFloat()
-            wanderInMs = when (mood) {
+            targetX = random.nextInt(range.first, range.last + 1).toFloat()
+            wanderInMs = when (scene.mood) {
                 Mood.HAPPY -> random.nextLong(1500, 3000)
                 Mood.HUNGRY, Mood.SAD, Mood.TIRED -> random.nextLong(5000, 9000)
                 else -> random.nextLong(2500, 5000)
@@ -148,14 +166,11 @@ class PetEngine(private val random: Random = Random.Default) {
         }
         if (abs(targetX - x) >= 1f) {
             stepMs += dtMs
-            val pace = if (mood == Mood.TIRED || mood == Mood.HUNGRY) 450 else 280
+            val pace = if (scene.mood == Mood.TIRED || scene.mood == Mood.HUNGRY) 450 else 300
             if (stepMs >= pace) {
                 stepMs = 0
                 x += sign(targetX - x)
             }
-            stepping = (time / 200) % 2 == 0L
-        } else {
-            x = x.roundToInt().toFloat()
         }
     }
 
@@ -169,67 +184,38 @@ class PetEngine(private val random: Random = Random.Default) {
         }
     }
 
-    private fun updateParticles(dtMs: Long, asleep: Boolean) {
-        if (asleep) {
-            zInMs -= dtMs
-            if (zInMs <= 0) {
-                particles += Particle(x + 5f, 7f, Kind.Z, 2400, 2400)
-                zInMs = 1500
-            }
-        }
-        val it = particles.iterator()
-        while (it.hasNext()) {
-            val p = it.next()
-            p.lifeMs -= dtMs
-            p.y -= dtMs / 400f
-            if (p.lifeMs <= 0 || p.y < -4) it.remove()
+    private fun updateYawn(dtMs: Long, mood: Mood) {
+        if (mood != Mood.TIRED) { yawnLeftMs = 0; return }
+        if (yawnLeftMs > 0) { yawnLeftMs -= dtMs; return }
+        yawnInMs -= dtMs
+        if (yawnInMs <= 0) {
+            yawnLeftMs = 1200
+            yawnInMs = random.nextLong(5000, 9000)
         }
     }
 
-    private fun spawnHeart() {
-        particles += Particle(x - 2f + random.nextInt(-2, 3), 4f, Kind.HEART, 1400, 1400)
+    private fun updateWobble(dtMs: Long) {
+        if (wobbleLeftMs > 0) { wobbleLeftMs -= dtMs; return }
+        wobbleInMs -= dtMs
+        if (wobbleInMs <= 0) {
+            wobbleLeftMs = 600
+            wobbleInMs = random.nextLong(2500, 6000)
+        }
     }
 
-    private fun face(mood: Mood, asleep: Boolean, sliding: Boolean): Pair<Eyes, Mouth> = when {
-        asleep -> Eyes.CLOSED to Mouth.SMALL
-        action == Action.DIZZY -> Eyes.DIZZY to Mouth.OPEN
-        action == Action.EATING -> Eyes.HAPPY to (if ((time / 200) % 2 == 0L) Mouth.OPEN else Mouth.NEUTRAL)
-        action == Action.HAPPY -> Eyes.HAPPY to Mouth.SMILE
-        action == Action.REFUSING -> Eyes.OPEN to Mouth.FROWN
-        sliding -> Eyes.OPEN to Mouth.OPEN
-        blinkLeftMs > 0 -> Eyes.CLOSED to mouthFor(mood)
-        mood == Mood.HUNGRY || mood == Mood.SAD || mood == Mood.TIRED -> Eyes.SAD to mouthFor(mood)
-        else -> Eyes.OPEN to mouthFor(mood)
-    }
+    private fun wobble(): Int = if (wobbleLeftMs > 0) (if ((time / 100) % 2 == 0L) -1 else 1) else 0
 
-    private fun mouthFor(mood: Mood): Mouth = when (mood) {
-        Mood.HAPPY -> Mouth.SMILE
-        Mood.HUNGRY, Mood.SAD -> Mouth.FROWN
-        Mood.TIRED -> Mouth.SMALL
-        else -> Mouth.NEUTRAL
-    }
-
-    private fun drawFloor(frame: IntArray) {
-        val y = FEET_ROW + 1
-        for (fx in GlyphMatrixSpec.rowRange(y)) set(frame, fx, y, FLOOR)
-    }
-
-    private fun drawPet(frame: IntArray, centerX: Int, top: Int, face: Pair<Eyes, Mouth>, stepping: Boolean, asleep: Boolean) {
-        val rows = PetSprite.pet(face.first, face.second, stepping)
-        val left = centerX - PetSprite.WIDTH / 2
-        val value = if (asleep) BODY_ASLEEP else BODY
-        rows.forEachIndexed { dy, row -> row.forEachIndexed { dx, lit -> if (lit) set(frame, left + dx, top + dy, value) } }
-    }
-
-    private fun drawGlyph(frame: IntArray, glyph: List<String>, left: Int, top: Int, value: Int) {
-        glyph.forEachIndexed { dy, row -> row.forEachIndexed { dx, c -> if (c == '#') set(frame, left + dx, top + dy, value) } }
-    }
-
-    private fun drawBlock(frame: IntArray, left: Int, top: Int, w: Int, h: Int, value: Int) {
-        for (dy in 0 until h) for (dx in 0 until w) set(frame, left + dx, top + dy, value)
-    }
-
-    private fun set(frame: IntArray, x: Int, y: Int, value: Int) {
-        if (GlyphMatrixSpec.isVisible(x, y)) frame[y * SIZE + x] = maxOf(frame[y * SIZE + x], value)
+    private fun face(mood: Mood, asleep: Boolean, sliding: Boolean): Face = when {
+        asleep -> Face.SLEEP
+        action == Action.CELEBRATING -> Face.HAPPY
+        action == Action.DIZZY -> Face.DIZZY
+        action == Action.EATING -> if ((time / 250) % 2 == 0L) Face.EAT else Face.CONTENT
+        action == Action.LOVED -> Face.LOVE
+        action == Action.REFUSING -> Face.ANGRY
+        sliding -> Face.SCARED
+        yawnLeftMs > 0 -> Face.YAWN
+        mood == Mood.HUNGRY || mood == Mood.SAD -> Face.HUNGRY
+        mood == Mood.HAPPY -> Face.CONTENT
+        else -> Face.IDLE
     }
 }
