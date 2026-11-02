@@ -17,7 +17,7 @@
     <string name="egg_hint">Something moves inside. Warm it with a long-press of the Glyph button to hatch it sooner.</string>
     <string name="egg_warm">Warm up</string>
     <string name="egg_hatch_now">Hatch now</string>
-    <string name="egg_tomorrow">Today\'s egg has hatched. A new one arrives tomorrow.</string>
+    <string name="egg_tomorrow">Today\'s egg has hatched. The next one arrives tomorrow at 6:00 and hatches by the evening.</string>
     <string name="egg_tomorrow_supporter">Supporters get a second egg every day.</string>
 
     <string name="collection_title">Nursery · %1$d of %2$d</string>
