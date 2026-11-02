@@ -24,7 +24,7 @@ android {
         applicationId = "n7.glyphpet"
         minSdk = 35
         targetSdk = 37
-        versionCode = 3
+        versionCode = 4
         versionName = "1.0"
     }
 
