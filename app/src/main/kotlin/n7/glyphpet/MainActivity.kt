@@ -85,7 +85,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         store = PetStore(this)
         billing = SupporterBilling(this, store)
-        billing.connect()
         setContent {
             N7GlyphTheme {
                 val price by billing.price.collectAsState()
