@@ -5,7 +5,7 @@ import android.content.SharedPreferences
 import android.os.BatteryManager
 import kotlin.random.Random
 
-/** The whole save: needs of the active pet, today's egg, the collection and the supporter unlock. */
+/** The whole save as the screens see it: needs of the active pet, today's egg, the collection and the supporter unlock. */
 data class Nursery(
     val stats: PetStats,
     val active: Species?,
@@ -19,8 +19,8 @@ data class Nursery(
 
 /**
  * The one save, shared by the app screen and the Glyph Toy service. Every change reads the latest
- * saved state, moves it to now (needs drift, eggs get laid and hatch), applies the change and saves,
- * so both sides can act without overwriting each other.
+ * saved state, moves it to now with [PetRules] and [NurseryRules], applies the change and saves,
+ * so both sides can act without overwriting each other. All game logic lives in those rules.
  */
 class PetStore(context: Context) {
 
@@ -37,45 +37,17 @@ class PetStore(context: Context) {
     fun nursery(nowMs: Long = System.currentTimeMillis()): Nursery {
         val stats = PetRules.advance(loadStats(nowMs), nowMs, isCharging())
         saveStats(stats)
-        val edit = prefs.edit()
-
-        var egg = loadEgg()
-        if (egg != null && EggRules.isReady(egg, nowMs)) {
-            val key = KEY_SEEN + egg.speciesId
-            edit.putInt(key, prefs.getInt(key, 0) + 1)
-                .putString(KEY_ACTIVE, egg.speciesId)
-                .putLong(KEY_HATCHED_AT, nowMs)
-                .putString(KEY_HATCHED_ID, egg.speciesId)
-            clearEgg(edit)
-            egg = null
-        }
-
-        val today = EggRules.dayKey(nowMs)
-        val laidToday = if (prefs.getInt(KEY_EGG_DAY, 0) == today) prefs.getInt(KEY_EGG_DAY_COUNT, 0) else 0
-        val supporter = prefs.getBoolean(KEY_SUPPORTER, false)
-        val allowance = EggRules.eggsPerDay(supporter)
-        var laid = laidToday
-        if (egg == null && laid < allowance) {
-            val firstEver = prefs.getString(KEY_ACTIVE, null) == null && !prefs.contains(KEY_EGG_SPECIES)
-            val species = SpeciesCatalog.roll(Random(nowMs))
-            egg = Egg(species.id, nowMs, 0, if (firstEver) EggRules.FIRST_HATCH_MS else EggRules.HATCH_MS, supporter)
-            saveEgg(edit, egg)
-            laid += 1
-            edit.putInt(KEY_EGG_DAY, today).putInt(KEY_EGG_DAY_COUNT, laid)
-        }
-        edit.apply()
-
-        val hatchedAt = prefs.getLong(KEY_HATCHED_AT, 0)
-        val justHatched = if (nowMs - hatchedAt in 0..JUST_HATCHED_MS) SpeciesCatalog.get(prefs.getString(KEY_HATCHED_ID, null)) else null
+        val state = NurseryRules.advance(loadState(), nowMs, Random(nowMs))
+        saveState(state)
         return Nursery(
             stats = stats,
-            active = SpeciesCatalog.get(prefs.getString(KEY_ACTIVE, null)),
-            egg = egg,
-            collection = SpeciesCatalog.all.associate { it.id to prefs.getInt(KEY_SEEN + it.id, 0) },
-            supporter = supporter,
-            eggsLeftToday = (allowance - laid).coerceAtLeast(0),
-            instantHatchAvailable = supporter && egg != null && prefs.getInt(KEY_INSTANT_DAY, 0) != today,
-            justHatched = justHatched,
+            active = SpeciesCatalog.get(state.active),
+            egg = state.egg,
+            collection = SpeciesCatalog.all.associate { it.id to (state.seen[it.id] ?: 0) },
+            supporter = state.supporter,
+            eggsLeftToday = NurseryRules.eggsLeftToday(state, nowMs),
+            instantHatchAvailable = NurseryRules.instantHatchAvailable(state, nowMs),
+            justHatched = NurseryRules.justHatched(state, nowMs),
         )
     }
 
@@ -96,30 +68,27 @@ class PetStore(context: Context) {
 
     /** Warms today's egg (long-press); false while cooling down or when there is no egg. */
     @Synchronized
-    fun warmEgg(nowMs: Long = System.currentTimeMillis()): Boolean {
-        val egg = loadEgg() ?: return false
-        if (nowMs - prefs.getLong(KEY_LAST_WARM, 0) < EggRules.WARM_COOLDOWN_MS) return false
-        prefs.edit().putLong(KEY_EGG_WARM, egg.warmMs + EggRules.WARM_MS).putLong(KEY_LAST_WARM, nowMs).apply()
-        return true
-    }
+    fun warmEgg(nowMs: Long = System.currentTimeMillis()): Boolean = changeState { NurseryRules.warm(it, nowMs) }
 
     /** Supporters hatch one egg a day right away. */
     @Synchronized
-    fun hatchNow(nowMs: Long = System.currentTimeMillis()): Boolean {
-        val egg = loadEgg() ?: return false
-        val today = EggRules.dayKey(nowMs)
-        if (!prefs.getBoolean(KEY_SUPPORTER, false) || prefs.getInt(KEY_INSTANT_DAY, 0) == today) return false
-        prefs.edit().putLong(KEY_EGG_WARM, egg.hatchMs).putInt(KEY_INSTANT_DAY, today).apply()
-        return true
-    }
+    fun hatchNow(nowMs: Long = System.currentTimeMillis()): Boolean = changeState { NurseryRules.hatchNow(it, nowMs) }
 
     /** Makes a collected pet the one on the matrix. */
+    @Synchronized
     fun setActive(speciesId: String) {
-        if (prefs.getInt(KEY_SEEN + speciesId, 0) > 0) prefs.edit().putString(KEY_ACTIVE, speciesId).apply()
+        saveState(NurseryRules.setActive(loadState(), speciesId))
     }
 
+    @Synchronized
     fun setSupporter(value: Boolean) {
-        prefs.edit().putBoolean(KEY_SUPPORTER, value).apply()
+        saveState(loadState().copy(supporter = value))
+    }
+
+    private fun changeState(change: (NurseryState) -> NurseryState?): Boolean {
+        val next = change(loadState()) ?: return false
+        saveState(next)
+        return true
     }
 
     private fun loadStats(nowMs: Long): PetStats {
@@ -143,31 +112,58 @@ class PetStore(context: Context) {
             .apply()
     }
 
-    private fun loadEgg(): Egg? {
-        val species = prefs.getString(KEY_EGG_SPECIES, null) ?: return null
-        return Egg(
-            speciesId = species,
-            laidAtMs = prefs.getLong(KEY_EGG_LAID, 0),
-            warmMs = prefs.getLong(KEY_EGG_WARM, 0),
-            hatchMs = prefs.getLong(KEY_EGG_HATCH_MS, EggRules.HATCH_MS),
-            golden = prefs.getBoolean(KEY_EGG_GOLDEN, false),
+    private fun loadState(): NurseryState {
+        val eggSpecies = prefs.getString(KEY_EGG_SPECIES, null)
+        return NurseryState(
+            egg = eggSpecies?.let {
+                Egg(
+                    speciesId = it,
+                    laidAtMs = prefs.getLong(KEY_EGG_LAID, 0),
+                    warmMs = prefs.getLong(KEY_EGG_WARM, 0),
+                    hatchMs = prefs.getLong(KEY_EGG_HATCH_MS, EggRules.HATCH_MS),
+                    golden = prefs.getBoolean(KEY_EGG_GOLDEN, false),
+                )
+            },
+            active = prefs.getString(KEY_ACTIVE, null),
+            seen = SpeciesCatalog.all.associate { it.id to prefs.getInt(KEY_SEEN + it.id, 0) }.filterValues { it > 0 },
+            supporter = prefs.getBoolean(KEY_SUPPORTER, false),
+            eggDay = prefs.getInt(KEY_EGG_DAY, 0),
+            eggDayCount = prefs.getInt(KEY_EGG_DAY_COUNT, 0),
+            // Saves from before this flag existed: any recorded egg day means an egg was laid already.
+            everLaid = prefs.getBoolean(KEY_EVER_LAID, prefs.contains(KEY_EGG_DAY)),
+            lastWarmMs = prefs.getLong(KEY_LAST_WARM, 0),
+            instantDay = prefs.getInt(KEY_INSTANT_DAY, 0),
+            hatchedAtMs = prefs.getLong(KEY_HATCHED_AT, 0),
+            hatchedId = prefs.getString(KEY_HATCHED_ID, null),
         )
     }
 
-    private fun saveEgg(edit: SharedPreferences.Editor, egg: Egg) {
-        edit.putString(KEY_EGG_SPECIES, egg.speciesId)
-            .putLong(KEY_EGG_LAID, egg.laidAtMs)
-            .putLong(KEY_EGG_WARM, egg.warmMs)
-            .putLong(KEY_EGG_HATCH_MS, egg.hatchMs)
-            .putBoolean(KEY_EGG_GOLDEN, egg.golden)
-    }
-
-    private fun clearEgg(edit: SharedPreferences.Editor) {
-        edit.remove(KEY_EGG_SPECIES).remove(KEY_EGG_LAID).remove(KEY_EGG_WARM).remove(KEY_EGG_HATCH_MS).remove(KEY_EGG_GOLDEN)
+    private fun saveState(s: NurseryState) {
+        val e = prefs.edit()
+        val egg = s.egg
+        if (egg == null) {
+            e.remove(KEY_EGG_SPECIES).remove(KEY_EGG_LAID).remove(KEY_EGG_WARM).remove(KEY_EGG_HATCH_MS).remove(KEY_EGG_GOLDEN)
+        } else {
+            e.putString(KEY_EGG_SPECIES, egg.speciesId)
+                .putLong(KEY_EGG_LAID, egg.laidAtMs)
+                .putLong(KEY_EGG_WARM, egg.warmMs)
+                .putLong(KEY_EGG_HATCH_MS, egg.hatchMs)
+                .putBoolean(KEY_EGG_GOLDEN, egg.golden)
+        }
+        if (s.active != null) e.putString(KEY_ACTIVE, s.active) else e.remove(KEY_ACTIVE)
+        s.seen.forEach { (id, count) -> e.putInt(KEY_SEEN + id, count) }
+        e.putBoolean(KEY_SUPPORTER, s.supporter)
+            .putInt(KEY_EGG_DAY, s.eggDay)
+            .putInt(KEY_EGG_DAY_COUNT, s.eggDayCount)
+            .putBoolean(KEY_EVER_LAID, s.everLaid)
+            .putLong(KEY_LAST_WARM, s.lastWarmMs)
+            .putInt(KEY_INSTANT_DAY, s.instantDay)
+            .putLong(KEY_HATCHED_AT, s.hatchedAtMs)
+        if (s.hatchedId != null) e.putString(KEY_HATCHED_ID, s.hatchedId)
+        e.apply()
     }
 
     private companion object {
-        const val JUST_HATCHED_MS = 8000L
         const val KEY_SATIETY = "satiety"
         const val KEY_JOY = "joy"
         const val KEY_ENERGY = "energy"
@@ -182,6 +178,7 @@ class PetStore(context: Context) {
         const val KEY_EGG_GOLDEN = "egg_golden"
         const val KEY_EGG_DAY = "egg_day"
         const val KEY_EGG_DAY_COUNT = "egg_day_count"
+        const val KEY_EVER_LAID = "ever_laid"
         const val KEY_LAST_WARM = "last_warm_at"
         const val KEY_INSTANT_DAY = "instant_day"
         const val KEY_HATCHED_AT = "hatched_at"

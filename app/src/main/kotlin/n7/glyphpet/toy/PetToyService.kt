@@ -12,6 +12,8 @@ import android.util.Log
 import com.nothing.ketchum.Glyph
 import com.nothing.ketchum.GlyphMatrixManager
 import com.nothing.ketchum.GlyphToy
+import n7.glyphpet.pet.ButtonAction
+import n7.glyphpet.pet.ButtonRules
 import n7.glyphpet.pet.EggRules
 import n7.glyphpet.pet.Mood
 import n7.glyphpet.pet.Nursery
@@ -102,12 +104,14 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
     private fun onLongPress() {
         if (!running) startLive()
         val n = nursery ?: store.nursery()
-        when {
-            n.active == null -> if (store.warmEgg()) engine.pet()
-            mood == Mood.SLEEPING -> engine.pet()
-            mood == Mood.HUNGRY || (n.egg == null && n.stats.satiety < 70f) -> engine.feed(store.feed())
-            n.egg != null -> if (store.warmEgg()) engine.pet() else engine.feed(store.feed())
-            else -> { store.update { PetRules.play(it) }; engine.pet() }
+        when (ButtonRules.decide(hasPet = n.active != null, mood = mood, eggWaiting = n.egg != null, satiety = n.stats.satiety)) {
+            ButtonAction.WARM_EGG -> if (store.warmEgg()) engine.pet()
+            ButtonAction.FEED -> engine.feed(store.feed())
+            ButtonAction.PET -> {
+                if (mood != Mood.SLEEPING) store.update { PetRules.play(it) }
+                engine.pet()
+            }
+            ButtonAction.NOTHING -> Unit
         }
         sync(force = true)
         Log.d(TAG, "Long press handled, mood=$mood")

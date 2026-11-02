@@ -47,9 +47,12 @@ object EggRules {
 
     fun eggsPerDay(supporter: Boolean): Int = if (supporter) SUPPORTER_EGGS_PER_DAY else FREE_EGGS_PER_DAY
 
-    /** Local calendar day as yyyymmdd, the unit of "one new egg a day". */
+    /** A game day starts at 6:00 local, so the day's egg arrives in the morning and hatches by the evening. */
+    const val DAY_START_HOUR = 6
+
+    /** Game day as yyyymmdd (local date of the moment [DAY_START_HOUR] hours earlier), the unit of "one new egg a day". */
     fun dayKey(ms: Long): Int {
-        val c = Calendar.getInstance().apply { timeInMillis = ms }
+        val c = Calendar.getInstance().apply { timeInMillis = ms; add(Calendar.HOUR_OF_DAY, -DAY_START_HOUR) }
         return c.get(Calendar.YEAR) * 10000 + (c.get(Calendar.MONTH) + 1) * 100 + c.get(Calendar.DAY_OF_MONTH)
     }
 }
