@@ -25,9 +25,12 @@ class PetEngine(private val random: Random = Random.Default) {
         private const val MIN_X = 7f
         private const val MAX_X = 17f
 
-        /** Frame brightness to the 0..1 levels the Compose preview draws. */
+        /**
+         * Frame brightness to the 0..1 levels the Compose preview draws. Scaled to the body, not to the
+         * maximum: the real LEDs glow, so a body at a third of full power still reads as white on the phone.
+         */
         fun toCells(frame: IntArray): List<Cell> = buildList {
-            for (i in frame.indices) if (frame[i] > 0) add(Cell(i % SIZE, i / SIZE, (frame[i] / BRIGHT.toFloat()).coerceIn(0.15f, 1f)))
+            for (i in frame.indices) if (frame[i] > 0) add(Cell(i % SIZE, i / SIZE, (frame[i] / BODY.toFloat()).coerceIn(0.15f, 1f)))
         }
     }
 
