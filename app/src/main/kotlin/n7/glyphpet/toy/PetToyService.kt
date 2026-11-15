@@ -21,11 +21,13 @@ import n7.glyphpet.pet.Nursery
 import n7.glyphpet.pet.PetEngine
 import n7.glyphpet.pet.PetRules
 import n7.glyphpet.pet.PetStore
+import n7.glyphpet.pet.Power
 import n7.glyphpet.pet.Scene
 
 /**
  * The pet as a Glyph Toy. Live: animates at ~12 fps; the long-press does what is needed most
  * (feed a hungry pet, warm today's egg, otherwise stroke); shake and tilt play.
+ * On the charger the pet shows the battery level and the charging speed in its own way.
  * Always-on: one calm frame per EVENT_AOD (once a minute), no animation.
  */
 class PetToyService : Service(), GlyphMatrixManager.Callback {
@@ -48,6 +50,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
     private var lastSyncAt = 0L
     private var nursery: Nursery? = null
     private var mood = Mood.CONTENT
+    private var power = Power.NONE
     private var celebratedId: String? = null
 
     private val toyHandler = Handler(Looper.getMainLooper()) { msg ->
@@ -157,8 +160,10 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             species = n.active,
             mood = mood,
             tilt = tilt,
-            charging = store.isCharging(),
+            charging = power.plugged,
             egg = n.egg?.let { EggRules.view(it, now) },
+            watts = power.watts,
+            battery = power.level,
         )
     }
 
@@ -169,6 +174,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         val n = store.nursery()
         nursery = n
         mood = PetRules.mood(n.stats, store.asleep(n.stats))
+        power = store.power()
         val hatched = n.justHatched
         if (hatched != null && hatched.id != celebratedId) {
             celebratedId = hatched.id

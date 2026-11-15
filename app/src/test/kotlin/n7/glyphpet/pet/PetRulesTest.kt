@@ -63,11 +63,22 @@ class PetRulesTest {
     }
 
     @Test
-    fun `night, charging or exhaustion put the pet to sleep`() {
+    fun `night or exhaustion put the pet to sleep`() {
         val rested = PetStats(50f, 50f, 50f, 0, 0)
-        assertTrue(PetRules.isAsleep(rested, 23, charging = false))
-        assertTrue(PetRules.isAsleep(rested, 12, charging = true))
-        assertTrue(PetRules.isAsleep(rested.copy(energy = 5f), 12, charging = false))
-        assertFalse(PetRules.isAsleep(rested, 12, charging = false))
+        assertTrue(PetRules.isAsleep(rested, 23))
+        assertTrue(PetRules.isAsleep(rested.copy(energy = 5f), 12))
+        assertFalse(PetRules.isAsleep(rested, 12))
+    }
+
+    @Test
+    fun `the charger fills energy while the pet stays awake`() {
+        val start = PetStats(80f, 80f, 50f, 0, 0)
+        val tenMinutes = hour / 6
+        val charged = PetRules.advance(start, tenMinutes, charging = true, hourAt = noon)
+        val unplugged = PetRules.advance(start, tenMinutes, charging = false, hourAt = noon)
+        assertTrue(charged.energy > start.energy)
+        assertTrue(unplugged.energy < start.energy)
+        // Awake either way: hunger grows at the same pace.
+        assertEquals(unplugged.satiety, charged.satiety, 0.001f)
     }
 }

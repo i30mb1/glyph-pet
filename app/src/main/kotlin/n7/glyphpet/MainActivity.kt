@@ -221,6 +221,7 @@ private fun PetScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
 
     var nursery by remember { mutableStateOf(store.nursery()) }
+    var power by remember { mutableStateOf(store.power()) }
     var now by remember { mutableStateOf(GameClock.now()) }
     var frame by remember { mutableStateOf<List<Cell>>(emptyList()) }
     var celebratedAt by remember { mutableStateOf(0L) }
@@ -228,6 +229,7 @@ private fun PetScreen(
 
     fun refresh() {
         nursery = store.nursery()
+        power = store.power()
         now = GameClock.now()
         toyOpened = ui.getBoolean(KEY_TOY_OPENED, false)
         if (nursery.justHatched != null && celebratedAt == 0L) {
@@ -245,8 +247,10 @@ private fun PetScreen(
                 val scene = Scene(
                     species = nursery.active,
                     mood = PetRules.mood(nursery.stats, store.asleep(nursery.stats)),
-                    charging = store.isCharging(),
+                    charging = power.plugged,
                     egg = nursery.egg?.let { EggRules.view(it, now) },
+                    watts = power.watts,
+                    battery = power.level,
                 )
                 frame = PetEngine.toCells(engine.tick(80, scene))
                 delay(80)

@@ -42,22 +42,26 @@ object PetRules {
 
     fun isNight(hour: Int): Boolean = hour >= 23 || hour < 7
 
-    fun isAsleep(stats: PetStats, hour: Int, charging: Boolean): Boolean =
-        isNight(hour) || charging || stats.energy < 10f
+    /** A pet on the charger stays awake during the day: it works out, see [ChargeRenderer]. */
+    fun isAsleep(stats: PetStats, hour: Int): Boolean = isNight(hour) || stats.energy < 10f
 
-    /** Moves [stats] forward to [nowMs] in 10-minute steps; [charging] counts only for the latest step. */
+    /**
+     * Moves [stats] forward to [nowMs] in 10-minute steps. [charging] counts only for the latest step:
+     * the charger fills the pet's energy as fast as sleep does, awake or not.
+     */
     fun advance(stats: PetStats, nowMs: Long, charging: Boolean = false, hourAt: (Long) -> Int = localHour): PetStats {
         if (nowMs <= stats.updatedAtMs) return stats
         var s = stats.copy(updatedAtMs = maxOf(stats.updatedAtMs, nowMs - MAX_CATCH_UP_MS))
         while (s.updatedAtMs < nowMs) {
             val stepEnd = minOf(s.updatedAtMs + STEP_MS, nowMs)
             val hours = (stepEnd - s.updatedAtMs) / HOUR_MS
-            val asleep = isAsleep(s, hourAt(s.updatedAtMs), charging && stepEnd == nowMs)
+            val asleep = isAsleep(s, hourAt(s.updatedAtMs))
+            val resting = asleep || (charging && stepEnd == nowMs)
             val hungry = s.satiety < 25f
             s = s.copy(
                 satiety = (s.satiety - SATIETY_PER_HOUR * hours * (if (asleep) 0.5f else 1f)).clamp(),
                 joy = (s.joy - JOY_PER_HOUR * hours * (if (hungry) 1.5f else 1f) * (if (asleep) 0.3f else 1f)).clamp(),
-                energy = (s.energy + (if (asleep) ENERGY_ASLEEP_PER_HOUR else -ENERGY_AWAKE_PER_HOUR) * hours).clamp(),
+                energy = (s.energy + (if (resting) ENERGY_ASLEEP_PER_HOUR else -ENERGY_AWAKE_PER_HOUR) * hours).clamp(),
                 updatedAtMs = stepEnd,
             )
         }

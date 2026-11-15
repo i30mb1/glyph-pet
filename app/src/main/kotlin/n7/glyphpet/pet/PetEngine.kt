@@ -14,6 +14,9 @@ data class Scene(
     val tilt: Float = 0f,
     val charging: Boolean = false,
     val egg: EggView? = null,
+    /** While [charging]: how fast, and how full the battery is (0..1). */
+    val watts: Float = 0f,
+    val battery: Float = 1f,
 )
 
 /**
@@ -49,6 +52,11 @@ class PetEngine(private val random: Random = Random.Default) {
     private var wobbleLeftMs = 0L
     private var yawnInMs = 6000L
     private var yawnLeftMs = 0L
+    private var wasCharging: Boolean? = null
+    private var plugMs = -1L
+    private var watts = 0f
+    private var spin = 0.0
+    private var pace = 0.0
 
     /** Food drops from the top; a full pet frowns instead. */
     fun feed(accepted: Boolean) {
@@ -79,7 +87,11 @@ class PetEngine(private val random: Random = Random.Default) {
             Mood.CONTENT -> Face.IDLE
         }
         val dx = if (scene.egg != null) -3 else 0
-        SpeciesRenderer.render(species, face, dx = dx, charging = scene.charging, frame = frame)
+        if (scene.charging) {
+            ChargeRenderer.render(species, chargeState(scene, still = true), frame = frame)
+        } else {
+            SpeciesRenderer.render(species, face, dx = dx, frame = frame)
+        }
         scene.egg?.let { EggRenderer.mini(frame, it) }
         return frame
     }
@@ -96,20 +108,73 @@ class PetEngine(private val random: Random = Random.Default) {
         }
 
         val asleep = scene.mood == Mood.SLEEPING
+        updateCharge(dtMs, scene, asleep)
+        updateBlink(dtMs, asleep)
+        if (scene.charging) {
+            // On the charger the pet stays put and shows its charging indicator; food is eaten on the spot.
+            if (foodY != null) { foodY = null; start(Action.EATING, 1800) }
+            ChargeRenderer.render(species, chargeState(scene, still = asleep), plugMs.takeIf { it >= 0 }, frame)
+            scene.egg?.let { EggRenderer.mini(frame, it, wobble()) }
+            return frame
+        }
+
         val range = wanderRange(species, scene.egg != null)
         val sliding = !asleep && action == Action.NONE && abs(scene.tilt) > 0.3f
         updateFood(dtMs, species)
         updateMovement(dtMs, scene, range, asleep, sliding)
-        updateBlink(dtMs, asleep)
         updateYawn(dtMs, scene.mood)
 
         val face = face(scene.mood, asleep, sliding)
         val jitter = if (action == Action.REFUSING) (if ((time / 120) % 2 == 0L) -1 else 1) else 0
         val dx = x.roundToInt() + jitter
-        SpeciesRenderer.render(species, face, blink = blinkLeftMs > 0, dx = dx, charging = scene.charging && asleep, frame = frame)
+        SpeciesRenderer.render(species, face, blink = blinkLeftMs > 0, dx = dx, frame = frame)
         foodY?.let { fy -> SpeciesRenderer.glyph(frame, listOf("oo", "oo"), species.ox + dx + species.width / 2 - 1, fy.toInt()) }
         scene.egg?.let { EggRenderer.mini(frame, it, wobble()) }
         return frame
+    }
+
+    /** Starts the plug-in moment and moves the charging motion on: faster with more watts, smoothed so it never jumps. */
+    private fun updateCharge(dtMs: Long, scene: Scene, asleep: Boolean) {
+        if (wasCharging == false && scene.charging && !asleep) plugMs = 0
+        wasCharging = scene.charging
+        if (!scene.charging) {
+            plugMs = -1
+            watts = 0f
+            return
+        }
+        if (plugMs >= 0) {
+            plugMs += dtMs
+            if (plugMs >= ChargeRenderer.PLUG_MS) plugMs = -1
+        }
+        watts += (scene.watts - watts) * (dtMs / 1500f).coerceAtMost(1f)
+        val seconds = dtMs / 1000.0
+        spin += seconds * (3 + 0.48 * watts)
+        pace += seconds * (1 + 0.1 * watts)
+    }
+
+    private fun chargeState(scene: Scene, still: Boolean) = ChargeState(
+        timeMs = time,
+        spin = spin,
+        pace = pace,
+        watts = if (still) scene.watts else watts,
+        level = scene.battery,
+        still = still,
+        blink = blinkLeftMs > 0,
+        reaction = if (still) null else reaction(),
+        needy = scene.mood == Mood.HUNGRY || scene.mood == Mood.SAD,
+        // With an egg beside it the pet keeps its usual spot left of the egg instead of standing on the rim.
+        dx = if (scene.egg != null) -3 else 0,
+        stand = scene.egg == null,
+    )
+
+    /** The face of what was just done to the pet, if anything. */
+    private fun reaction(): Face? = when (action) {
+        Action.NONE -> null
+        Action.CELEBRATING -> Face.HAPPY
+        Action.DIZZY -> Face.DIZZY
+        Action.EATING -> if ((time / 250) % 2 == 0L) Face.EAT else Face.CONTENT
+        Action.LOVED -> Face.LOVE
+        Action.REFUSING -> Face.ANGRY
     }
 
     private fun start(next: Action, durationMs: Long) {
@@ -207,11 +272,7 @@ class PetEngine(private val random: Random = Random.Default) {
 
     private fun face(mood: Mood, asleep: Boolean, sliding: Boolean): Face = when {
         asleep -> Face.SLEEP
-        action == Action.CELEBRATING -> Face.HAPPY
-        action == Action.DIZZY -> Face.DIZZY
-        action == Action.EATING -> if ((time / 250) % 2 == 0L) Face.EAT else Face.CONTENT
-        action == Action.LOVED -> Face.LOVE
-        action == Action.REFUSING -> Face.ANGRY
+        action != Action.NONE -> reaction() ?: Face.IDLE
         sliding -> Face.SCARED
         yawnLeftMs > 0 -> Face.YAWN
         mood == Mood.HUNGRY || mood == Mood.SAD -> Face.HUNGRY

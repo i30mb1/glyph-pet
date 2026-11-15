@@ -70,7 +70,7 @@
     <string name="next_egg_soon">Дальше: второе яйцо дня, прямо сейчас.</string>
     <string name="next_egg_tomorrow">Дальше: новое яйцо завтра в 6:00.</string>
 
-    <string name="mood_sleeping">Спит. Проснётся утром или когда отключишь зарядку.</string>
+    <string name="mood_sleeping">Спит. Проснётся утром или когда отдохнёт.</string>
     <string name="mood_hungry">Голодный. Зажми кнопку Glyph или нажми «Покормить».</string>
     <string name="mood_tired">Устал и скоро уснёт.</string>
     <string name="mood_sad">Скучает. Потряси телефон или погладь.</string>

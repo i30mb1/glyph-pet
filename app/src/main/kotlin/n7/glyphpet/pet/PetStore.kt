@@ -1,10 +1,32 @@
 package n7.glyphpet.pet
 
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.os.BatteryManager
+import kotlin.math.abs
 import kotlin.random.Random
 import n7.glyphpet.GameClock
+
+/** The charger as the pet sees it. [watts] is what flows into the battery, [level] is the charge, 0..1. */
+data class Power(val plugged: Boolean, val watts: Float, val level: Float) {
+    companion object {
+        val NONE = Power(plugged = false, watts = 0f, level = 1f)
+
+        /** Shown when the phone charges but does not say how fast. */
+        const val UNKNOWN_WATTS = 10f
+
+        /**
+         * [currentNow] as BatteryManager reports it: microamperes, of either sign depending on the phone,
+         * Int.MIN_VALUE when unsupported.
+         */
+        fun watts(currentNow: Int, milliVolts: Int): Float {
+            if (currentNow == Int.MIN_VALUE || currentNow == 0 || milliVolts <= 0) return UNKNOWN_WATTS
+            return (abs(currentNow.toLong()) / 1_000_000f * (milliVolts / 1000f)).coerceAtMost(120f)
+        }
+    }
+}
 
 /** The whole save as the screens see it: needs of the active pet, today's egg, the collection and the supporter unlock. */
 data class Nursery(
@@ -25,13 +47,33 @@ data class Nursery(
  */
 class PetStore(context: Context) {
 
-    private val prefs: SharedPreferences = context.applicationContext.getSharedPreferences("pet", Context.MODE_PRIVATE)
-    private val battery = context.applicationContext.getSystemService(BatteryManager::class.java)
+    private val app = context.applicationContext
+    private val prefs: SharedPreferences = app.getSharedPreferences("pet", Context.MODE_PRIVATE)
+    private val battery = app.getSystemService(BatteryManager::class.java)
 
     fun isCharging(): Boolean = battery?.isCharging == true
 
+    /** Cable state, charging speed and battery level right now. Costs a system call: read it every second or two, not every frame. */
+    fun power(): Power {
+        val sticky = app.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)) ?: return Power.NONE
+        val plugged = sticky.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0
+        val scale = sticky.getIntExtra(BatteryManager.EXTRA_SCALE, 100).coerceAtLeast(1)
+        val level = (sticky.getIntExtra(BatteryManager.EXTRA_LEVEL, scale).toFloat() / scale).coerceIn(0f, 1f)
+        val status = sticky.getIntExtra(BatteryManager.EXTRA_STATUS, BatteryManager.BATTERY_STATUS_UNKNOWN)
+        val full = status == BatteryManager.BATTERY_STATUS_FULL
+        val watts = if (plugged && status == BatteryManager.BATTERY_STATUS_CHARGING) {
+            Power.watts(
+                currentNow = battery?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW) ?: Int.MIN_VALUE,
+                milliVolts = sticky.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 0),
+            )
+        } else {
+            0f
+        }
+        return Power(plugged, watts, if (full) 1f else level)
+    }
+
     fun asleep(stats: PetStats, nowMs: Long = GameClock.now()): Boolean =
-        PetRules.isAsleep(stats, PetRules.localHour(nowMs), isCharging())
+        PetRules.isAsleep(stats, PetRules.localHour(nowMs))
 
     /** Brings everything up to now and returns it. */
     @Synchronized

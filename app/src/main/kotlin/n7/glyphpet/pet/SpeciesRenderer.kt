@@ -57,46 +57,55 @@ object SpeciesRenderer {
     private val BANG = listOf("o", "o", "o", ".", "o")
     private val STAR = listOf(".o.", "ooo", ".o.")
     private val DROP = listOf(".o", "oo", "oo")
-    private val BOLT = listOf("..o", ".oo", "ooo", "oo.", "o..")
     private val SPARK = listOf("o.....o")
 
     /**
+     * The silhouette of [species] with [face] carved in: '#' body, 'o' bright, '.' empty.
      * @param blink close the eyes for this frame (idle blinking).
-     * @param dx horizontal shift from the species' home spot (wandering, tilt).
-     * @param charging draw a bolt next to the pet.
-     * @param bodyLevel overall dimming, 1 = normal.
+     * @param eyeDx shifts the eyes sideways (a darting pupil).
+     * @param mouth false leaves the mouth slot untouched.
      */
-    fun render(
-        species: Species,
-        face: Face,
-        blink: Boolean = false,
-        dx: Int = 0,
-        charging: Boolean = false,
-        frame: IntArray = IntArray(SIZE * SIZE),
-    ): IntArray {
+    fun carve(species: Species, face: Face, blink: Boolean = false, eyeDx: Int = 0, mouth: Boolean = true): List<CharArray> {
         val look = LOOKS.getValue(face)
         val eyes = if (blink && look.eyes == Eyes.OPEN) Eyes.CLOSED else look.eyes
         val grid = species.rows.map { it.toCharArray() }
         fun cell(x: Int, y: Int, c: Char) {
             if (y in grid.indices && x in grid[y].indices) grid[y][x] = c
         }
-        val carve = if (species.inverted) 'o' else '.'
+        val hole = if (species.inverted) 'o' else '.'
 
-        species.eyes.forEachIndexed { i, (ex, ey) ->
+        species.eyes.forEachIndexed { i, (homeX, ey) ->
+            val ex = homeX + eyeDx
             val mirror = i == 1 && eyes != Eyes.SICK
             when (eyes) {
                 Eyes.LOVE -> for (d in EYES.getValue(Eyes.OPEN)) cell(ex + d.first, ey + d.second, 'o')
                 Eyes.SCARED -> {
-                    for (d in EYES.getValue(Eyes.OPEN)) cell(ex + d.first, ey + d.second, carve)
+                    for (d in EYES.getValue(Eyes.OPEN)) cell(ex + d.first, ey + d.second, hole)
                     cell(ex + if (mirror) 1 else 0, ey, if (species.inverted) '.' else 'o')
                 }
-                else -> for ((ddx, ddy) in EYES.getValue(eyes)) cell(ex + if (mirror) 1 - ddx else ddx, ey + ddy, carve)
+                else -> for ((ddx, ddy) in EYES.getValue(eyes)) cell(ex + if (mirror) 1 - ddx else ddx, ey + ddy, hole)
             }
         }
-        species.mouth?.let { (mx, my) ->
-            for ((ddx, ddy) in MOUTHS.getValue(look.mouth)) cell(mx + ddx, my + ddy, carve)
+        if (mouth) species.mouth?.let { (mx, my) ->
+            for ((ddx, ddy) in MOUTHS.getValue(look.mouth)) cell(mx + ddx, my + ddy, hole)
             if (look.mouth == Mouth.TEETH) cell(mx + 1, my + 1, if (species.inverted) '.' else 'o')
         }
+        return grid
+    }
+
+    /**
+     * @param blink close the eyes for this frame (idle blinking).
+     * @param dx horizontal shift from the species' home spot (wandering, tilt).
+     */
+    fun render(
+        species: Species,
+        face: Face,
+        blink: Boolean = false,
+        dx: Int = 0,
+        frame: IntArray = IntArray(SIZE * SIZE),
+    ): IntArray {
+        val look = LOOKS.getValue(face)
+        val grid = carve(species, face, blink)
 
         val ox = species.ox + dx
         val oy = species.oy - look.jump
@@ -133,7 +142,6 @@ object SpeciesRenderer {
             }
         }
         species.extras[face]?.forEach { o -> glyph(frame, o.rows, o.x + dx, o.y, (BODY * o.level).toInt(), BRIGHT) }
-        if (charging) glyph(frame, BOLT, sideX, sideY - 2)
         return frame
     }
 

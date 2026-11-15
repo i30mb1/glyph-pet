@@ -8,6 +8,9 @@ enum class Face { IDLE, CONTENT, HAPPY, LOVE, EAT, SLEEP, YAWN, HUNGRY, ANGRY, S
 /** Extra bright dots for one face, in matrix coordinates. [level] < 1 draws '#' cells dimmer. */
 class Overlay(val rows: List<String>, val x: Int, val y: Int, val level: Float = 1f)
 
+/** How a species shows that the phone is charging; see [ChargeRenderer]. */
+enum class ChargeWay { WHEEL, FILL, BAR, STORM, BEAM, IRIS }
+
 /**
  * A pet species: its silhouette ('#' body, 'o' always-bright detail, '.' empty), where it stands
  * on the matrix, and the 2x2 eye and 3x2 mouth slots the faces are carved into.
@@ -25,6 +28,7 @@ class Species(
     val inverted: Boolean = false,
     val extras: Map<Face, List<Overlay>> = emptyMap(),
     val replaces: Set<Face> = emptySet(),
+    val charge: ChargeWay = ChargeWay.WHEEL,
 ) {
     val width: Int get() = rows[0].length
     val height: Int get() = rows.size
@@ -56,6 +60,7 @@ object SpeciesCatalog {
                 "###########", "###########", "###########", "###########", "###.###.###", ".#...#...#.",
             ),
             ox = 7, oy = 5, eyes = listOf(2 to 4, 7 to 4), mouth = 4 to 7,
+            charge = ChargeWay.FILL,
         ),
         Species(
             "bot", "Bot", Rarity.RARE,
@@ -66,6 +71,7 @@ object SpeciesCatalog {
             ox = 7, oy = 8, eyes = listOf(2 to 4, 7 to 4), mouth = 4 to 6, inverted = true,
             extras = mapOf(Face.EAT to listOf(Overlay(listOf("oooo.", "o..oo", "oooo."), 17, 4))),
             replaces = setOf(Face.EAT),
+            charge = ChargeWay.BAR,
         ),
         Species(
             "frog", "Frog", Rarity.RARE,
@@ -93,6 +99,7 @@ object SpeciesCatalog {
                 "###########", "###########", "#.#.#.#.#.#", "#.#.#.#.#.#", ".#..#.#..#.", ".#...#...#.",
             ),
             ox = 7, oy = 6, eyes = listOf(2 to 3, 7 to 3), mouth = 4 to 6,
+            charge = ChargeWay.FILL,
         ),
         Species(
             "bunny", "Bunny", Rarity.COMMON,
@@ -117,6 +124,7 @@ object SpeciesCatalog {
                 "...#######...", "...#######...", "...#######...", "...#######...", "...#######...", "..#########..",
             ),
             ox = 6, oy = 7, eyes = listOf(4 to 7, 7 to 7), mouth = 5 to 9,
+            charge = ChargeWay.FILL,
         ),
         Species(
             "cloud", "Cloud", Rarity.COMMON,
@@ -130,6 +138,7 @@ object SpeciesCatalog {
                 Face.SICK to listOf(RAIN),
                 Face.HAPPY to listOf(Overlay(listOf("o.o.o", ".ooo.", "ooooo", ".ooo.", "o.o.o"), 16, 2)),
             ),
+            charge = ChargeWay.STORM,
         ),
         Species(
             "owl", "Owl", Rarity.COMMON,
@@ -156,6 +165,7 @@ object SpeciesCatalog {
             ox = 7, oy = 6, eyes = listOf(3 to 3, 6 to 3), mouth = 4 to 7,
             extras = mapOf(Face.EAT to listOf(Overlay(listOf(".o.", "...", "o.o", "...", ".o."), 11, 0))),
             replaces = setOf(Face.EAT),
+            charge = ChargeWay.FILL,
         ),
         Species(
             "penguin", "Penguin", Rarity.COMMON,
@@ -172,6 +182,7 @@ object SpeciesCatalog {
                 "#############", "#############", "#############", ".#.##..###.#.", "....#....#...",
             ),
             ox = 6, oy = 10, eyes = listOf(3 to 3, 8 to 3), mouth = 5 to 6,
+            charge = ChargeWay.FILL,
         ),
         // Legendary: the three crazy ones
         Species(
@@ -182,6 +193,7 @@ object SpeciesCatalog {
             ),
             ox = 6, oy = 7, eyes = listOf(5 to 5), mouth = null,
             extras = mapOf(Face.ANGRY to VEINS, Face.SICK to VEINS),
+            charge = ChargeWay.IRIS,
         ),
         Species(
             "toast", "Toast", Rarity.LEGENDARY,
@@ -192,6 +204,7 @@ object SpeciesCatalog {
             ox = 6, oy = 6, eyes = listOf(3 to 5, 8 to 5), mouth = 5 to 8,
             extras = mapOf(Face.EAT to listOf(Overlay(listOf(".ooo.", "ooooo", "..o.."), 10, 2))),
             replaces = setOf(Face.EAT),
+            charge = ChargeWay.FILL,
         ),
         Species(
             "ufo", "UFO", Rarity.LEGENDARY,
@@ -207,6 +220,7 @@ object SpeciesCatalog {
                 ),
             ),
             replaces = setOf(Face.EAT),
+            charge = ChargeWay.BEAM,
         ),
     )
 

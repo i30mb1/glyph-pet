@@ -72,7 +72,7 @@
     <string name="next_egg_soon">Next: your second egg of the day, any moment now.</string>
     <string name="next_egg_tomorrow">Next: a new egg tomorrow at 6:00.</string>
 
-    <string name="mood_sleeping">Sleeping. It wakes up in the morning or when you unplug the charger.</string>
+    <string name="mood_sleeping">Sleeping. It wakes up in the morning or once it has rested.</string>
     <string name="mood_hungry">Hungry. Long-press the Glyph button or tap Feed.</string>
     <string name="mood_tired">Tired. It will nap soon.</string>
     <string name="mood_sad">Bored. Shake the phone or tap Pet.</string>
