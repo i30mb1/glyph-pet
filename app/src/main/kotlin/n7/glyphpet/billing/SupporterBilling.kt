@@ -19,7 +19,7 @@ import n7.glyphpet.pet.PetStore
 
 /**
  * The one-time "Supporter" unlock (Google Play in-app product [PRODUCT_ID], non-consumable):
- * a second egg every day, a golden egg and one instant hatch a day.
+ * every pet the player does not have yet is available as an egg at once, and the eggs are golden (see NurseryRules).
  * The unlock is remembered in [PetStore] and re-checked against Play on every start.
  */
 class SupporterBilling(context: Context, private val store: PetStore) {

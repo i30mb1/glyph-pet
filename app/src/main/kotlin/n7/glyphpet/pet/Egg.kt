@@ -1,63 +1,44 @@
 package n7.glyphpet.pet
 
+import n7.glyph.ui.matrix.GlyphMatrixSpec
 import java.util.Calendar
 
-/** Today's egg: which pet is inside (decided when it is laid) and how far it has come. */
-data class Egg(
-    val speciesId: String,
-    val laidAtMs: Long,
-    val warmMs: Long,
-    val hatchMs: Long,
-    val golden: Boolean,
-)
+/** How far an egg is cracked open. Each press cracks it one step further; the fifth press hatches it. */
+enum class EggStage { WHOLE, CRACKED, CRACKED_MORE, HATCHING }
 
-enum class EggStage { WHOLE, CRACKED, HATCHING }
-
-/** What the matrix shows of the egg. [mini] = a small egg next to the current pet. */
+/** What the matrix shows of the egg in the player's hands. [golden]: a supporter's egg, it glows. */
 data class EggView(val stage: EggStage, val golden: Boolean)
 
 object EggRules {
-    /** A normal egg hatches over most of the day. */
-    const val HATCH_MS = 10 * 60 * 60 * 1000L
-    /** The very first egg hatches in minutes, so a new player meets a pet right away. */
-    const val FIRST_HATCH_MS = 3 * 60 * 1000L
-    /** One warm-up (long-press while an egg waits) brings the hatch this much closer. */
-    const val WARM_MS = 45 * 60 * 1000L
-    const val WARM_COOLDOWN_MS = 20_000L
-    const val FREE_EGGS_PER_DAY = 1
-    const val SUPPORTER_EGGS_PER_DAY = 2
+    /** Presses (long presses of the Glyph button or taps on the egg in the app) that open an egg. */
+    const val PRESSES_TO_HATCH = 5
 
-    fun progress(egg: Egg, nowMs: Long): Float =
-        ((nowMs - egg.laidAtMs + egg.warmMs).toFloat() / egg.hatchMs).coerceIn(0f, 1f)
-
-    fun isReady(egg: Egg, nowMs: Long): Boolean = progress(egg, nowMs) >= 1f
-
-    fun remainingMs(egg: Egg, nowMs: Long): Long = (egg.hatchMs - (nowMs - egg.laidAtMs + egg.warmMs)).coerceAtLeast(0)
-
-    fun stage(egg: Egg, nowMs: Long): EggStage {
-        val p = progress(egg, nowMs)
-        return when {
-            p < 0.45f -> EggStage.WHOLE
-            p < 0.8f -> EggStage.CRACKED
-            else -> EggStage.HATCHING
-        }
-    }
-
-    fun view(egg: Egg, nowMs: Long): EggView = EggView(stage(egg, nowMs), egg.golden)
-
-    fun eggsPerDay(supporter: Boolean): Int = if (supporter) SUPPORTER_EGGS_PER_DAY else FREE_EGGS_PER_DAY
-
-    /** A game day starts at 6:00 local, so the day's egg arrives in the morning and hatches by the evening. */
+    /** A game day starts at 6:00 local: the day's new hero arrives in the morning. */
     const val DAY_START_HOUR = 6
 
-    /** Game day as yyyymmdd (local date of the moment [DAY_START_HOUR] hours earlier), the unit of "one new egg a day". */
+    /** whole, cracked, cracked more, hatching (the 4th and 5th press), then it hatches. */
+    fun stage(presses: Int): EggStage = when {
+        presses <= 0 -> EggStage.WHOLE
+        presses == 1 -> EggStage.CRACKED
+        presses == 2 -> EggStage.CRACKED_MORE
+        else -> EggStage.HATCHING
+    }
+
+    /** Game day as yyyymmdd (local date of the moment [DAY_START_HOUR] hours earlier), the unit of "one new hero a day". */
     fun dayKey(ms: Long): Int {
         val c = Calendar.getInstance().apply { timeInMillis = ms; add(Calendar.HOUR_OF_DAY, -DAY_START_HOUR) }
         return c.get(Calendar.YEAR) * 10000 + (c.get(Calendar.MONTH) + 1) * 100 + c.get(Calendar.DAY_OF_MONTH)
     }
 }
 
-/** The egg on the matrix: big in the middle when there is no pet yet, small beside the pet otherwise. */
+/** Top-left LED of the small egg. */
+data class EggSpot(val left: Int, val top: Int)
+
+/**
+ * The egg on the matrix: big in the middle when there is no pet yet, small at the edge beside a pet. The big egg
+ * wobbles sideways; the small one sits against the round outline with no room to move, so it rocks in place: its top
+ * tips over to the right.
+ */
 object EggRenderer {
     private val BIG = listOf(
         "...###...",
@@ -72,53 +53,77 @@ object EggRenderer {
         "..#####..",
     )
     private val BIG_CRACK = listOf(2 to 4, 3 to 5, 4 to 4, 5 to 5, 6 to 4)
+
+    /** The crack runs right across and a second one climbs up from it. */
+    private val BIG_CRACK_MORE = BIG_CRACK + listOf(0 to 4, 1 to 5, 7 to 5, 8 to 4, 4 to 3, 5 to 2)
     private val CAP = listOf("...###...", "..#####..", ".#######.", ".#.#.#.#.")
     private val SHELL = listOf("#.#.#.#.#", "#########", "#########", "#########", ".#######.", "..#####..")
 
-    private val MINI = listOf(".##.", "####", "####", "####", ".##.")
-    private val MINI_CRACK = listOf(1 to 2, 2 to 3)
-    private val MINI_OPEN = listOf("#..#", "####", "####", ".##.")
+    /**
+     * The small egg, 3 by 4 so it fits the corner of the round outline under any pet: whole, a crack, the top split
+     * open, the shell tips apart with the bright hero between them. Each differs from the next by its shape, so the
+     * stages read the same on a golden egg, whose shell is as bright as the details.
+     */
+    private val MINI: Map<EggStage, List<String>> = mapOf(
+        EggStage.WHOLE to listOf(".#.", "###", "###", ".#."),
+        EggStage.CRACKED to listOf(".#.", "#.#", "##.", ".#."),
+        EggStage.CRACKED_MORE to listOf("#.#", "#.#", "###", ".#."),
+        EggStage.HATCHING to listOf("#.#", ".o.", "###", ".#."),
+    )
 
-    /** [wobble] shifts the egg a cell sideways for a moment: something moves inside. */
+    /** Rows of the small egg that tip over when it rocks. */
+    private const val TIP_ROWS = 2
+
+    /** The big egg's top-left LED. */
+    const val BIG_LEFT = 8
+    const val BIG_TOP = 8
+
+    /** [wobble] shifts the egg a cell sideways for a moment: something moves inside, or the egg was just pressed. */
     fun big(frame: IntArray, view: EggView, wobble: Int = 0) {
-        val left = 8 + wobble
-        val top = 8
-        val body = SpeciesRenderer.BODY
+        val left = BIG_LEFT + wobble
+        val top = BIG_TOP
         when (view.stage) {
-            EggStage.WHOLE, EggStage.CRACKED -> {
+            EggStage.WHOLE, EggStage.CRACKED, EggStage.CRACKED_MORE -> {
                 val grid = BIG.map { it.toCharArray() }
-                if (view.stage == EggStage.CRACKED) BIG_CRACK.forEach { (x, y) -> grid[y][x] = '.' }
-                draw(frame, grid.map(::String), left, top, body, view.golden)
+                val cracks = when (view.stage) {
+                    EggStage.CRACKED -> BIG_CRACK
+                    EggStage.CRACKED_MORE -> BIG_CRACK_MORE
+                    else -> emptyList()
+                }
+                cracks.forEach { (x, y) -> grid[y][x] = '.' }
+                draw(frame, grid.map(::String), left, top, view.golden)
             }
             EggStage.HATCHING -> {
-                draw(frame, CAP, left, top - 3, body, view.golden)
-                draw(frame, SHELL, left, top + 4, body, view.golden)
+                draw(frame, CAP, left, top - 3, view.golden)
+                draw(frame, SHELL, left, top + 4, view.golden)
                 SpeciesRenderer.glyph(frame, listOf("o...o"), left + 2, top + 2)
             }
         }
         if (view.golden) SpeciesRenderer.glyph(frame, listOf("o.........o"), left - 1, top + 1)
     }
 
-    fun mini(frame: IntArray, view: EggView, wobble: Int = 0) {
-        val left = 18 + wobble
-        val top = 15
-        val body = SpeciesRenderer.BODY
-        when (view.stage) {
-            EggStage.WHOLE -> draw(frame, MINI, left, top, body, view.golden)
-            EggStage.CRACKED -> {
-                val grid = MINI.map { it.toCharArray() }
-                MINI_CRACK.forEach { (x, y) -> grid[y][x] = '.' }
-                draw(frame, grid.map(::String), left, top, body, view.golden)
-            }
-            EggStage.HATCHING -> {
-                draw(frame, MINI_OPEN, left, top + 1, body, view.golden)
-                SpeciesRenderer.glyph(frame, listOf("o..o"), left, top)
-            }
+    /** [tipped]: the egg rocks, its top tips one LED to the right. */
+    fun mini(frame: IntArray, view: EggView, spot: EggSpot, tipped: Boolean = false) {
+        draw(frame, miniRows(view.stage, tipped), spot.left, spot.top, view.golden)
+    }
+
+    private fun miniRows(stage: EggStage, tipped: Boolean): List<String> {
+        val rows = MINI.getValue(stage)
+        return if (tipped) rows.mapIndexed { y, row -> if (y < TIP_ROWS) ".$row" else row } else rows
+    }
+
+    /** Every LED the small egg at [spot] can light, in any stage, golden or not, upright or tipped. */
+    fun miniCells(spot: EggSpot): Set<Pair<Int, Int>> = buildSet {
+        for (stage in EggStage.entries) for (tipped in listOf(false, true)) miniRows(stage, tipped).forEachIndexed { y, row ->
+            row.forEachIndexed { x, c -> if (c != '.') add(spot.left + x to spot.top + y) }
         }
     }
 
-    private fun draw(frame: IntArray, rows: List<String>, left: Int, top: Int, body: Int, golden: Boolean) {
+    /** Whether the whole small egg at [spot] stays on the round matrix, rocking included. */
+    fun fits(spot: EggSpot): Boolean = miniCells(spot).all { (x, y) -> GlyphMatrixSpec.isVisible(x, y) }
+
+    private fun draw(frame: IntArray, rows: List<String>, left: Int, top: Int, golden: Boolean) {
         // A golden egg (supporters) glows: its shell is drawn at full brightness.
-        SpeciesRenderer.glyph(frame, rows, left, top, hashValue = if (golden) SpeciesRenderer.BRIGHT else body)
+        SpeciesRenderer.glyph(frame, rows, left, top, hashValue = if (golden) SpeciesRenderer.BRIGHT else SpeciesRenderer.BODY)
     }
 }

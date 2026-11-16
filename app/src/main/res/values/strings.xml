@@ -1,9 +1,10 @@
 <resources>
     <string name="app_name" translatable="false">Glyph Pet</string>
     <string name="toy_name" translatable="false">Glyph Pet</string>
-    <string name="toy_summary">A new egg every day. Hatch one of 18 pets on your Glyph Matrix and look after it.</string>
+    <string name="toy_summary">A new pet every day, as an egg. Five presses hatch it on your Glyph Matrix. Collect all 18.</string>
 
-    <string name="main_hint">A new egg every day</string>
+    <string name="tagline">A pet that lives on your Glyph Matrix.</string>
+    <string name="main_hint">A new pet every day, as an egg</string>
     <string name="need_food">Food</string>
     <string name="need_joy">Joy</string>
     <string name="need_sleep">Sleep</string>
@@ -11,38 +12,32 @@
     <string name="action_pet">Pet</string>
     <string name="activate_toy">Activate toy</string>
 
-    <string name="egg_title">Egg of the day</string>
-    <string name="egg_hatches_in">Hatches in %1$d h %2$d min</string>
-    <string name="egg_any_second">Hatching any second</string>
-    <string name="egg_hint">Something moves inside. Warm it with a long-press of the Glyph button to hatch it sooner.</string>
-    <string name="egg_warm">Warm up</string>
-    <string name="egg_hatch_now">Hatch now</string>
-    <string name="egg_tomorrow">Today\'s egg has hatched. The next one arrives tomorrow at 6:00 and hatches by the evening.</string>
-    <string name="egg_tomorrow_supporter">Supporters get a second egg every day.</string>
+    <string name="egg_title">Egg</string>
+    <string name="egg_tile_description">Egg, %1$d of %2$d presses</string>
+    <string name="egg_crack_action">crack the egg</string>
+    <string name="egg_label">Egg</string>
 
     <string name="collection_title">Nursery · %1$d of %2$d</string>
-    <string name="collection_odds">Common 70% · Rare 25% · Legendary 5%. Tap a pet to put it on the matrix.</string>
+    <string name="collection_odds">Every day a new pet comes as an egg, never one you have. Common ones come most often, legendary ones rarely. Tap an egg 5 times to open it, tap a pet to put it on the matrix.</string>
     <string name="rarity_common">Common</string>
     <string name="rarity_rare">Rare</string>
     <string name="rarity_legendary">Legendary</string>
 
     <string name="supporter_title">Supporter</string>
     <string name="supporter_thanks">Thank you for supporting n7!</string>
-    <string name="supporter_perk_egg">A second egg every day</string>
+    <string name="supporter_perk_all">Every pet you do not have yet, as an egg right away</string>
     <string name="supporter_perk_golden">Golden eggs that glow on the matrix</string>
-    <string name="supporter_perk_instant">Hatch one egg right away, once a day</string>
     <string name="supporter_buy">Become a supporter · %1$s</string>
     <string name="supporter_unavailable">Coming soon on Google Play</string>
 
     <string name="step_activate">Activate Glyph Pet in Glyph Toys</string>
-    <string name="step_button">Long-press the Glyph button: it feeds, warms the egg or pets, whatever is needed most</string>
     <string name="step_play">Shake gently to play, tilt to make it slide</string>
     <string name="step_aod">Set it as the Always-on Glyph Toy to keep it with you</string>
 
-    <string name="intro_1_title">An egg every day</string>
-    <string name="intro_1_text">Every morning a new egg appears. By the evening a pet hatches from it. Which one is a surprise: one of 18.</string>
+    <string name="intro_1_title">A new pet every day</string>
+    <string name="intro_1_text">Every day you play, a new pet comes as an egg, always one you do not have yet. Press it five times and it hatches.</string>
     <string name="intro_2_title">One button</string>
-    <string name="intro_2_text">The pet lives on the back of your phone. Hold the Glyph button and it eats, cheers up, or the egg hatches sooner. The app always tells you which.</string>
+    <string name="intro_2_text">The pet lives on the back of your phone. Hold the Glyph button and the egg cracks, or your pet eats or cheers up. The app always tells you which.</string>
     <string name="intro_3_title">Collect all 18</string>
     <string name="intro_3_text">Every new pet joins your nursery. Some are rare, three are legendary.</string>
     <string name="intro_next">Next</string>
@@ -55,27 +50,78 @@
     <string name="now_title">Right now</string>
     <string name="now_egg_first">Your first pet is inside this egg</string>
     <string name="now_hatched">%1$s has hatched!</string>
-    <string name="now_egg_hatch_first">It hatches at %1$s.</string>
-    <string name="now_egg_hatch">A new egg is waiting next to your pet. It hatches at %1$s.</string>
+    <string name="now_eggs_waiting">Eggs waiting: %1$d. Tap one in the nursery to take it in your hands.</string>
+    <string name="now_egg_how">Tap the egg here or hold the Glyph button.</string>
+    <string name="now_egg_presses">Presses left to open the egg: %1$d</string>
     <string name="now_sleeping">%1$s is asleep</string>
+    <string name="now_sick">%1$s feels sick</string>
     <string name="now_hungry">%1$s is hungry</string>
     <string name="now_tired">%1$s is sleepy</string>
     <string name="now_sad">%1$s is bored</string>
     <string name="now_happy">%1$s is happy</string>
     <string name="now_content">%1$s is fine</string>
     <string name="button_now">If you hold the Glyph button now: %1$s.</string>
-    <string name="button_warm">the egg hatches 45 minutes sooner</string>
     <string name="button_feed">your pet eats</string>
     <string name="button_pet">your pet cheers up</string>
+    <string name="button_hatch">the egg hatches</string>
+    <string name="button_crack">the egg cracks</string>
     <string name="button_nothing">nothing happens</string>
-    <string name="next_after_egg">Next: the pet from this egg joins your nursery.</string>
-    <string name="next_egg_soon">Next: your second egg of the day, any moment now.</string>
-    <string name="next_egg_tomorrow">Next: a new egg tomorrow at 6:00.</string>
+    <string name="next_egg_tomorrow">Next: a new pet in an egg tomorrow at 6:00.</string>
+    <string name="next_complete">You have all 18 pets. There are no more eggs.</string>
+    <string name="next_supporter">Every pet you do not have yet is already waiting in an egg.</string>
 
     <string name="mood_sleeping">Sleeping. It wakes up in the morning or once it has rested.</string>
+    <string name="mood_sick">Feels sick. Feed it.</string>
     <string name="mood_hungry">Hungry. Long-press the Glyph button or tap Feed.</string>
     <string name="mood_tired">Tired. It will nap soon.</string>
     <string name="mood_sad">Bored. Shake the phone or tap Pet.</string>
     <string name="mood_happy">Happy and full.</string>
     <string name="mood_content">Doing fine.</string>
+
+    <string name="states_title">States</string>
+    <string name="state_calm">Calm</string>
+    <string name="state_calm_when">When Food, Joy and Sleep are all fine</string>
+    <string name="state_happy">Happy</string>
+    <string name="state_happy_when">When Joy is high and Food is above half</string>
+    <string name="state_hungry">Hungry</string>
+    <string name="state_hungry_when">When Food is below a quarter</string>
+    <string name="state_sad">Sad</string>
+    <string name="state_sad_when">When Joy is below a quarter</string>
+    <string name="state_tired">Tired</string>
+    <string name="state_tired_when">When Sleep is below a fifth</string>
+    <string name="state_sick">Sick</string>
+    <string name="state_sick_when">When Food and Joy are almost empty. Feeding cures it.</string>
+    <string name="state_asleep">Asleep</string>
+    <string name="state_asleep_when">At night from 23:00 to 7:00, or when Sleep is almost empty</string>
+    <string name="state_eating">Eating</string>
+    <string name="state_eating_when">When you tap Feed or hold the Glyph button</string>
+    <string name="state_loved">Loved</string>
+    <string name="state_loved_when">When you tap Pet or hold the Glyph button</string>
+    <string name="state_dizzy">Dizzy</string>
+    <string name="state_dizzy_when">When you shake the phone</string>
+    <string name="state_scared">Scared</string>
+    <string name="state_scared_when">When you tilt the phone: it slides down</string>
+    <string name="state_trick">Its own trick</string>
+    <string name="state_trick_when">Now and then, when it is calm or happy</string>
+    <string name="state_charging">On the charger</string>
+    <string name="state_charging_when">When the phone charges: it shows the battery level and speed</string>
+
+    <string name="habit_tail_flick">Tail flick</string>
+    <string name="habit_vanish">Vanishing</string>
+    <string name="habit_scan">Scan</string>
+    <string name="habit_tongue">Fly catch</string>
+    <string name="habit_roar">Roar</string>
+    <string name="habit_swim">Swim</string>
+    <string name="habit_ear_flop">Ear flop</string>
+    <string name="habit_peck">Pecking</string>
+    <string name="habit_spores">Spores</string>
+    <string name="habit_drizzle">Drizzle</string>
+    <string name="habit_head_turn">Head turn</string>
+    <string name="habit_tail_swish">Tail swish</string>
+    <string name="habit_bloom">Bloom</string>
+    <string name="habit_waddle">Waddle</string>
+    <string name="habit_squish">Squish</string>
+    <string name="habit_look_around">Look around</string>
+    <string name="habit_pop_up">Pop-up</string>
+    <string name="habit_light_show">Light show</string>
 </resources>

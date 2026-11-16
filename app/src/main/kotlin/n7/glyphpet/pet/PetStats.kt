@@ -18,7 +18,8 @@ data class PetStats(
     }
 }
 
-enum class Mood { SLEEPING, HUNGRY, TIRED, SAD, HAPPY, CONTENT }
+/** How the pet feels, most urgent first: see [PetRules.mood]. Never saved, always worked out from the needs. */
+enum class Mood { SLEEPING, SICK, HUNGRY, TIRED, SAD, HAPPY, CONTENT }
 
 /** The rules of pet life. Pure functions: the time source is passed in, so they are easy to test. */
 object PetRules {
@@ -33,6 +34,10 @@ object PetRules {
     const val PLAY_JOY = 15f
     const val PLAY_ENERGY = 3f
     const val SHAKE_JOY = 4f
+
+    /** Below both of these the pet is sick: nobody fed or played with it for about half a day. Food cures it. */
+    const val SICK_SATIETY = 5f
+    const val SICK_JOY = 5f
 
     private const val STEP_MS = 10 * 60 * 1000L
     private const val MAX_CATCH_UP_MS = 14 * PetStats.DAY_MS
@@ -81,6 +86,7 @@ object PetRules {
 
     fun mood(stats: PetStats, asleep: Boolean): Mood = when {
         asleep -> Mood.SLEEPING
+        stats.satiety < SICK_SATIETY && stats.joy < SICK_JOY -> Mood.SICK
         stats.satiety < 25f -> Mood.HUNGRY
         stats.energy < 20f -> Mood.TIRED
         stats.joy < 25f -> Mood.SAD

@@ -1,7 +1,8 @@
 <resources>
-    <string name="toy_summary">Каждый день новое яйцо. Вылупи одного из 18 питомцев на Glyph Matrix и заботься о нём.</string>
+    <string name="toy_summary">Каждый день новый питомец в яйце. Пять нажатий, и он вылупится на Glyph Matrix. Собери всех 18.</string>
 
-    <string name="main_hint">Каждый день новое яйцо</string>
+    <string name="tagline">Питомец на твоей Glyph Matrix.</string>
+    <string name="main_hint">Каждый день новый питомец в яйце</string>
     <string name="need_food">Еда</string>
     <string name="need_joy">Радость</string>
     <string name="need_sleep">Сон</string>
@@ -9,38 +10,32 @@
     <string name="action_pet">Погладить</string>
     <string name="activate_toy">Активировать игрушку</string>
 
-    <string name="egg_title">Яйцо дня</string>
-    <string name="egg_hatches_in">Вылупится через %1$d ч %2$d мин</string>
-    <string name="egg_any_second">Вот-вот вылупится</string>
-    <string name="egg_hint">Внутри кто-то шевелится. Погрей его долгим нажатием кнопки Glyph, и он вылупится быстрее.</string>
-    <string name="egg_warm">Погреть</string>
-    <string name="egg_hatch_now">Вылупить сейчас</string>
-    <string name="egg_tomorrow">Сегодняшнее яйцо уже вылупилось. Следующее появится завтра в 6:00 и вылупится к вечеру.</string>
-    <string name="egg_tomorrow_supporter">С Supporter каждый день приходит второе яйцо.</string>
+    <string name="egg_title">Яйцо</string>
+    <string name="egg_tile_description">Яйцо, нажатий %1$d из %2$d</string>
+    <string name="egg_crack_action">разбить яйцо</string>
+    <string name="egg_label">Яйцо</string>
 
     <string name="collection_title">Питомник · %1$d из %2$d</string>
-    <string name="collection_odds">Обычный 70% · Редкий 25% · Легендарный 5%. Нажми на питомца, чтобы поселить его на матрицу.</string>
+    <string name="collection_odds">Каждый день в яйце приходит питомец, которого у тебя ещё нет. Обычные чаще, легендарные редко. Нажми на яйцо 5 раз, чтобы открыть, на питомца — чтобы поселить его на матрицу.</string>
     <string name="rarity_common">Обычный</string>
     <string name="rarity_rare">Редкий</string>
     <string name="rarity_legendary">Легендарный</string>
 
     <string name="supporter_title">Supporter</string>
     <string name="supporter_thanks">Спасибо, что поддерживаешь n7!</string>
-    <string name="supporter_perk_egg">Второе яйцо каждый день</string>
+    <string name="supporter_perk_all">Все питомцы, которых у тебя нет, сразу в яйцах</string>
     <string name="supporter_perk_golden">Золотые яйца, которые светятся на матрице</string>
-    <string name="supporter_perk_instant">Раз в день вылупить яйцо сразу</string>
     <string name="supporter_buy">Стать Supporter · %1$s</string>
     <string name="supporter_unavailable">Скоро в Google Play</string>
 
     <string name="step_activate">Включи Glyph Pet в Glyph-игрушках</string>
-    <string name="step_button">Зажми кнопку Glyph: она кормит, греет яйцо или гладит — что сейчас нужнее</string>
     <string name="step_play">Потряси, чтобы поиграть, наклони — и он покатится</string>
     <string name="step_aod">Сделай его Always-on игрушкой, чтобы он всегда был с тобой</string>
 
-    <string name="intro_1_title">Каждый день — яйцо</string>
-    <string name="intro_1_text">Каждое утро появляется новое яйцо. К вечеру из него вылупляется питомец. Кто именно — сюрприз: один из 18.</string>
+    <string name="intro_1_title">Каждый день — новый питомец</string>
+    <string name="intro_1_text">Каждый день, когда ты играешь, приходит новый питомец в яйце, всегда тот, которого у тебя ещё нет. Нажми на яйцо пять раз, и он вылупится.</string>
     <string name="intro_2_title">Одна кнопка</string>
-    <string name="intro_2_text">Питомец живёт на задней панели телефона. Зажми кнопку Glyph — и он поест, обрадуется или яйцо вылупится быстрее. Что именно, приложение всегда подскажет.</string>
+    <string name="intro_2_text">Питомец живёт на задней панели телефона. Зажми кнопку Glyph — треснет яйцо, питомец поест или обрадуется. Что именно, приложение всегда подскажет.</string>
     <string name="intro_3_title">Собери всех 18</string>
     <string name="intro_3_text">Каждый новый питомец попадает в питомник. Некоторые редкие, а трое — легендарные.</string>
     <string name="intro_next">Дальше</string>
@@ -53,27 +48,78 @@
     <string name="now_title">Сейчас</string>
     <string name="now_egg_first">В этом яйце — твой первый питомец</string>
     <string name="now_hatched">Вылупился %1$s!</string>
-    <string name="now_egg_hatch_first">Вылупится в %1$s.</string>
-    <string name="now_egg_hatch">Рядом с питомцем лежит новое яйцо. Вылупится в %1$s.</string>
+    <string name="now_eggs_waiting">Яиц ждёт: %1$d. Нажми на любое в питомнике, чтобы взять его в руки.</string>
+    <string name="now_egg_how">Нажми на яйцо здесь или зажми кнопку Glyph.</string>
+    <string name="now_egg_presses">Осталось нажатий до вылупления: %1$d</string>
     <string name="now_sleeping">%1$s спит</string>
+    <string name="now_sick">%1$s болеет</string>
     <string name="now_hungry">%1$s хочет есть</string>
     <string name="now_tired">%1$s хочет спать</string>
     <string name="now_sad">%1$s скучает</string>
     <string name="now_happy">%1$s счастлив</string>
     <string name="now_content">У %1$s всё хорошо</string>
     <string name="button_now">Если сейчас зажать кнопку Glyph: %1$s.</string>
-    <string name="button_warm">яйцо вылупится на 45 минут раньше</string>
     <string name="button_feed">питомец поест</string>
     <string name="button_pet">питомец обрадуется</string>
+    <string name="button_hatch">из яйца вылупится питомец</string>
+    <string name="button_crack">яйцо треснет</string>
     <string name="button_nothing">ничего не случится</string>
-    <string name="next_after_egg">Дальше: питомец из яйца попадёт в питомник.</string>
-    <string name="next_egg_soon">Дальше: второе яйцо дня, прямо сейчас.</string>
-    <string name="next_egg_tomorrow">Дальше: новое яйцо завтра в 6:00.</string>
+    <string name="next_egg_tomorrow">Дальше: завтра в 6:00 новый питомец в яйце.</string>
+    <string name="next_complete">У тебя все 18 питомцев. Яиц больше не будет.</string>
+    <string name="next_supporter">Все питомцы, которых у тебя нет, уже ждут в яйцах.</string>
 
     <string name="mood_sleeping">Спит. Проснётся утром или когда отдохнёт.</string>
+    <string name="mood_sick">Болеет. Покорми его.</string>
     <string name="mood_hungry">Голодный. Зажми кнопку Glyph или нажми «Покормить».</string>
     <string name="mood_tired">Устал и скоро уснёт.</string>
     <string name="mood_sad">Скучает. Потряси телефон или погладь.</string>
     <string name="mood_happy">Сытый и довольный.</string>
     <string name="mood_content">Всё хорошо.</string>
+
+    <string name="states_title">Состояния</string>
+    <string name="state_calm">Спокоен</string>
+    <string name="state_calm_when">Когда Еды, Радости и Сна хватает</string>
+    <string name="state_happy">Счастлив</string>
+    <string name="state_happy_when">Когда Радости много, а Еды больше половины</string>
+    <string name="state_hungry">Голоден</string>
+    <string name="state_hungry_when">Когда Еды меньше четверти</string>
+    <string name="state_sad">Грустит</string>
+    <string name="state_sad_when">Когда Радости меньше четверти</string>
+    <string name="state_tired">Устал</string>
+    <string name="state_tired_when">Когда Сна меньше пятой части</string>
+    <string name="state_sick">Болеет</string>
+    <string name="state_sick_when">Когда Еда и Радость почти на нуле. Покорми, и пройдёт.</string>
+    <string name="state_asleep">Спит</string>
+    <string name="state_asleep_when">Ночью с 23:00 до 7:00 или когда Сон почти на нуле</string>
+    <string name="state_eating">Ест</string>
+    <string name="state_eating_when">Когда жмёшь «Покормить» или зажимаешь кнопку Glyph</string>
+    <string name="state_loved">Его гладят</string>
+    <string name="state_loved_when">Когда жмёшь «Погладить» или зажимаешь кнопку Glyph</string>
+    <string name="state_dizzy">Голова кругом</string>
+    <string name="state_dizzy_when">Когда трясёшь телефон</string>
+    <string name="state_scared">Испуган</string>
+    <string name="state_scared_when">Когда наклоняешь телефон: он катится вниз</string>
+    <string name="state_trick">Свой трюк</string>
+    <string name="state_trick_when">Время от времени, когда он спокоен или счастлив</string>
+    <string name="state_charging">На зарядке</string>
+    <string name="state_charging_when">Когда телефон заряжается: показывает заряд и скорость</string>
+
+    <string name="habit_tail_flick">Машет хвостом</string>
+    <string name="habit_vanish">Исчезает</string>
+    <string name="habit_scan">Сканирует</string>
+    <string name="habit_tongue">Ловит муху</string>
+    <string name="habit_roar">Рычит</string>
+    <string name="habit_swim">Плывёт</string>
+    <string name="habit_ear_flop">Роняет ухо</string>
+    <string name="habit_peck">Клюёт</string>
+    <string name="habit_spores">Пускает споры</string>
+    <string name="habit_drizzle">Моросит</string>
+    <string name="habit_head_turn">Крутит головой</string>
+    <string name="habit_tail_swish">Метёт хвостом</string>
+    <string name="habit_bloom">Цветёт</string>
+    <string name="habit_waddle">Переваливается</string>
+    <string name="habit_squish">Плющится</string>
+    <string name="habit_look_around">Озирается</string>
+    <string name="habit_pop_up">Выпрыгивает</string>
+    <string name="habit_light_show">Мигает огнями</string>
 </resources>

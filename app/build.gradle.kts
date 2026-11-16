@@ -66,7 +66,7 @@ java {
 
 dependencies {
     implementation(files("../libs/glyph-matrix-sdk-2.0.aar"))
-    implementation("com.github.i30mb1:n7-glyph-ui:0.2.0")
+    implementation(libs.n7.glyph.ui)
     implementation("com.android.billingclient:billing-ktx:9.1.0")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

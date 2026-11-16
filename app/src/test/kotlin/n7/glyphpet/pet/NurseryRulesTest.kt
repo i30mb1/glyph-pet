@@ -1,7 +1,6 @@
 package n7.glyphpet.pet
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -9,12 +8,11 @@ import org.junit.Test
 import java.util.Calendar
 import kotlin.random.Random
 
-/** Every path of the daily egg game, with a fake clock. Days are local dates in March 2026. */
+/** The egg game, with a fake clock: a new pet a day as an egg, five presses open it. Days are local dates in March 2026. */
 class NurseryRulesTest {
 
     private val random = Random(7)
-    private val minute = 60_000L
-    private val hour = 60 * minute
+    private val all = SpeciesCatalog.all.map { it.id }
 
     private fun at(day: Int, h: Int, m: Int = 0): Long = Calendar.getInstance().apply {
         clear()
@@ -23,163 +21,241 @@ class NurseryRulesTest {
 
     private fun NurseryState.at(ms: Long) = NurseryRules.advance(this, ms, random)
 
-    /** A player whose first pet has hatched on March 1st. */
-    private fun withFirstPet(): NurseryState {
-        val laid = NurseryState().at(at(1, 10))
-        return laid.at(at(1, 10, 5))
+    /** Presses [n] times on [id] (null: the egg in the hands). */
+    private fun NurseryState.press(n: Int, id: String? = null, ms: Long = at(1, 12)): NurseryState {
+        var s = this
+        repeat(n) { s = NurseryRules.press(s, id, ms)!! }
+        return s
     }
 
-    // --- First launch -------------------------------------------------------------------------
+    /** A player whose first pet hatched on March 1st. */
+    private fun withFirstPet(): NurseryState = NurseryState().at(at(1, 10)).press(5, ms = at(1, 10, 1))
+
+    // --- The daily grant ---------------------------------------------------------------------------
 
     @Test
-    fun `first launch lays an egg that hatches in minutes`() {
+    fun `a brand-new player starts with an egg and no pet`() {
         val s = NurseryState().at(at(1, 10))
-        val egg = assertNotNull(s.egg).let { s.egg!! }
-        assertEquals(EggRules.FIRST_HATCH_MS, egg.hatchMs)
         assertNull(s.active)
-        assertEquals(0, NurseryRules.eggsLeftToday(s, at(1, 10)))
+        assertEquals(1, NurseryRules.available(s).size)
+        assertNotNull(NurseryRules.current(s))
     }
 
     @Test
-    fun `the first egg hatches after three minutes and the pet goes on the matrix`() {
-        val laid = NurseryState().at(at(1, 10))
-        val species = laid.egg!!.speciesId
-        assertNotNull(laid.at(at(1, 10, 2)).egg)
-        val hatched = laid.at(at(1, 10, 3))
-        assertNull(hatched.egg)
-        assertEquals(species, hatched.active)
-        assertEquals(1, hatched.seen[species])
-        assertEquals(species, NurseryRules.justHatched(hatched, at(1, 10, 3))?.id)
-        assertNull(NurseryRules.justHatched(hatched, at(1, 10, 4)))
-    }
-
-    @Test
-    fun `free players get no second egg the same day`() {
+    fun `one new pet a game day, from 6 in the morning`() {
         val s = withFirstPet()
-        assertNull(s.at(at(1, 23, 59)).egg)
-        assertNull(s.at(at(2, 5, 59)).egg)
-    }
-
-    // --- Days ------------------------------------------------------------------------------------
-
-    @Test
-    fun `the next egg arrives at 6 in the morning and takes the day`() {
-        val s = withFirstPet()
-        assertNull(s.at(at(2, 5, 59)).egg)
+        assertTrue(NurseryRules.available(s).isEmpty())
+        assertTrue("no second egg the same day", NurseryRules.available(s.at(at(1, 23, 59)).at(at(2, 5, 59))).isEmpty())
         val morning = s.at(at(2, 6))
-        val egg = morning.egg!!
-        assertEquals(EggRules.HATCH_MS, egg.hatchMs)
-        assertEquals(EggStage.WHOLE, EggRules.stage(egg, at(2, 8)))
-        assertEquals(EggStage.CRACKED, EggRules.stage(egg, at(2, 11)))
-        assertEquals(EggStage.HATCHING, EggRules.stage(egg, at(2, 15)))
-        assertNotNull(morning.at(at(2, 15, 59)).egg)
-        val evening = morning.at(at(2, 16))
-        assertNull(evening.egg)
-        assertEquals(egg.speciesId, evening.active)
+        assertEquals(1, NurseryRules.available(morning).size)
+        assertEquals("only once that day", morning, morning.at(at(2, 22)).at(at(3, 5, 59)))
     }
 
     @Test
-    fun `an egg opened late is not lost, today's egg comes right after it hatches`() {
-        val late = withFirstPet().at(at(2, 22))
-        assertNotNull(late.egg)
-        val nextMorning = late.at(at(3, 7))
-        assertEquals("one egg at a time", late.egg, nextMorning.egg)
-        val hatched = nextMorning.at(at(3, 8))
-        assertNotNull("today's egg follows at once", hatched.egg)
-        assertTrue(hatched.egg!!.laidAtMs == at(3, 8))
-        assertEquals(0, NurseryRules.eggsLeftToday(hatched, at(3, 8)))
+    fun `eggs not opened stay, one more each day the game runs`() {
+        var s = withFirstPet()
+        for (day in 2..5) s = s.at(at(day, 9))
+        assertEquals(4, NurseryRules.available(s).size)
+        assertEquals(4, s.eggs.toSet().size)
     }
 
     @Test
-    fun `days away do not stack eggs up`() {
-        val back = withFirstPet().at(at(9, 12))
-        assertNotNull(back.egg)
-        assertEquals(1, back.eggDayCount)
-        assertEquals(0, NurseryRules.eggsLeftToday(back, at(9, 12)))
-    }
-
-    // --- Warming ---------------------------------------------------------------------------------
-
-    @Test
-    fun `warming brings the hatch 45 minutes closer, at most every 20 seconds`() {
-        val s = withFirstPet().at(at(2, 6))
-        val warmed = NurseryRules.warm(s, at(2, 7))!!
-        assertEquals(EggRules.WARM_MS, warmed.egg!!.warmMs)
-        assertNull("cooldown", NurseryRules.warm(warmed, at(2, 7) + 10_000))
-        assertNotNull(NurseryRules.warm(warmed, at(2, 7) + 20_000))
+    fun `a day the game did not run gives nothing`() {
+        val s = withFirstPet().at(at(2, 9)).at(at(9, 9))
+        assertEquals("days 3 to 8 were missed", 2, NurseryRules.available(s).size)
     }
 
     @Test
-    fun `fourteen warm-ups hatch a fresh egg`() {
-        var s = withFirstPet().at(at(2, 6))
-        var t = at(2, 6)
-        repeat(14) { t += 30_000; s = NurseryRules.warm(s, t)!! }
-        assertNull(s.at(t).egg)
-        assertNotNull(s.at(t).active)
+    fun `the egg is always a pet the player does not have, never a duplicate`() {
+        for (seed in 0 until 30) {
+            val r = Random(seed)
+            var s = NurseryState()
+            for (day in 1..28) {
+                s = NurseryRules.advance(s, at(day, 8), r)
+                NurseryRules.available(s).forEach { assertEquals("seed $seed day $day", 0, s.seen[it] ?: 0) }
+                assertEquals(NurseryRules.available(s).size, NurseryRules.available(s).toSet().size)
+                // Opens it most days, keeps it on some.
+                if (r.nextInt(3) != 0 && NurseryRules.current(s) != null) repeat(5) { s = NurseryRules.press(s, null, at(day, 9))!! }
+            }
+            assertTrue("seed $seed: every count is 0 or 1", s.seen.values.all { it == 1 })
+        }
     }
 
     @Test
-    fun `there is nothing to warm without an egg`() {
-        assertNull(NurseryRules.warm(withFirstPet(), at(1, 12)))
+    fun `once all 18 are collected there are no more eggs`() {
+        var s = NurseryState()
+        var day = 1
+        while (s.seen.size < 18) {
+            s = s.at(at(day, 8)).press(5, ms = at(day, 9))
+            day++
+        }
+        assertEquals(19, day)
+        assertEquals(all.toSet(), s.seen.keys)
+        for (d in 19..31) s = s.at(at(d, 8))
+        assertTrue(NurseryRules.available(s).isEmpty())
+        assertNull(NurseryRules.current(s))
+        assertNull(NurseryRules.press(s, null, at(31, 9)))
     }
 
-    // --- Supporter -------------------------------------------------------------------------------
+    @Test
+    fun `the last missing pet comes as the egg`() {
+        val have = all.drop(1).associateWith { 1 }
+        val s = NurseryState(seen = have, active = all[1], grantDay = EggRules.dayKey(at(1, 9))).at(at(2, 9))
+        assertEquals(listOf(all[0]), NurseryRules.available(s))
+    }
 
     @Test
-    fun `supporters get a second golden egg the same day, not a third`() {
+    fun `turning the clock back gives no second egg`() {
+        val s = withFirstPet().at(at(3, 9))
+        assertEquals(s, s.at(at(2, 9)))
+        assertEquals(s, s.at(at(3, 6)))
+    }
+
+    @Test
+    fun `the roll keeps the rarity weights among the missing pets`() {
+        val r = Random(5)
+        val missing = SpeciesCatalog.all.filter { it.id in setOf("cat", "jelly", "eye") } // rare, common, legendary
+        val counts = HashMap<String, Int>()
+        repeat(30_000) { counts.merge(SpeciesCatalog.roll(r, missing).id, 1, Int::plus) }
+        val total = counts.values.sum().toFloat()
+        // per pet: common 70/10 = 7, rare 25/5 = 5, legendary 5/3
+        val w = 7f + 5f + 5f / 3
+        assertEquals(7f / w, counts.getValue("jelly") / total, 0.015f)
+        assertEquals(5f / w, counts.getValue("cat") / total, 0.015f)
+        assertEquals(5f / 3 / w, counts.getValue("eye") / total, 0.01f)
+    }
+
+    // --- Five presses --------------------------------------------------------------------------------
+
+    @Test
+    fun `five presses open the egg, each one cracks it further`() {
+        val laid = NurseryState().at(at(1, 10))
+        val egg = NurseryRules.current(laid)!!
+        val stages = mutableListOf(EggRules.stage(NurseryRules.presses(laid, egg)))
+        var s = laid
+        repeat(4) {
+            val before = s
+            s = NurseryRules.press(s, null, at(1, 10, 1))!!
+            assertEquals(PressResult.CRACKED, NurseryRules.result(before, s))
+            assertNull("not hatched yet", s.active)
+            stages += EggRules.stage(NurseryRules.presses(s, egg))
+        }
+        assertEquals(listOf(EggStage.WHOLE, EggStage.CRACKED, EggStage.CRACKED_MORE, EggStage.HATCHING, EggStage.HATCHING), stages)
+        val before = s
+        val hatched = NurseryRules.press(s, null, at(1, 10, 2))!!
+        assertEquals(PressResult.HATCHED, NurseryRules.result(before, hatched))
+        assertEquals(egg, hatched.active)
+        assertEquals(1, hatched.seen[egg])
+        assertTrue(NurseryRules.available(hatched).isEmpty())
+        assertTrue("presses forgotten once open", hatched.presses.isEmpty())
+        assertEquals(egg, NurseryRules.justHatched(hatched, at(1, 10, 2))?.id)
+        assertNull(NurseryRules.justHatched(hatched, at(1, 10, 3)))
+    }
+
+    @Test
+    fun `the new pet becomes the active one even with a pet already`() {
+        val s = withFirstPet().at(at(2, 9))
+        val egg = NurseryRules.current(s)!!
+        assertEquals(egg, s.press(5, ms = at(2, 10)).active)
+    }
+
+    @Test
+    fun `presses from the matrix and from the app add up on the same egg`() {
+        val s = withFirstPet().at(at(2, 9))
+        val egg = NurseryRules.current(s)!!
+        val mixed = s.press(2).press(1, egg).press(1).press(0)
+        assertEquals(4, NurseryRules.presses(mixed, egg))
+        assertNull(mixed.seen[egg])
+        assertEquals(egg, mixed.press(1, egg).active)
+        assertEquals(egg, mixed.press(1).active)
+    }
+
+    @Test
+    fun `presses are remembered per egg`() {
+        var s = withFirstPet()
+        for (day in 2..4) s = s.at(at(day, 9))
+        val (a, b, c) = NurseryRules.available(s)
+        s = s.press(3, a).press(2, b).press(1, c)
+        assertEquals(listOf(3, 2, 1), listOf(a, b, c).map { NurseryRules.presses(s, it) })
+        s = s.press(2, a)
+        assertEquals(a, s.active)
+        assertEquals(listOf(b, c), NurseryRules.available(s))
+        assertEquals(listOf(2, 1), listOf(b, c).map { NurseryRules.presses(s, it) })
+    }
+
+    @Test
+    fun `with no egg picked the oldest is in the hands`() {
+        var s = withFirstPet()
+        for (day in 2..4) s = s.at(at(day, 9))
+        val oldest = NurseryRules.available(s).first()
+        assertEquals(oldest, NurseryRules.current(s))
+        assertEquals(1, NurseryRules.presses(s.press(1), oldest))
+    }
+
+    @Test
+    fun `a tap on an egg in the app takes it in the hands and counts as a press`() {
+        var s = withFirstPet()
+        for (day in 2..4) s = s.at(at(day, 9))
+        val third = NurseryRules.available(s)[2]
+        s = s.press(1, third)
+        assertEquals(third, s.selected)
+        assertEquals(third, NurseryRules.current(s))
+        assertEquals(1, NurseryRules.presses(s, third))
+        // The Glyph button now cracks the picked egg.
+        s = s.press(4)
+        assertEquals(third, s.active)
+        assertNull("after it hatches the oldest is in the hands again", s.selected)
+        assertEquals(NurseryRules.available(s).first(), NurseryRules.current(s))
+    }
+
+    @Test
+    fun `a stale pick falls back to the oldest egg`() {
+        val s = withFirstPet().at(at(2, 9)).copy(selected = "nope")
+        assertEquals(NurseryRules.available(s).first(), NurseryRules.current(s))
+    }
+
+    @Test
+    fun `there is nothing to press without an egg, and a collected pet cannot be pressed`() {
+        val s = withFirstPet()
+        assertNull(NurseryRules.press(s, null, at(1, 12)))
+        assertNull(NurseryRules.press(s, s.active, at(1, 12)))
+        assertNull(NurseryRules.press(s, "nope", at(1, 12)))
+        assertEquals(PressResult.NONE, NurseryRules.result(s, null))
+    }
+
+    // --- Supporter -----------------------------------------------------------------------------------
+
+    @Test
+    fun `a supporter has every missing pet as an egg at once, golden`() {
         val s = withFirstPet().copy(supporter = true)
-        val first = s.at(at(2, 6))
-        assertTrue(first.egg!!.golden)
-        val second = first.at(at(2, 16))
-        assertNotNull("second egg", second.egg)
-        assertTrue(second.egg!!.golden)
-        val third = second.at(at(3, 2))
-        assertNull("game day still the 2nd until 6:00: no third egg", third.egg)
-        assertNotNull(third.at(at(3, 6)).egg)
+        val eggs = NurseryRules.available(s)
+        assertEquals(17, eggs.size)
+        assertEquals(all.toSet() - s.active!!, eggs.toSet())
+        // Opening them all, one after the other, the same day.
+        var t = s
+        repeat(17) { t = t.press(5, ms = at(1, 13)) }
+        assertEquals(18, t.seen.size)
+        assertTrue(NurseryRules.available(t).isEmpty())
     }
 
     @Test
-    fun `buying supporter mid-day brings the second egg right away`() {
-        val free = withFirstPet()
-        assertNull(free.at(at(1, 12)).egg)
-        assertNotNull(free.copy(supporter = true).at(at(1, 12)).egg)
+    fun `buying it mid-game opens every egg right away, the daily ones first`() {
+        val free = withFirstPet().at(at(2, 9)).at(at(3, 9))
+        val daily = NurseryRules.available(free)
+        val sup = free.copy(supporter = true)
+        assertEquals(daily, NurseryRules.available(sup).take(2))
+        assertEquals(17, NurseryRules.available(sup).size)
     }
 
     @Test
-    fun `instant hatch works once a game day, only for supporters`() {
-        val free = withFirstPet().at(at(2, 6))
-        assertNull(NurseryRules.hatchNow(free, at(2, 7)))
-
-        val sup = withFirstPet().copy(supporter = true).at(at(2, 6))
-        assertTrue(NurseryRules.instantHatchAvailable(sup, at(2, 7)))
-        val instant = NurseryRules.hatchNow(sup, at(2, 7))!!
-        val hatched = instant.at(at(2, 7))
-        assertNotNull(hatched.active)
-        val secondEgg = hatched.egg!!
-        assertFalse(NurseryRules.instantHatchAvailable(hatched, at(2, 8)))
-        assertNull(NurseryRules.hatchNow(hatched, at(2, 8)))
-        assertTrue("available again the next game day", NurseryRules.instantHatchAvailable(hatched, at(3, 6)))
-        assertEquals(secondEgg, hatched.egg)
+    fun `a refund takes back the extra eggs and keeps the daily ones`() {
+        val sup = withFirstPet().copy(supporter = true).at(at(2, 9))
+        val daily = sup.eggs
+        assertEquals(1, daily.size)
+        assertEquals(daily, NurseryRules.available(sup.copy(supporter = false)))
     }
 
-    @Test
-    fun `losing supporter (refund) goes back to one egg a day`() {
-        val s = withFirstPet().copy(supporter = true).at(at(2, 6)).at(at(2, 16)).copy(supporter = false)
-        assertEquals(0, NurseryRules.eggsLeftToday(s, at(2, 17)))
-    }
-
-    // --- Collection ------------------------------------------------------------------------------
-
-    @Test
-    fun `a duplicate counts twice and comes back on the matrix`() {
-        val base = withFirstPet()
-        val first = base.active!!
-        val other = SpeciesCatalog.all.first { it.id != first }.id
-        val dup = base.copy(active = other, seen = base.seen + (other to 1), egg = Egg(first, at(2, 6), 0, EggRules.HATCH_MS, false), eggDay = EggRules.dayKey(at(2, 6)), eggDayCount = 1)
-        val hatched = dup.at(at(2, 16))
-        assertEquals(2, hatched.seen[first])
-        assertEquals(first, hatched.active)
-    }
+    // --- Collection ----------------------------------------------------------------------------------
 
     @Test
     fun `only collected pets can be put on the matrix`() {
@@ -190,33 +266,16 @@ class NurseryRulesTest {
         assertEquals(stranger, NurseryRules.setActive(friend, stranger).active)
     }
 
-    @Test
-    fun `every hatched species comes from the catalog`() {
-        var s = NurseryState()
-        for (day in 1..28) s = s.at(at(day, 6)).at(at(day, 20))
-        assertTrue(s.seen.keys.all { SpeciesCatalog.get(it) != null })
-        assertEquals(28, s.seen.values.sum())
-    }
-
-    // --- Clock -----------------------------------------------------------------------------------
-
-    @Test
-    fun `turning the clock back does not hatch or break the egg`() {
-        val s = withFirstPet().at(at(2, 10))
-        val egg = s.egg!!
-        assertEquals(0f, EggRules.progress(egg, at(2, 9)), 0f)
-        assertEquals(egg, s.at(at(2, 9)).egg)
-    }
-
-    // --- The Glyph button ------------------------------------------------------------------------
+    // --- The Glyph button ----------------------------------------------------------------------------
 
     @Test
     fun `the Glyph button does the most useful thing`() {
-        assertEquals(ButtonAction.WARM_EGG, ButtonRules.decide(hasPet = false, mood = Mood.CONTENT, eggWaiting = true, satiety = 80f))
+        assertEquals(ButtonAction.CRACK_EGG, ButtonRules.decide(hasPet = false, mood = Mood.CONTENT, eggWaiting = true, satiety = 80f))
         assertEquals(ButtonAction.NOTHING, ButtonRules.decide(hasPet = false, mood = Mood.CONTENT, eggWaiting = false, satiety = 80f))
-        assertEquals(ButtonAction.PET, ButtonRules.decide(hasPet = true, mood = Mood.SLEEPING, eggWaiting = true, satiety = 10f))
-        assertEquals(ButtonAction.FEED, ButtonRules.decide(hasPet = true, mood = Mood.HUNGRY, eggWaiting = true, satiety = 10f))
-        assertEquals(ButtonAction.WARM_EGG, ButtonRules.decide(hasPet = true, mood = Mood.CONTENT, eggWaiting = true, satiety = 50f))
+        assertEquals(ButtonAction.CRACK_EGG, ButtonRules.decide(hasPet = true, mood = Mood.SLEEPING, eggWaiting = true, satiety = 10f))
+        assertEquals(ButtonAction.CRACK_EGG, ButtonRules.decide(hasPet = true, mood = Mood.HUNGRY, eggWaiting = true, satiety = 10f))
+        assertEquals(ButtonAction.PET, ButtonRules.decide(hasPet = true, mood = Mood.SLEEPING, eggWaiting = false, satiety = 10f))
+        assertEquals(ButtonAction.FEED, ButtonRules.decide(hasPet = true, mood = Mood.HUNGRY, eggWaiting = false, satiety = 10f))
         assertEquals(ButtonAction.FEED, ButtonRules.decide(hasPet = true, mood = Mood.CONTENT, eggWaiting = false, satiety = 50f))
         assertEquals(ButtonAction.PET, ButtonRules.decide(hasPet = true, mood = Mood.HAPPY, eggWaiting = false, satiety = 90f))
     }

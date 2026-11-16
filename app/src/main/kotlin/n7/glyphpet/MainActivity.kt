@@ -3,8 +3,10 @@ package n7.glyphpet
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
@@ -15,11 +17,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -65,6 +72,7 @@ import n7.glyph.ui.theme.N7Type
 import n7.glyphpet.billing.SupporterBilling
 import n7.glyphpet.pet.ButtonAction
 import n7.glyphpet.pet.ButtonRules
+import n7.glyphpet.pet.EggRenderer
 import n7.glyphpet.pet.EggRules
 import n7.glyphpet.pet.EggStage
 import n7.glyphpet.pet.EggView
@@ -74,6 +82,7 @@ import n7.glyphpet.pet.Nursery
 import n7.glyphpet.pet.PetEngine
 import n7.glyphpet.pet.PetRules
 import n7.glyphpet.pet.PetStore
+import n7.glyphpet.pet.PressResult
 import n7.glyphpet.pet.Rarity
 import n7.glyphpet.pet.Scene
 import n7.glyphpet.pet.Species
@@ -88,7 +97,11 @@ class MainActivity : ComponentActivity() {
     private lateinit var billing: SupporterBilling
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge()
+        // The screen is always black: white status and navigation bar icons, also when the phone is in light theme.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+        )
         super.onCreate(savedInstanceState)
         store = PetStore(this)
         billing = SupporterBilling(this, store)
@@ -224,7 +237,7 @@ private fun PetScreen(
     var power by remember { mutableStateOf(store.power()) }
     var now by remember { mutableStateOf(GameClock.now()) }
     var frame by remember { mutableStateOf<List<Cell>>(emptyList()) }
-    var celebratedAt by remember { mutableStateOf(0L) }
+    var celebratedId by remember { mutableStateOf<String?>(null) }
     var toyOpened by remember { mutableStateOf(ui.getBoolean(KEY_TOY_OPENED, false)) }
 
     fun refresh() {
@@ -232,11 +245,15 @@ private fun PetScreen(
         power = store.power()
         now = GameClock.now()
         toyOpened = ui.getBoolean(KEY_TOY_OPENED, false)
-        if (nursery.justHatched != null && celebratedAt == 0L) {
-            celebratedAt = now
-            engine.celebrate()
-        }
-        if (nursery.justHatched == null) celebratedAt = 0L
+        val hatched = nursery.justHatched
+        if (hatched != null && hatched.id != celebratedId) engine.celebrate()
+        celebratedId = hatched?.id
+    }
+
+    /** A press on egg [id] (a tile), or with null on the egg in the hands (the egg on the matrix). */
+    fun pressEgg(id: String?) {
+        if (store.pressEgg(id) == PressResult.CRACKED) engine.crack()
+        refresh()
     }
 
     LaunchedEffect(lifecycleOwner) {
@@ -248,7 +265,7 @@ private fun PetScreen(
                     species = nursery.active,
                     mood = PetRules.mood(nursery.stats, store.asleep(nursery.stats)),
                     charging = power.plugged,
-                    egg = nursery.egg?.let { EggRules.view(it, now) },
+                    egg = nursery.eggView,
                     watts = power.watts,
                     battery = power.level,
                 )
@@ -261,17 +278,25 @@ private fun PetScreen(
 
     val mood = PetRules.mood(nursery.stats, store.asleep(nursery.stats, now))
     val action = ButtonRules.decide(nursery.active != null, mood, nursery.egg != null, nursery.stats.satiety)
+    val crackLabel = stringResource(R.string.egg_crack_action)
 
     Surface(modifier = Modifier.fillMaxSize(), color = N7Colors.Ground) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                // The status bar stays outside the scroll, so scrolled cards never run under the clock.
+                .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
                 .verticalScroll(rememberScrollState())
-                .systemBarsPadding()
+                // The gesture bar is inside it: the content scrolls under it, and the end of the page clears it.
+                .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Bottom))
                 .padding(start = 24.dp, end = 24.dp, top = 32.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
-            DotHeadline(lines = listOf("GLYPH", "PET"), fontSize = 48.sp)
+            // The name and, right under it, one line that says what the app is.
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                DotHeadline(lines = listOf("GLYPH", "PET"), fontSize = 48.sp)
+                Text(stringResource(R.string.tagline), style = N7Type.Body, color = N7Colors.InkMuted)
+            }
 
             if (!toyOpened) {
                 N7Card(Modifier.fillMaxWidth()) {
@@ -284,21 +309,18 @@ private fun PetScreen(
             }
 
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                // While there is an egg on it, a tap on the matrix is a press on that egg.
                 GlyphMatrix(
                     cells = frame,
-                    modifier = Modifier.size(224.dp),
+                    modifier = Modifier
+                        .size(224.dp)
+                        .clip(CircleShape)
+                        .clickable(enabled = nursery.egg != null, onClickLabel = crackLabel, role = Role.Button) { pressEgg(null) },
                     contentDescription = nursery.active?.name ?: stringResource(R.string.egg_title),
                 )
             }
 
-            NowCard(
-                nursery = nursery,
-                now = now,
-                mood = mood,
-                action = action,
-                onWarm = { if (store.warmEgg()) engine.pet(); refresh() },
-                onHatchNow = { store.hatchNow(); refresh() },
-            )
+            NowCard(nursery = nursery, mood = mood, action = action)
 
             if (nursery.active != null) {
                 N7Card(Modifier.fillMaxWidth()) {
@@ -324,9 +346,11 @@ private fun PetScreen(
                         onClick = { store.update { PetRules.play(it) }; engine.pet(); refresh() },
                     )
                 }
+                // Everything this pet can show, each played by its own engine: never the saved pet.
+                nursery.active?.let { StatesCard(species = it) }
             }
 
-            Collection(nursery = nursery, onPick = { store.setActive(it.id); refresh() })
+            Collection(nursery = nursery, onPick = { store.setActive(it.id); refresh() }, onEgg = { pressEgg(it.id) })
 
             SupporterCard(owned = supporterOwned || nursery.supporter, price = supporterPrice, onBuy = onBuySupporter)
 
@@ -356,16 +380,10 @@ private fun PetScreen(
 
 /** The one thing to read: what is happening, what the Glyph button does now, what comes next. */
 @Composable
-private fun NowCard(
-    nursery: Nursery,
-    now: Long,
-    mood: Mood,
-    action: ButtonAction,
-    onWarm: () -> Unit,
-    onHatchNow: () -> Unit,
-) {
+private fun NowCard(nursery: Nursery, mood: Mood, action: ButtonAction) {
     val egg = nursery.egg
     val pet = nursery.active
+    val presses = egg?.let { nursery.pressesOf(it.id) } ?: 0
     N7Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SectionLabel(stringResource(R.string.now_title))
@@ -379,21 +397,23 @@ private fun NowCard(
             }
             Text(headline, style = N7Type.Headline.copy(fontSize = 24.sp, lineHeight = 30.sp), color = N7Colors.Ink)
 
-            // 2. The egg, in plain time
+            // 2. The egg in the hands: how many presses are left, and how to press
             if (egg != null) {
-                val left = EggRules.remainingMs(egg, now)
-                val hatchAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(now + left))
                 Text(
-                    if (pet == null) stringResource(R.string.now_egg_hatch_first, hatchAt) else stringResource(R.string.now_egg_hatch, hatchAt),
+                    stringResource(R.string.now_egg_presses, EggRules.PRESSES_TO_HATCH - presses),
                     style = N7Type.Body,
                     color = N7Colors.Ink,
                 )
-                Dots(EggRules.progress(egg, now))
+                Dots(lit = presses, count = EggRules.PRESSES_TO_HATCH)
+                Text(stringResource(R.string.now_egg_how), style = N7Type.BodyS, color = N7Colors.InkMuted)
+                if (nursery.eggs.size > 1) {
+                    Text(stringResource(R.string.now_eggs_waiting, nursery.eggs.size), style = N7Type.BodyS, color = N7Colors.InkMuted)
+                }
             }
 
             // 3. What the Glyph button does right now
             Text(
-                stringResource(R.string.button_now, stringResource(buttonLine(action))),
+                stringResource(R.string.button_now, stringResource(buttonLine(action, EggRules.PRESSES_TO_HATCH - presses))),
                 style = N7Type.BodyS,
                 color = N7Colors.InkMuted,
             )
@@ -402,40 +422,27 @@ private fun NowCard(
             Text(
                 stringResource(
                     when {
-                        egg != null -> R.string.next_after_egg
-                        nursery.eggsLeftToday > 0 -> R.string.next_egg_soon
+                        nursery.collection.values.all { it > 0 } -> R.string.next_complete
+                        nursery.supporter -> R.string.next_supporter
                         else -> R.string.next_egg_tomorrow
                     },
                 ),
                 style = N7Type.BodyS,
                 color = N7Colors.InkSubtle,
             )
-
-            if (egg != null) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    N7Button(
-                        text = stringResource(R.string.egg_warm),
-                        variant = N7ButtonVariant.Secondary,
-                        modifier = Modifier.weight(1f),
-                        onClick = onWarm,
-                    )
-                    if (nursery.instantHatchAvailable) {
-                        N7Button(
-                            text = stringResource(R.string.egg_hatch_now),
-                            variant = N7ButtonVariant.Secondary,
-                            modifier = Modifier.weight(1f),
-                            onClick = onHatchNow,
-                        )
-                    }
-                }
-            }
         }
     }
 }
 
 @Composable
-private fun Collection(nursery: Nursery, onPick: (Species) -> Unit) {
+private fun Collection(nursery: Nursery, onPick: (Species) -> Unit, onEgg: (Species) -> Unit) {
     val found = nursery.collection.count { it.value > 0 }
+    val eggIds = nursery.eggs.map { it.id }.toSet()
+    // An egg tile shows the big egg as far as it is cracked; supporters' eggs are golden.
+    val eggCells = remember { HashMap<EggView, List<Cell>>() }
+    fun eggPicture(view: EggView) = eggCells.getOrPut(view) {
+        PetEngine.toCells(IntArray(SpeciesRenderer.SIZE * SpeciesRenderer.SIZE).also { EggRenderer.big(it, view) })
+    }
     val cells = remember { SpeciesCatalog.all.associate { s -> s.id to PetEngine.toCells(SpeciesRenderer.render(s, Face.IDLE)) } }
     val shadows = remember {
         SpeciesCatalog.all.associate { s ->
@@ -451,22 +458,37 @@ private fun Collection(nursery: Nursery, onPick: (Species) -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { s ->
                     val count = nursery.collection[s.id] ?: 0
-                    val active = nursery.active?.id == s.id
-                    val label = if (count > 0) s.name else "???"
+                    val egg = count == 0 && s.id in eggIds
+                    val presses = nursery.pressesOf(s.id)
+                    // Framed: the pet on the matrix, or the egg in the hands.
+                    val framed = if (egg) nursery.egg?.id == s.id else nursery.active?.id == s.id
+                    val eggLabel = stringResource(R.string.egg_label)
+                    val label = when {
+                        count > 0 -> s.name
+                        egg && presses > 0 -> "$eggLabel $presses/${EggRules.PRESSES_TO_HATCH}"
+                        egg -> eggLabel
+                        else -> "???"
+                    }
+                    val description = if (egg) stringResource(R.string.egg_tile_description, presses, EggRules.PRESSES_TO_HATCH) else label
                     Column(
                         Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(20.dp))
                             .background(N7Colors.SurfaceRaised)
-                            .then(if (active) Modifier.border(1.dp, N7Colors.ControlBorder, RoundedCornerShape(20.dp)) else Modifier)
-                            .clickable(enabled = count > 0, role = Role.Button) { onPick(s) }
+                            .then(if (framed) Modifier.border(1.dp, N7Colors.ControlBorder, RoundedCornerShape(20.dp)) else Modifier)
+                            .clickable(enabled = count > 0 || egg, role = Role.Button) { if (egg) onEgg(s) else onPick(s) }
                             .padding(vertical = 12.dp)
-                            .semantics(mergeDescendants = true) { contentDescription = label },
+                            .semantics(mergeDescendants = true) { contentDescription = description },
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        GlyphMatrix(cells = if (count > 0) cells.getValue(s.id) else shadows.getValue(s.id), glow = false, modifier = Modifier.size(64.dp))
-                        Text(label.uppercase(), style = N7Type.Label, color = if (count > 0) N7Colors.Ink else N7Colors.InkSubtle, textAlign = TextAlign.Center)
+                        val picture = when {
+                            count > 0 -> cells.getValue(s.id)
+                            egg -> eggPicture(EggView(EggRules.stage(presses), nursery.supporter))
+                            else -> shadows.getValue(s.id)
+                        }
+                        GlyphMatrix(cells = picture, glow = false, modifier = Modifier.size(64.dp))
+                        Text(label.uppercase(), style = N7Type.Label, color = if (count > 0 || egg) N7Colors.Ink else N7Colors.InkSubtle, textAlign = TextAlign.Center)
                         Text(
                             if (count > 1) "${stringResource(rarityName(s.rarity))} ×$count" else stringResource(rarityName(s.rarity)),
                             style = N7Type.Caption,
@@ -486,9 +508,8 @@ private fun SupporterCard(owned: Boolean, price: String?, onBuy: () -> Unit) {
         Column(Modifier.padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             SectionLabel(stringResource(R.string.supporter_title))
             if (owned) Text(stringResource(R.string.supporter_thanks), style = N7Type.Title, color = N7Colors.Ink)
-            Step("+1", stringResource(R.string.supporter_perk_egg))
+            Step("18", stringResource(R.string.supporter_perk_all))
             Step("✦", stringResource(R.string.supporter_perk_golden))
-            Step("»", stringResource(R.string.supporter_perk_instant))
             if (!owned) {
                 N7Button(
                     text = if (price != null) stringResource(R.string.supporter_buy, price) else stringResource(R.string.supporter_unavailable),
@@ -534,12 +555,11 @@ private fun DebugPanel(onChanged: () -> Unit, onResetGame: () -> Unit) {
     }
 }
 
-/** A value 0..1 as ten LED dots. */
+/** [lit] of [count] LED dots. */
 @Composable
-private fun Dots(fraction: Float) {
-    val lit = (fraction * 10).toInt().coerceIn(0, 10)
+private fun Dots(lit: Int, count: Int = 10) {
     Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-        repeat(10) { i -> Box(Modifier.size(10.dp).background(if (i < lit) N7Colors.LedOn else N7Colors.LedOff, CircleShape)) }
+        repeat(count) { i -> Box(Modifier.size(10.dp).background(if (i < lit) N7Colors.LedOn else N7Colors.LedOff, CircleShape)) }
     }
 }
 
@@ -555,7 +575,7 @@ private fun NeedMeter(label: String, value: Float) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(label.uppercase(), style = N7Type.Label, color = N7Colors.InkSubtle, modifier = Modifier.weight(1f))
-        Dots((value + 5f) / 100f)
+        Dots(lit = ((value + 5f) / 10f).toInt().coerceIn(0, 10))
     }
 }
 
@@ -575,6 +595,7 @@ private fun rarityName(rarity: Rarity): Int = when (rarity) {
 
 private fun moodLine(mood: Mood): Int = when (mood) {
     Mood.SLEEPING -> R.string.now_sleeping
+    Mood.SICK -> R.string.now_sick
     Mood.HUNGRY -> R.string.now_hungry
     Mood.TIRED -> R.string.now_tired
     Mood.SAD -> R.string.now_sad
@@ -582,8 +603,9 @@ private fun moodLine(mood: Mood): Int = when (mood) {
     Mood.CONTENT -> R.string.now_content
 }
 
-private fun buttonLine(action: ButtonAction): Int = when (action) {
-    ButtonAction.WARM_EGG -> R.string.button_warm
+/** What the Glyph button does, for the line on the screen; [pressesLeft] on the egg in the hands. */
+private fun buttonLine(action: ButtonAction, pressesLeft: Int): Int = when (action) {
+    ButtonAction.CRACK_EGG -> if (pressesLeft <= 1) R.string.button_hatch else R.string.button_crack
     ButtonAction.FEED -> R.string.button_feed
     ButtonAction.PET -> R.string.button_pet
     ButtonAction.NOTHING -> R.string.button_nothing

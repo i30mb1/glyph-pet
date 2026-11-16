@@ -12,21 +12,20 @@ import android.util.Log
 import com.nothing.ketchum.Glyph
 import com.nothing.ketchum.GlyphMatrixManager
 import com.nothing.ketchum.GlyphToy
-import n7.glyphpet.GameClock
 import n7.glyphpet.pet.ButtonAction
 import n7.glyphpet.pet.ButtonRules
-import n7.glyphpet.pet.EggRules
 import n7.glyphpet.pet.Mood
 import n7.glyphpet.pet.Nursery
 import n7.glyphpet.pet.PetEngine
 import n7.glyphpet.pet.PetRules
 import n7.glyphpet.pet.PetStore
 import n7.glyphpet.pet.Power
+import n7.glyphpet.pet.PressResult
 import n7.glyphpet.pet.Scene
 
 /**
  * The pet as a Glyph Toy. Live: animates at ~12 fps; the long-press does what is needed most
- * (feed a hungry pet, warm today's egg, otherwise stroke); shake and tilt play.
+ * (crack the egg in the hands, feed a hungry pet, otherwise stroke); shake and tilt play.
  * On the charger the pet shows the battery level and the charging speed in its own way.
  * Always-on: one calm frame per EVENT_AOD (once a minute), no animation.
  */
@@ -104,12 +103,13 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         stopLive()
     }
 
-    /** One button, the most useful thing: feed when hungry, warm the egg, otherwise stroke. */
+    /** One button, the most useful thing: crack the egg, feed when hungry, otherwise stroke. */
     private fun onLongPress() {
         if (!running) startLive()
         val n = nursery ?: store.nursery()
         when (ButtonRules.decide(hasPet = n.active != null, mood = mood, eggWaiting = n.egg != null, satiety = n.stats.satiety)) {
-            ButtonAction.WARM_EGG -> if (store.warmEgg()) engine.pet()
+            // A crack wobbles the egg at once; a hatch is celebrated by sync() below, through justHatched.
+            ButtonAction.CRACK_EGG -> if (store.pressEgg() == PressResult.CRACKED) engine.crack()
             ButtonAction.FEED -> engine.feed(store.feed())
             ButtonAction.PET -> {
                 if (mood != Mood.SLEEPING) store.update { PetRules.play(it) }
@@ -145,8 +145,9 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         val now = SystemClock.uptimeMillis()
         val dt = (now - lastFrameAt).coerceIn(0, 250)
         lastFrameAt = now
-        if (motion.consumeShake() && mood != Mood.SLEEPING && nursery?.active != null) {
-            store.update { PetRules.shake(it) }
+        if (motion.consumeShake() && nursery?.active != null) {
+            // A sleeper only opens one eye: shaking it gives no joy.
+            if (mood != Mood.SLEEPING) store.update { PetRules.shake(it) }
             engine.shake()
         }
         sync(force = false)
@@ -155,13 +156,12 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
 
     private fun scene(tilt: Float = 0f): Scene {
         val n = nursery ?: return Scene(null, Mood.CONTENT)
-        val now = GameClock.now()
         return Scene(
             species = n.active,
             mood = mood,
             tilt = tilt,
             charging = power.plugged,
-            egg = n.egg?.let { EggRules.view(it, now) },
+            egg = n.eggView,
             watts = power.watts,
             battery = power.level,
         )

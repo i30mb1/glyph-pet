@@ -16,9 +16,8 @@ import kotlin.math.sin
  * @param level battery charge, 0..1.
  * @param still no motion and a sleeping pet: Always-on and night.
  * @param reaction a face that takes over for a moment (fed, stroked, shaken); the pet stops running to show it.
- * @param needy the pet is hungry or bored and shows it while it charges.
- * @param dx horizontal shift, used when an egg waits beside the pet.
- * @param stand wheel pets stand on the bottom of the rim instead of their home spot.
+ * @param needy the pet is hungry, bored or sick and shows it while it charges, with the face [need].
+ * @param stand wheel pets stand on the bottom of the rim instead of their home spot (not while an egg waits).
  */
 data class ChargeState(
     val timeMs: Long,
@@ -30,7 +29,7 @@ data class ChargeState(
     val blink: Boolean = false,
     val reaction: Face? = null,
     val needy: Boolean = false,
-    val dx: Int = 0,
+    val need: Face = Face.HUNGRY,
     val stand: Boolean = true,
 ) {
     val done: Boolean get() = level >= 0.995f
@@ -85,8 +84,8 @@ object ChargeRenderer {
         if (plugMs != null && plugMs < PLUG_FLASH_MS && !st.still) {
             if ((plugMs / 100) % 2 == 0L) RING.forEach { (x, y) -> set(frame, x, y, BRIGHT) }
             val dy = standDy(species, st)
-            paint(frame, species, SpeciesRenderer.carve(species, Face.SCARED), st.dx, dy - 1)
-            SpeciesRenderer.glyph(frame, BOLT, species.ox + st.dx + species.width + 1, species.oy + dy + 1)
+            paint(frame, species, SpeciesRenderer.carve(species, Face.SCARED), dy = dy - 1)
+            SpeciesRenderer.glyph(frame, BOLT, species.ox + species.width + 1, species.oy + dy + 1)
             return frame
         }
         // After the flash the indicator fills up from empty to the real level.
@@ -118,17 +117,17 @@ object ChargeRenderer {
             }
         }
         val lift = if (run && hasFeet(s)) (if (step == 1) -1 else 1) else 0
-        paint(f, s, SpeciesRenderer.carve(s, face, st.blink), st.dx, dy - step, lift, st.still)
+        paint(f, s, SpeciesRenderer.carve(s, face, st.blink), dy = dy - step, lift = lift, still = st.still)
         if (run && st.watts >= 30f) {
             // Sweat flies off behind a sprinting pet.
             val k = ((st.timeMs / 125) % 4).toInt()
-            SpeciesRenderer.put(f, s.ox + st.dx - 1 - k, s.oy + dy + 2 - k / 2, BRIGHT - k * 800)
-            SpeciesRenderer.put(f, s.ox + st.dx - 2 - (k + 2) % 4, s.oy + dy + 5, FULL)
+            SpeciesRenderer.put(f, s.ox - 1 - k, s.oy + dy + 2 - k / 2, BRIGHT - k * 800)
+            SpeciesRenderer.put(f, s.ox - 2 - (k + 2) % 4, s.oy + dy + 5, FULL)
         }
         if (st.done && !st.still && st.reaction == null && (st.timeMs / 500) % 4 != 3L) {
-            SpeciesRenderer.glyph(f, HEART, s.ox + st.dx + s.width / 2 - 2, max(1, s.oy + dy - 6))
+            SpeciesRenderer.glyph(f, HEART, s.ox + s.width / 2 - 2, max(1, s.oy + dy - 6))
         }
-        if (st.still) zzz(f, s, st.dx, dy)
+        if (st.still && st.reaction == null) zzz(f, s, dy)
     }
 
     /** The body is the battery: it fills from the bottom, with a wave on top and bubbles inside. */
@@ -136,7 +135,7 @@ object ChargeRenderer {
         val face = face(st) { if (st.done) Face.HAPPY else calm }
         val grid = SpeciesRenderer.carve(s, face, st.blink)
         val h = s.height
-        paint(f, s, grid, st.dx, dy, still = st.still) { x, y ->
+        paint(f, s, grid, dy, still = st.still) { x, y ->
             if (st.done) return@paint FULL
             val wave = if (st.still) 0.0 else sin(x * 0.9 + st.pace) * 0.6
             if (y + 0.5 > h - st.level * h + wave) FULL else LOW
@@ -146,28 +145,28 @@ object ChargeRenderer {
             for (i in 0 until 3) {
                 val bx = (i * 5 + 2) % s.width
                 val by = h - 1 - ((st.pace * 1.8 + i * 2.3) % depth).toInt()
-                if (grid.getOrNull(by)?.getOrNull(bx) == '#') set(f, s.ox + st.dx + bx, s.oy + dy + by, BRIGHT)
+                if (grid.getOrNull(by)?.getOrNull(bx) == '#') set(f, s.ox + bx, s.oy + dy + by, BRIGHT)
             }
         }
         if (st.done && !st.still && (st.timeMs / 500) % 2 == 1L) {
-            SpeciesRenderer.glyph(f, STAR, s.ox + st.dx + s.width, max(1, s.oy + dy - 2))
+            SpeciesRenderer.glyph(f, STAR, s.ox + s.width, max(1, s.oy + dy - 2))
         }
-        if (st.still) zzz(f, s, st.dx, dy)
+        if (st.still && st.reaction == null) zzz(f, s, dy)
     }
 
     /** The Bot: the bottom row of its screen is a nine-step bar and its antenna blinks with the watts. */
     private fun bar(f: IntArray, s: Species, st: ChargeState) {
         val face = face(st) { if (st.done) Face.HAPPY else Face.IDLE }
-        paint(f, s, SpeciesRenderer.carve(s, face, st.blink, mouth = false), st.dx, still = st.still)
+        paint(f, s, SpeciesRenderer.carve(s, face, st.blink, mouth = false), still = st.still)
         val steps = if (st.done) 9 else (st.level * 9).toInt()
         val y = s.oy + 7
         val on = (st.pace * 0.7).toInt() % 2 == 1
-        for (i in 0 until steps) set(f, s.ox + st.dx + 1 + i, y, if (st.still) BRIGHT / 2 else BRIGHT)
+        for (i in 0 until steps) set(f, s.ox + 1 + i, y, if (st.still) BRIGHT / 2 else BRIGHT)
         if (st.live && on) {
-            if (steps < 9) set(f, s.ox + st.dx + 1 + steps, y, BRIGHT)
-            set(f, s.ox + st.dx + 5, s.oy, 0)
+            if (steps < 9) set(f, s.ox + 1 + steps, y, BRIGHT)
+            set(f, s.ox + 5, s.oy, 0)
         }
-        if (st.still) zzz(f, s, st.dx, 0)
+        if (st.still && st.reaction == null) zzz(f, s, 0)
     }
 
     /** The Cloud fills up and strikes lightning, more often with more watts. */
@@ -178,7 +177,7 @@ object ChargeRenderer {
         val strike = st.live && (phase - strikeNo) * periodSec < 0.25
         val dy = if (st.live) -3 else 0
         fill(f, s, st, dy, if (strike) Face.HAPPY else Face.CONTENT)
-        if (strike) SpeciesRenderer.glyph(f, LIGHTNING, intArrayOf(8, 12, 15)[strikeNo % 3] + st.dx, s.oy + dy + s.height + 1)
+        if (strike) SpeciesRenderer.glyph(f, LIGHTNING, intArrayOf(8, 12, 15)[strikeNo % 3], s.oy + dy + s.height + 1)
     }
 
     /** The UFO: seven hull lights are the battery, sparks climb its beam faster with more watts. */
@@ -190,17 +189,17 @@ object ChargeRenderer {
             val on = if (st.done && !st.still) ((st.timeMs / 160).toInt() + i) % 3 != 0 else i < lit || (st.live && i == lit && blinkOn)
             grid[6][1 + i * 2] = if (on) 'o' else '#'
         }
-        paint(f, s, grid, st.dx, still = st.still)
+        paint(f, s, grid, still = st.still)
         if (st.live) {
-            SpeciesRenderer.glyph(f, CONE, 8 + st.dx, 14, hashValue = LOW)
+            SpeciesRenderer.glyph(f, CONE, 8, 14, hashValue = LOW)
             val offsets = floatArrayOf(-0.8f, 0.1f, 0.7f, -0.3f)
             for (j in offsets.indices) {
                 val row = floor(6 - ((st.pace * 1.6 + j * 1.7) % 7)).toInt()
                 if (row !in 0..5) continue
-                set(f, 12 + st.dx + (offsets[j] * min(4, row + 1)).roundToInt(), 14 + row, BRIGHT)
+                set(f, 12 + (offsets[j] * min(4, row + 1)).roundToInt(), 14 + row, BRIGHT)
             }
         }
-        if (st.still) zzz(f, s, st.dx, 0)
+        if (st.still && st.reaction == null) zzz(f, s, 0)
     }
 
     /** The Eye: the ring of its iris is the battery, its pupil darts faster with more watts. */
@@ -209,18 +208,18 @@ object ChargeRenderer {
         val shift = if (st.live) sin(st.pace).roundToInt() else 0
         val grid = SpeciesRenderer.carve(s, face(st) { if (st.done) Face.HAPPY else Face.IDLE }, st.blink, eyeDx = shift)
         IRIS.forEachIndexed { i, (x, y) -> grid[y][x] = if (i < lit) 'o' else '.' }
-        paint(f, s, grid, st.dx, still = st.still)
+        paint(f, s, grid, still = st.still)
         if (st.live && lit < IRIS.size && (st.pace * 0.7).toInt() % 2 == 1) {
-            set(f, s.ox + st.dx + IRIS[lit].first, s.oy + IRIS[lit].second, BRIGHT)
+            set(f, s.ox + IRIS[lit].first, s.oy + IRIS[lit].second, BRIGHT)
         }
-        if (st.still) zzz(f, s, st.dx, 0)
+        if (st.still && st.reaction == null) zzz(f, s, 0)
     }
 
-    /** A reaction wins, then sleep, then a hungry or bored pet says so; otherwise the indicator's own face. */
+    /** A reaction wins (a sleeper's peek too), then sleep, then a needy pet says so; otherwise the indicator's own face. */
     private fun face(st: ChargeState, own: () -> Face): Face = when {
         st.reaction != null -> st.reaction
         st.still -> Face.SLEEP
-        st.needy -> Face.HUNGRY
+        st.needy -> st.need
         else -> own()
     }
 
@@ -252,7 +251,6 @@ object ChargeRenderer {
         f: IntArray,
         s: Species,
         grid: List<CharArray>,
-        dx: Int = 0,
         dy: Int = 0,
         lift: Int = 0,
         still: Boolean = false,
@@ -269,7 +267,7 @@ object ChargeRenderer {
                 body != null -> body(x, y)
                 else -> if (still) BODY / 2 else BODY
             }
-            SpeciesRenderer.put(f, s.ox + dx + x, s.oy + dy + y, value)
+            SpeciesRenderer.put(f, s.ox + x, s.oy + dy + y, value)
         }
     }
 
@@ -284,8 +282,8 @@ object ChargeRenderer {
     private fun standDy(s: Species, st: ChargeState): Int =
         if (s.charge == ChargeWay.WHEEL && st.stand) 22 - (s.oy + s.height - 1) else 0
 
-    private fun zzz(f: IntArray, s: Species, dx: Int, dy: Int) =
-        SpeciesRenderer.glyph(f, Z, s.ox + dx + s.width - 1, max(1, s.oy + dy - 3), brightValue = BRIGHT / 2)
+    private fun zzz(f: IntArray, s: Species, dy: Int) =
+        SpeciesRenderer.glyph(f, Z, s.ox + s.width - 1, max(1, s.oy + dy - 3), brightValue = BRIGHT / 2)
 
     private fun set(f: IntArray, x: Int, y: Int, value: Int) {
         if (GlyphMatrixSpec.isVisible(x, y)) f[y * SIZE + x] = value
