@@ -24,8 +24,8 @@ android {
         applicationId = "n7.glyphpet"
         minSdk = 35
         targetSdk = 37
-        versionCode = 5
-        versionName = "1.1"
+        versionCode = 6
+        versionName = "1.2"
     }
 
     // Upload key from ~/.gradle/gradle.properties (n7.upload.*, or the shared kcal.upload.* key).
@@ -46,10 +46,12 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            // R8: shrinks, optimizes and renames the code and drops unused resources.
+            // Keep rules: every file in src/main/keepRules/.
+            optimization {
+                enable = true
+            }
             signingConfig = signingConfigs.findByName("upload") ?: signingConfigs.getByName("debug")
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
     buildFeatures {
