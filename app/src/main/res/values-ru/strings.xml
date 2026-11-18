@@ -1,5 +1,5 @@
 <resources>
-    <string name="toy_summary">Каждый день новый питомец в яйце. Пять нажатий, и он вылупится на Glyph Matrix. Собери всех 18.</string>
+    <string name="toy_summary">Каждый день новый питомец в яйце. Положи его на Glyph Matrix, и после пяти долгих нажатий кнопки Glyph он вылупится. Собери всех 18.</string>
 
     <string name="tagline">Питомец на твоей Glyph Matrix.</string>
     <string name="main_hint">Каждый день новый питомец в яйце</string>
@@ -14,11 +14,11 @@
 
     <string name="egg_title">Яйцо</string>
     <string name="egg_tile_description">Яйцо, нажатий %1$d из %2$d</string>
-    <string name="egg_crack_action">разбить яйцо</string>
+    <string name="egg_crack_action">пять долгих нажатий кнопки Glyph его разобьют</string>
     <string name="egg_label">Яйцо</string>
 
     <string name="collection_title">Питомник · %1$d из %2$d</string>
-    <string name="collection_odds">Каждый день в яйце приходит питомец, которого у тебя ещё нет. Обычные чаще, легендарные редко. Нажми на яйцо 5 раз, чтобы открыть, на питомца — чтобы поселить его на матрицу.</string>
+    <string name="collection_odds">Каждый день в яйце приходит питомец, которого у тебя ещё нет. Обычные чаще, легендарные редко. Нажми на яйцо, чтобы положить его на матрицу, на питомца — чтобы вернуть его туда.</string>
     <string name="rarity_common">Обычный</string>
     <string name="rarity_rare">Редкий</string>
     <string name="rarity_legendary">Легендарный</string>
@@ -31,13 +31,13 @@
     <string name="supporter_unavailable">Скоро в Google Play</string>
 
     <string name="step_activate">Включи Glyph Pet в Glyph-игрушках</string>
-    <string name="step_play">Покачай телефон, чтобы поиграть, потряси — и яйцо треснет</string>
+    <string name="step_play">Зажми кнопку Glyph, чтобы покормить, покачай телефон, чтобы поиграть, потряси, чтобы подрос готовый питомец</string>
     <string name="step_aod">Сделай его Always-on игрушкой, чтобы он всегда был с тобой</string>
 
     <string name="intro_1_title">Каждый день — новый питомец</string>
-    <string name="intro_1_text">Каждый день, когда ты играешь, приходит новый питомец в яйце, всегда тот, которого у тебя ещё нет. Нажми на яйцо пять раз, и он вылупится.</string>
+    <string name="intro_1_text">Каждый день, когда ты играешь, приходит новый питомец в яйце, всегда тот, которого у тебя ещё нет. Положи яйцо на матрицу и пять раз зажми кнопку Glyph — он вылупится.</string>
     <string name="intro_2_title">Кнопка и жесты</string>
-    <string name="intro_2_text">Питомец живёт на задней панели телефона. Зажми кнопку Glyph — он поест. Покачай телефон — поиграете. Потряси — треснет яйцо.</string>
+    <string name="intro_2_text">Питомец живёт на задней панели телефона. Зажми кнопку Glyph — он поест. Покачай телефон — поиграете. Потряси — закружится голова, а когда питомец готов, он подрастёт.</string>
     <string name="intro_3_title">Собери всех 18</string>
     <string name="intro_3_text">Каждый новый питомец попадает в питомник. Некоторые редкие, а трое — легендарные.</string>
     <string name="intro_next">Дальше</string>
@@ -49,9 +49,12 @@
 
     <string name="now_title">Сейчас</string>
     <string name="now_egg_first">В этом яйце — твой первый питомец</string>
+    <string name="now_egg_on_matrix">На матрице яйцо, %1$s пока отошёл</string>
+    <string name="egg_put_on_matrix">Положить яйцо на матрицу</string>
+    <string name="egg_take_off_matrix">Убрать яйцо с матрицы</string>
     <string name="now_hatched">Вылупился %1$s!</string>
-    <string name="now_eggs_waiting">Яиц ждёт: %1$d. Нажми на любое в питомнике, чтобы взять его в руки.</string>
-    <string name="now_egg_how">Потряси телефон или нажми на яйцо здесь.</string>
+    <string name="now_eggs_waiting">Яиц ждёт: %1$d. Положи одно на матрицу, чтобы оно вылупилось.</string>
+    <string name="now_egg_how">Зажимай кнопку Glyph на задней панели, всего пять долгих нажатий.</string>
     <string name="now_egg_presses">Осталось нажатий до вылупления: %1$d</string>
     <string name="now_sleeping">%1$s спит</string>
     <string name="now_sick">%1$s болеет</string>
@@ -98,7 +101,7 @@
     <string name="state_loved">Его гладят</string>
     <string name="state_loved_when">Когда качаешь телефон из стороны в сторону</string>
     <string name="state_dizzy">Голова кругом</string>
-    <string name="state_dizzy_when">Когда трясёшь телефон, а яйца нет</string>
+    <string name="state_dizzy_when">Когда трясёшь телефон, а подрастать ему ещё рано</string>
     <string name="state_scared">Испуган</string>
     <string name="state_scared_when">Когда наклоняешь телефон: он катится вниз</string>
     <string name="state_trick">Свой трюк</string>

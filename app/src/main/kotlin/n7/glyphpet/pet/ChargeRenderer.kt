@@ -17,7 +17,6 @@ import kotlin.math.sin
  * @param still no motion and a sleeping pet: Always-on and night.
  * @param reaction a face that takes over for a moment (fed, stroked, shaken); the pet stops running to show it.
  * @param needy the pet is hungry, bored or sick and shows it while it charges, with the face [need].
- * @param stand wheel pets stand on the bottom of the rim instead of their home spot (not while an egg waits).
  */
 data class ChargeState(
     val timeMs: Long,
@@ -30,7 +29,6 @@ data class ChargeState(
     val reaction: Face? = null,
     val needy: Boolean = false,
     val need: Face = Face.HUNGRY,
-    val stand: Boolean = true,
 ) {
     val done: Boolean get() = level >= 0.995f
     val live: Boolean get() = !still && !done && watts > 0f
@@ -343,7 +341,7 @@ object ChargeRenderer {
     }
 
     private fun standDy(s: Species, st: ChargeState): Int =
-        if (s.charge == ChargeWay.WHEEL && st.stand) 22 - (s.oy + s.height - 1) else 0
+        if (s.charge == ChargeWay.WHEEL) 22 - (s.oy + s.height - 1) else 0
 
     private fun zzz(f: IntArray, s: Species, dy: Int) =
         SpeciesRenderer.glyph(f, Z, s.ox + s.width - 1, max(1, s.oy + dy - 3), brightValue = BRIGHT / 2)

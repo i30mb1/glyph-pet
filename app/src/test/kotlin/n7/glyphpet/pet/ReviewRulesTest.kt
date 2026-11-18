@@ -46,14 +46,15 @@ class ReviewRulesTest {
 
     @Test
     fun `the button for every mood, with and without an egg and a pet`() {
-        // Holding the button feeds; a sleeper only stirs; before the first pet it opens the egg. Eggs are shaken open.
+        // Holding the button cracks the egg on the matrix; otherwise it feeds and a sleeper only stirs.
         for (pet in listOf(false, true)) for (mood in Mood.entries) for (egg in listOf(false, true)) {
             val expected = when {
-                !pet -> if (egg) ButtonAction.CRACK_EGG else ButtonAction.NOTHING
+                egg -> ButtonAction.CRACK_EGG
+                !pet -> ButtonAction.NOTHING
                 mood == Mood.SLEEPING -> ButtonAction.STIR
                 else -> ButtonAction.FEED
             }
-            assertEquals("pet=$pet $mood egg=$egg", expected, ButtonRules.decide(hasPet = pet, mood = mood, eggWaiting = egg))
+            assertEquals("pet=$pet $mood egg=$egg", expected, ButtonRules.decide(hasPet = pet, mood = mood, eggOnMatrix = egg))
         }
     }
 
@@ -71,7 +72,7 @@ class ReviewRulesTest {
             val cases = mapOf<String, Pair<Mood, (Long, PetEngine) -> Unit>>(
                 "eating" to (Mood.CONTENT to { t, e -> if (t % 1600 == 80L) e.feed(accepted = true) }),
                 "refusing" to (Mood.HAPPY to { t, e -> if (t % 1120 == 80L) e.feed(accepted = false) }),
-                "celebrating" to (Mood.HAPPY to { t, e -> if (t % 2800 == 80L) e.celebrate() }),
+                "surging" to (Mood.HAPPY to { t, e -> if (t % 2800 == 80L) e.surge() }),
                 "tired" to (Mood.TIRED to { _, _ -> }),
                 "sad" to (Mood.SAD to { _, _ -> }),
                 "peek" to (Mood.SLEEPING to { t, e -> if (t % 800 == 80L) e.pet() }),
@@ -120,7 +121,7 @@ class ReviewRulesTest {
     fun `the peek lasts about a second however it is started, and repeated pokes keep one eye open`() {
         for (s in SpeciesCatalog.all) for (charging in listOf(false, true)) {
             val scene = Scene(s, Mood.SLEEPING, charging = charging, watts = 10f, battery = 0.5f)
-            for (poke in listOf<(PetEngine) -> Unit>({ it.pet() }, { it.shake() }, { it.feed(true) }, { it.feed(false) }, { it.celebrate() })) {
+            for (poke in listOf<(PetEngine) -> Unit>({ it.pet() }, { it.shake() }, { it.feed(true) }, { it.feed(false) }, { it.surge() })) {
                 val engine = PetEngine(Random(43))
                 repeat(3) { engine.tick(80, scene) }
                 val asleepFrame = engine.tick(80, scene)
@@ -159,7 +160,7 @@ class ReviewRulesTest {
                     1 -> engine.pet()
                     2 -> engine.shake()
                     3 -> engine.trick()
-                    4 -> engine.celebrate()
+                    4 -> engine.surge()
                     5 -> mood = moods[r.nextInt(moods.size)]
                     6 -> charging = !charging
                     7 -> egg = if (egg == null) EggView(EggStage.entries[r.nextInt(EggStage.entries.size)], r.nextBoolean()) else null

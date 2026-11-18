@@ -49,36 +49,24 @@ class EggRulesTest {
     }
 
     @Test
-    fun `every stage of the egg looks different, big and small, golden or not`() {
+    fun `every stage of the egg looks different, golden or not`() {
         for (golden in listOf(false, true)) {
             val big = EggStage.entries.map { st -> draw { EggRenderer.big(it, EggView(st, golden)) }.toList() }
-            val small = EggStage.entries.map { st -> draw { EggRenderer.mini(it, EggView(st, golden), EggLayout.EDGE) }.toList() }
             assertEquals(4, big.toSet().size)
-            assertEquals(4, small.toSet().size)
-            for ((i, f) in (big + small).withIndex()) assertInside("golden=$golden $i", f.toIntArray())
+            for ((i, f) in big.withIndex()) assertInside("golden=$golden $i", f.toIntArray())
             // Neighbouring stages differ by at least two LEDs, so a press shows from 30 cm.
-            for (list in listOf(big, small)) list.zipWithNext().forEach { (a, b) -> assertTrue(a.indices.count { a[it] != b[it] } >= 2) }
+            big.zipWithNext().forEach { (a, b) -> assertTrue(a.indices.count { a[it] != b[it] } >= 2) }
         }
         // A golden egg glows: brighter than a plain one.
-        val plain = draw { EggRenderer.mini(it, EggView(EggStage.WHOLE, false), EggLayout.EDGE) }
-        val gold = draw { EggRenderer.mini(it, EggView(EggStage.WHOLE, true), EggLayout.EDGE) }
+        val plain = draw { EggRenderer.big(it, EggView(EggStage.WHOLE, false)) }
+        val gold = draw { EggRenderer.big(it, EggView(EggStage.WHOLE, true)) }
         assertTrue(gold.sum() > plain.sum() * 2)
     }
 
     @Test
-    fun `the egg wobbles inside the round matrix, the small one rocks without losing an LED`() {
+    fun `the egg wobbles inside the round matrix`() {
         for (st in EggStage.entries) {
             for (w in -1..1) assertInside("big $st $w", draw { EggRenderer.big(it, EggView(st, true), w) })
-            for (spot in listOf(EggLayout.EDGE, EggLayout.CHARGER)) {
-                val upright = draw { EggRenderer.mini(it, EggView(st, true), spot) }
-                val tipped = draw { EggRenderer.mini(it, EggView(st, true), spot, tipped = true) }
-                assertInside("small $st", upright)
-                assertInside("small tipped $st", tipped)
-                assertTrue("$st rocks", !upright.contentEquals(tipped))
-                assertEquals("$st: the same LEDs count, nothing cut off", upright.count { it > 0 }, tipped.count { it > 0 })
-            }
         }
-        assertTrue(EggRenderer.fits(EggLayout.EDGE))
-        assertTrue(EggRenderer.fits(EggLayout.CHARGER))
     }
 }

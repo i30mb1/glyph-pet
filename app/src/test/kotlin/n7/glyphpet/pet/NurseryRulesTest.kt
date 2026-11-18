@@ -22,10 +22,10 @@ class NurseryRulesTest {
 
     private fun NurseryState.at(ms: Long) = NurseryRules.advance(this, ms, random)
 
-    /** Presses [n] times on [id] (null: the egg in the hands). */
+    /** Presses the Glyph button [n] times on egg [id], put on the matrix first (null: the egg on the matrix). */
     private fun NurseryState.press(n: Int, id: String? = null, ms: Long = at(1, 12)): NurseryState {
-        var s = this
-        repeat(n) { s = NurseryRules.press(s, id, ms)!! }
+        var s = if (id != null) NurseryRules.putOnMatrix(this, id) else this
+        repeat(n) { s = NurseryRules.press(s, ms)!! }
         return s
     }
 
@@ -39,7 +39,7 @@ class NurseryRulesTest {
         val s = NurseryState().at(at(1, 10))
         assertNull(s.active)
         assertEquals(1, NurseryRules.available(s).size)
-        assertNotNull(NurseryRules.current(s))
+        assertNotNull("the first egg is on the matrix by itself", NurseryRules.onMatrix(s))
     }
 
     @Test
@@ -76,7 +76,8 @@ class NurseryRulesTest {
                 NurseryRules.available(s).forEach { assertEquals("seed $seed day $day", 0, s.seen[it] ?: 0) }
                 assertEquals(NurseryRules.available(s).size, NurseryRules.available(s).toSet().size)
                 // Opens it most days, keeps it on some.
-                if (r.nextInt(3) != 0 && NurseryRules.current(s) != null) repeat(5) { s = NurseryRules.press(s, null, at(day, 9))!! }
+                val egg = NurseryRules.available(s).firstOrNull()
+                if (r.nextInt(3) != 0 && egg != null) s = s.press(5, egg, at(day, 9))
             }
             assertTrue("seed $seed: every count is 0 or 1", s.seen.values.all { it == 1 })
         }
@@ -87,15 +88,16 @@ class NurseryRulesTest {
         var s = NurseryState()
         var day = 1
         while (s.seen.size < 18) {
-            s = s.at(at(day, 8)).press(5, ms = at(day, 9))
+            val today = s.at(at(day, 8))
+            s = today.press(5, NurseryRules.available(today).first(), at(day, 9))
             day++
         }
         assertEquals(19, day)
         assertEquals(all.toSet(), s.seen.keys)
         for (d in 19..31) s = s.at(at(d, 8))
         assertTrue(NurseryRules.available(s).isEmpty())
-        assertNull(NurseryRules.current(s))
-        assertNull(NurseryRules.press(s, null, at(31, 9)))
+        assertNull(NurseryRules.onMatrix(s))
+        assertNull(NurseryRules.press(s, at(31, 9)))
     }
 
     @Test
@@ -131,19 +133,19 @@ class NurseryRulesTest {
     @Test
     fun `five presses open the egg, each one cracks it further`() {
         val laid = NurseryState().at(at(1, 10))
-        val egg = NurseryRules.current(laid)!!
+        val egg = NurseryRules.onMatrix(laid)!!
         val stages = mutableListOf(EggRules.stage(NurseryRules.presses(laid, egg)))
         var s = laid
         repeat(4) {
             val before = s
-            s = NurseryRules.press(s, null, at(1, 10, 1))!!
+            s = NurseryRules.press(s, at(1, 10, 1))!!
             assertEquals(PressResult.CRACKED, NurseryRules.result(before, s))
             assertNull("not hatched yet", s.active)
             stages += EggRules.stage(NurseryRules.presses(s, egg))
         }
         assertEquals(listOf(EggStage.WHOLE, EggStage.CRACKED, EggStage.CRACKED_MORE, EggStage.HATCHING, EggStage.HATCHING), stages)
         val before = s
-        val hatched = NurseryRules.press(s, null, at(1, 10, 2))!!
+        val hatched = NurseryRules.press(s, at(1, 10, 2))!!
         assertEquals(PressResult.HATCHED, NurseryRules.result(before, hatched))
         assertEquals(egg, hatched.active)
         assertEquals(1, hatched.seen[egg])
@@ -156,19 +158,25 @@ class NurseryRulesTest {
     @Test
     fun `the new pet becomes the active one even with a pet already`() {
         val s = withFirstPet().at(at(2, 9))
-        val egg = NurseryRules.current(s)!!
-        assertEquals(egg, s.press(5, ms = at(2, 10)).active)
+        val egg = NurseryRules.available(s).first()
+        val hatched = s.press(5, egg, at(2, 10))
+        assertEquals(egg, hatched.active)
+        assertNull("the pet is back on the matrix", NurseryRules.onMatrix(hatched))
     }
 
     @Test
-    fun `presses from the matrix and from the app add up on the same egg`() {
+    fun `with a pet an egg waits in the app until it is put on the matrix`() {
         val s = withFirstPet().at(at(2, 9))
-        val egg = NurseryRules.current(s)!!
-        val mixed = s.press(2).press(1, egg).press(1).press(0)
-        assertEquals(4, NurseryRules.presses(mixed, egg))
-        assertNull(mixed.seen[egg])
-        assertEquals(egg, mixed.press(1, egg).active)
-        assertEquals(egg, mixed.press(1).active)
+        val egg = NurseryRules.available(s).first()
+        assertNull(NurseryRules.onMatrix(s))
+        assertNull("the button has no egg to crack", NurseryRules.press(s, at(2, 10)))
+        val on = NurseryRules.putOnMatrix(s, egg)
+        assertEquals(egg, NurseryRules.onMatrix(on))
+        val cracked = on.press(2)
+        val off = NurseryRules.takeOffMatrix(cracked)
+        assertNull(NurseryRules.onMatrix(off))
+        assertEquals("presses stay when it is taken off", 2, NurseryRules.presses(off, egg))
+        assertEquals("a collected pet is no egg", s, NurseryRules.putOnMatrix(s, s.active!!))
     }
 
     @Test
@@ -185,42 +193,15 @@ class NurseryRulesTest {
     }
 
     @Test
-    fun `with no egg picked the oldest is in the hands`() {
-        var s = withFirstPet()
-        for (day in 2..4) s = s.at(at(day, 9))
-        val oldest = NurseryRules.available(s).first()
-        assertEquals(oldest, NurseryRules.current(s))
-        assertEquals(1, NurseryRules.presses(s.press(1), oldest))
-    }
-
-    @Test
-    fun `a tap on an egg in the app takes it in the hands and counts as a press`() {
-        var s = withFirstPet()
-        for (day in 2..4) s = s.at(at(day, 9))
-        val third = NurseryRules.available(s)[2]
-        s = s.press(1, third)
-        assertEquals(third, s.selected)
-        assertEquals(third, NurseryRules.current(s))
-        assertEquals(1, NurseryRules.presses(s, third))
-        // The Glyph button now cracks the picked egg.
-        s = s.press(4)
-        assertEquals(third, s.active)
-        assertNull("after it hatches the oldest is in the hands again", s.selected)
-        assertEquals(NurseryRules.available(s).first(), NurseryRules.current(s))
-    }
-
-    @Test
-    fun `a stale pick falls back to the oldest egg`() {
-        val s = withFirstPet().at(at(2, 9)).copy(selected = "nope")
-        assertEquals(NurseryRules.available(s).first(), NurseryRules.current(s))
+    fun `a stale egg on the matrix leaves the pet there`() {
+        val s = withFirstPet().at(at(2, 9)).copy(onMatrix = "nope")
+        assertNull(NurseryRules.onMatrix(s))
     }
 
     @Test
     fun `there is nothing to press without an egg, and a collected pet cannot be pressed`() {
         val s = withFirstPet()
-        assertNull(NurseryRules.press(s, null, at(1, 12)))
-        assertNull(NurseryRules.press(s, s.active, at(1, 12)))
-        assertNull(NurseryRules.press(s, "nope", at(1, 12)))
+        assertNull(NurseryRules.press(s, at(1, 12)))
         assertEquals(PressResult.NONE, NurseryRules.result(s, null))
     }
 
@@ -270,20 +251,21 @@ class NurseryRulesTest {
     // --- The Glyph button ----------------------------------------------------------------------------
 
     @Test
-    fun `holding the Glyph button feeds, and opens only the first egg`() {
-        assertEquals(ButtonAction.CRACK_EGG, ButtonRules.decide(hasPet = false, mood = Mood.CONTENT, eggWaiting = true))
-        assertEquals(ButtonAction.NOTHING, ButtonRules.decide(hasPet = false, mood = Mood.CONTENT, eggWaiting = false))
-        assertEquals(ButtonAction.FEED, ButtonRules.decide(hasPet = true, mood = Mood.HUNGRY, eggWaiting = true))
-        assertEquals(ButtonAction.STIR, ButtonRules.decide(hasPet = true, mood = Mood.SLEEPING, eggWaiting = true))
-        assertEquals(ButtonAction.FEED, ButtonRules.decide(hasPet = true, mood = Mood.HAPPY, eggWaiting = false))
+    fun `holding the Glyph button cracks the egg on the matrix, otherwise feeds`() {
+        assertEquals(ButtonAction.CRACK_EGG, ButtonRules.decide(hasPet = false, mood = Mood.CONTENT, eggOnMatrix = true))
+        assertEquals(ButtonAction.NOTHING, ButtonRules.decide(hasPet = false, mood = Mood.CONTENT, eggOnMatrix = false))
+        assertEquals(ButtonAction.CRACK_EGG, ButtonRules.decide(hasPet = true, mood = Mood.HUNGRY, eggOnMatrix = true))
+        assertEquals(ButtonAction.CRACK_EGG, ButtonRules.decide(hasPet = true, mood = Mood.SLEEPING, eggOnMatrix = true))
+        assertEquals(ButtonAction.STIR, ButtonRules.decide(hasPet = true, mood = Mood.SLEEPING, eggOnMatrix = false))
+        assertEquals(ButtonAction.FEED, ButtonRules.decide(hasPet = true, mood = Mood.HAPPY, eggOnMatrix = false))
     }
 
     @Test
-    fun `a shake cracks the egg, without one the pet gets dizzy`() {
-        assertEquals(ShakeAction.CRACK_EGG, ButtonRules.shake(hasPet = true, eggWaiting = true, petReady = false))
-        assertEquals(ShakeAction.CRACK_EGG, ButtonRules.shake(hasPet = false, eggWaiting = true, petReady = false))
-        assertEquals(ShakeAction.DIZZY, ButtonRules.shake(hasPet = true, eggWaiting = false, petReady = false))
-        assertEquals(ShakeAction.NOTHING, ButtonRules.shake(hasPet = false, eggWaiting = false, petReady = false))
+    fun `a shake makes the pet dizzy and never cracks an egg`() {
+        assertEquals(ShakeAction.NOTHING, ButtonRules.shake(hasPet = true, eggOnMatrix = true, petReady = false))
+        assertEquals(ShakeAction.NOTHING, ButtonRules.shake(hasPet = false, eggOnMatrix = true, petReady = false))
+        assertEquals(ShakeAction.DIZZY, ButtonRules.shake(hasPet = true, eggOnMatrix = false, petReady = false))
+        assertEquals(ShakeAction.NOTHING, ButtonRules.shake(hasPet = false, eggOnMatrix = false, petReady = false))
     }
 
     @Test

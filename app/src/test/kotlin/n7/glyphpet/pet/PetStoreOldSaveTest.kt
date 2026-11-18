@@ -166,12 +166,11 @@ class PetStoreOldSaveTest {
         assertTrue(n.supporter)
         assertNull(n.justHatched)
         assertEquals(Mood.CONTENT, PetRules.mood(n.stats, asleep = false))
-        // The owl it was hatching is the oldest egg and in the hands, not cracked yet; as a supporter every other
-        // missing pet is there too, and the egg is golden.
-        assertEquals("owl", n.egg?.id)
+        // The owl it was hatching is the oldest egg, waiting in the app, not cracked yet; as a supporter every other
+        // missing pet is there too. The pet stays on the matrix.
         assertEquals("owl", n.eggs.first().id)
         assertEquals(SpeciesCatalog.all.map { it.id }.toSet() - seen.keys, n.eggs.map { it.id }.toSet())
-        assertEquals(EggView(EggStage.WHOLE, golden = true), n.eggView)
+        assertNull(n.eggOnMatrix)
         // Needs, collection counts and the pet are saved under the same keys with the same values; 1.1's egg keys are gone.
         val kept = before.keys.filter { it !in oldEggKeys }
         for (k in kept) assertEquals(k, before[k], prefs.map[k])
@@ -180,7 +179,9 @@ class PetStoreOldSaveTest {
         val again = PetStore(fakeContext(prefs)).nursery(now + 60_000)
         assertEquals(n.eggs, again.eggs)
         assertEquals(n.collection, again.collection)
-        // Five presses open the owl.
+        // Put on the matrix (golden: a supporter's), five presses open the owl.
+        store.putEggOnMatrix("owl", nowMs = now + 110_000)
+        assertEquals(EggView(EggStage.WHOLE, golden = true), store.nursery(now + 110_000).eggView)
         repeat(4) { assertEquals(PressResult.CRACKED, store.pressEgg(nowMs = now + 120_000)) }
         assertEquals(PressResult.HATCHED, store.pressEgg(nowMs = now + 120_000))
         val hatched = store.nursery(now + 121_000)
@@ -201,16 +202,17 @@ class PetStoreOldSaveTest {
         val store = PetStore(fakeContext(prefs))
         val n = store.nursery(now)
         assertEquals(1, n.eggs.size)
-        val egg = n.egg!!
+        val egg = n.eggs.first()
         assertTrue(egg.id !in setOf("cat", "frog"))
         assertEquals(2, n.collection["cat"])
         assertEquals("cat", n.active?.id)
         // Two presses today, the egg waits overnight, tomorrow a second egg joins it.
+        store.putEggOnMatrix(egg.id, nowMs = now + 500)
         store.pressEgg(nowMs = now + 1000)
-        store.pressEgg(egg.id, nowMs = now + 2000)
+        store.pressEgg(nowMs = now + 2000)
         val tomorrow = store.nursery(now + PetStats.DAY_MS)
         assertEquals(2, tomorrow.eggs.size)
-        assertEquals(egg.id, tomorrow.egg?.id)
+        assertEquals(egg.id, tomorrow.eggOnMatrix?.id)
         assertEquals(2, tomorrow.pressesOf(egg.id))
         assertEquals(EggStage.CRACKED_MORE, tomorrow.eggView?.stage)
     }
@@ -257,8 +259,8 @@ class PetStoreOldSaveTest {
         )
         val n = PetStore(fakeContext(prefs)).nursery(now)
         // A new game day since 1.1's last egg: today's pet arrives as an egg, one the player does not have.
-        assertNotNull(n.egg)
-        assertTrue(n.egg!!.id != "cat")
+        assertEquals(1, n.eggs.size)
+        assertTrue(n.eggs.first().id != "cat")
         assertEquals("cat", n.active?.id)
     }
 
@@ -315,7 +317,7 @@ class PetStoreOldSaveTest {
         assertSame(SpeciesCatalog.get("fox"), n.activeForm)
         assertEquals(teen, n.activeGrowth)
         assertFalse(n.ready)
-        assertEquals("owl", n.egg?.id)
+        assertEquals("owl", n.eggs.firstOrNull()?.id)
         assertEquals(3, prefs.map["save_version"])
         assertEquals(listOf("fox", "cat", "ufo").map { "$it:TEEN:TEEN:0:0:${EggRules.dayKey(now)}:0" }.toSet(), (prefs.map["growth"] as String).split(',').toSet())
         // Loaded again days later: the same teens, the day they became teens kept.

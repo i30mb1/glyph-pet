@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name" translatable="false">Glyph Pet</string>
     <string name="toy_name" translatable="false">Glyph Pet</string>
-    <string name="toy_summary">A new pet every day, as an egg. Five presses hatch it on your Glyph Matrix. Collect all 18.</string>
+    <string name="toy_summary">A new pet every day, as an egg. Put it on your Glyph Matrix and five long presses of the Glyph button hatch it. Collect all 18.</string>
 
     <string name="tagline">A pet that lives on your Glyph Matrix.</string>
     <string name="main_hint">A new pet every day, as an egg</string>
@@ -16,11 +16,11 @@
 
     <string name="egg_title">Egg</string>
     <string name="egg_tile_description">Egg, %1$d of %2$d presses</string>
-    <string name="egg_crack_action">crack the egg</string>
+    <string name="egg_crack_action">five long presses of the Glyph button crack it</string>
     <string name="egg_label">Egg</string>
 
     <string name="collection_title">Nursery · %1$d of %2$d</string>
-    <string name="collection_odds">Every day a new pet comes as an egg, never one you have. Common ones come most often, legendary ones rarely. Tap an egg 5 times to open it, tap a pet to put it on the matrix.</string>
+    <string name="collection_odds">Every day a new pet comes as an egg, never one you have. Common ones come most often, legendary ones rarely. Tap an egg to put it on the matrix, tap a pet to bring it back there.</string>
     <string name="rarity_common">Common</string>
     <string name="rarity_rare">Rare</string>
     <string name="rarity_legendary">Legendary</string>
@@ -33,13 +33,13 @@
     <string name="supporter_unavailable">Coming soon on Google Play</string>
 
     <string name="step_activate">Activate Glyph Pet in Glyph Toys</string>
-    <string name="step_play">Rock the phone gently to play, shake it to crack an egg</string>
+    <string name="step_play">Hold the Glyph button to feed, rock the phone gently to play, shake it to grow a pet that is ready</string>
     <string name="step_aod">Set it as the Always-on Glyph Toy to keep it with you</string>
 
     <string name="intro_1_title">A new pet every day</string>
-    <string name="intro_1_text">Every day you play, a new pet comes as an egg, always one you do not have yet. Press it five times and it hatches.</string>
+    <string name="intro_1_text">Every day you play, a new pet comes as an egg, always one you do not have yet. Put it on the matrix and press the Glyph button five times: it hatches.</string>
     <string name="intro_2_title">A button and gestures</string>
-    <string name="intro_2_text">The pet lives on the back of your phone. Hold the Glyph button to feed it, rock the phone gently to play, shake it to crack an egg.</string>
+    <string name="intro_2_text">The pet lives on the back of your phone. Hold the Glyph button to feed it, rock the phone gently to play. A shake makes it dizzy, or grows it once it is ready.</string>
     <string name="intro_3_title">Collect all 18</string>
     <string name="intro_3_text">Every new pet joins your nursery. Some are rare, three are legendary.</string>
     <string name="intro_next">Next</string>
@@ -51,9 +51,12 @@
 
     <string name="now_title">Right now</string>
     <string name="now_egg_first">Your first pet is inside this egg</string>
+    <string name="now_egg_on_matrix">The egg is on the matrix, %1$s has stepped away</string>
+    <string name="egg_put_on_matrix">Put an egg on the matrix</string>
+    <string name="egg_take_off_matrix">Take the egg off the matrix</string>
     <string name="now_hatched">%1$s has hatched!</string>
-    <string name="now_eggs_waiting">Eggs waiting: %1$d. Tap one in the nursery to take it in your hands.</string>
-    <string name="now_egg_how">Shake the phone, or tap the egg here.</string>
+    <string name="now_eggs_waiting">Eggs waiting: %1$d. Put one on the matrix to hatch it.</string>
+    <string name="now_egg_how">Hold the Glyph button on the back of the phone, five long presses in all.</string>
     <string name="now_egg_presses">Presses left to open the egg: %1$d</string>
     <string name="now_sleeping">%1$s is asleep</string>
     <string name="now_sick">%1$s feels sick</string>
@@ -100,7 +103,7 @@
     <string name="state_loved">Loved</string>
     <string name="state_loved_when">When you rock the phone gently side to side</string>
     <string name="state_dizzy">Dizzy</string>
-    <string name="state_dizzy_when">When you shake the phone and no egg is waiting</string>
+    <string name="state_dizzy_when">When you shake the phone and it is not ready to grow</string>
     <string name="state_scared">Scared</string>
     <string name="state_scared_when">When you tilt the phone: it slides down</string>
     <string name="state_trick">Its own trick</string>

@@ -3,8 +3,7 @@ package n7.glyphpet.pet
 /**
  * The 18 signature idle animations, one per species, each about 1-1.5 s. Every habit is plain data: a list of
  * [HabitFrame]s built from the species' own rows, so a new species only needs a few frames here.
- * Overlay positions are in sprite coordinates from the species' home spot. While an egg waits the habits stay the
- * same: [EggLayout.habitSpots] says where each one keeps clear of it.
+ * Overlay positions are in sprite coordinates from the species' home spot.
  */
 object Habits {
 

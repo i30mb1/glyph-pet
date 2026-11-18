@@ -50,13 +50,12 @@ class PetEngineTest {
     }
 
     @Test
-    fun `an egg alone is drawn big, beside a pet it is small`() {
+    fun `an egg on the matrix is drawn big, and the pet is away`() {
         val egg = EggView(EggStage.WHOLE, golden = false)
-        val alone = lit(PetEngine().still(Scene(null, Mood.CONTENT, egg = egg)))
+        val alone = PetEngine().still(Scene(null, Mood.CONTENT, egg = egg))
         val withPet = PetEngine().still(Scene(SpeciesCatalog.get("ghost"), Mood.CONTENT, egg = egg))
-        val petOnly = PetEngine().still(Scene(SpeciesCatalog.get("ghost"), Mood.CONTENT))
-        assertTrue(alone > 50)
-        assertTrue(lit(withPet) > lit(petOnly))
+        assertTrue(lit(alone) > 50)
+        assertTrue(alone.contentEquals(withPet))
     }
 
     private fun differing(a: IntArray, b: IntArray) = a.indices.count { a[it] != b[it] }
@@ -130,7 +129,7 @@ class PetEngineTest {
     @Test
     fun `Always-on stills of two moods never look alike`() {
         val problems = mutableListOf<String>()
-        for (s in SpeciesCatalog.all) for (egg in listOf(null, EggView(EggStage.WHOLE, golden = false))) {
+        for (s in SpeciesCatalog.all) for (egg in listOf<EggView?>(null)) {
             val stills = Mood.entries.associateWith { PetEngine().still(Scene(s, it, egg = egg)) }
             for ((a, fa) in stills) for ((b, fb) in stills) {
                 if (a.ordinal >= b.ordinal) continue

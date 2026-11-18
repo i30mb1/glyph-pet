@@ -33,7 +33,7 @@ class GrowthRulesTest {
     /** A player whose first pet hatched on March 1st at 10:01. */
     private fun withFirstPet(): NurseryState {
         var s = NurseryState().at(at(1, 10))
-        repeat(EggRules.PRESSES_TO_HATCH) { s = NurseryRules.press(s, null, at(1, 10, 1))!! }
+        repeat(EggRules.PRESSES_TO_HATCH) { s = NurseryRules.press(s, at(1, 10, 1))!! }
         return s
     }
 
@@ -84,7 +84,7 @@ class GrowthRulesTest {
     fun `every baby gets ready, not only the active one`() {
         var s = withFirstPet().copy(supporter = true)
         val first = s.active!!
-        repeat(EggRules.PRESSES_TO_HATCH) { s = NurseryRules.press(s, null, at(1, 11))!! }
+        repeat(EggRules.PRESSES_TO_HATCH) { s = NurseryRules.press(s, at(1, 11))!! }
         val second = s.active!!
         assertTrue(first != second)
         val morning = s.at(at(2, 7))
@@ -183,7 +183,8 @@ class GrowthRulesTest {
         var s = withTeen().copy(supporter = true)
         val teen = s.active!!
         // A second pet hatches and goes on the matrix: the teen waits.
-        repeat(EggRules.PRESSES_TO_HATCH) { s = NurseryRules.press(s, null, at(2, 8))!! }
+        s = NurseryRules.putOnMatrix(s, NurseryRules.available(s).first())
+        repeat(EggRules.PRESSES_TO_HATCH) { s = NurseryRules.press(s, at(2, 8))!! }
         val baby = s.active!!
         s = s.careFor(2, 3, 4)
         assertEquals(0, s.grownOf(teen).careDays)
@@ -197,7 +198,8 @@ class GrowthRulesTest {
     fun `putting another pet on the matrix starts the day's care over`() {
         var s = withTeen().copy(supporter = true)
         val teen = s.active!!
-        repeat(EggRules.PRESSES_TO_HATCH) { s = NurseryRules.press(s, null, at(2, 8))!! }
+        s = NurseryRules.putOnMatrix(s, NurseryRules.available(s).first())
+        repeat(EggRules.PRESSES_TO_HATCH) { s = NurseryRules.press(s, at(2, 8))!! }
         // The teen was fed today while active, then the player puts it back: the meal before the switch is not its.
         s = NurseryRules.setActive(s, teen).at(at(3, 9)).fed(at(3, 9))
         assertTrue(s.care.fed)
@@ -259,18 +261,18 @@ class GrowthRulesTest {
     // --- Controls and saves --------------------------------------------------------------------------
 
     @Test
-    fun `a shake grows a ready pet before it cracks an egg`() {
-        assertEquals(ShakeAction.GROW, ButtonRules.shake(hasPet = true, eggWaiting = true, petReady = true))
-        assertEquals(ShakeAction.GROW, ButtonRules.shake(hasPet = true, eggWaiting = false, petReady = true))
-        assertEquals(ShakeAction.CRACK_EGG, ButtonRules.shake(hasPet = false, eggWaiting = true, petReady = true))
-        assertEquals(ShakeAction.NOTHING, ButtonRules.shake(hasPet = false, eggWaiting = false, petReady = true))
-        assertEquals(ShakeAction.CRACK_EGG, ButtonRules.shake(hasPet = true, eggWaiting = true, petReady = false))
-        // In the game: on day 2 a new egg waits and the baby is ready, the shakes grow the baby, the egg stays.
+    fun `a shake grows a ready pet, and does nothing while an egg is on the matrix`() {
+        assertEquals(ShakeAction.GROW, ButtonRules.shake(hasPet = true, eggOnMatrix = false, petReady = true))
+        assertEquals(ShakeAction.NOTHING, ButtonRules.shake(hasPet = true, eggOnMatrix = true, petReady = true))
+        assertEquals(ShakeAction.NOTHING, ButtonRules.shake(hasPet = false, eggOnMatrix = true, petReady = true))
+        assertEquals(ShakeAction.NOTHING, ButtonRules.shake(hasPet = false, eggOnMatrix = false, petReady = true))
+        assertEquals(ShakeAction.DIZZY, ButtonRules.shake(hasPet = true, eggOnMatrix = false, petReady = false))
+        // In the game: on day 2 a new egg waits in the app and the baby is ready, the shakes grow the baby, the egg stays.
         val s = withFirstPet().at(at(2, 7))
-        assertTrue(NurseryRules.current(s) != null && GrowthRules.ready(s))
+        assertTrue(NurseryRules.available(s).isNotEmpty() && GrowthRules.ready(s))
         val grown = s.shake(3, at(2, 8)).first
         assertEquals(NurseryRules.available(s), NurseryRules.available(grown))
-        assertEquals(0, NurseryRules.presses(grown, NurseryRules.current(grown)!!))
+        assertEquals(0, NurseryRules.presses(grown, NurseryRules.available(grown).first()))
     }
 
     @Test

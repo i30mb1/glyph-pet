@@ -112,7 +112,6 @@ class FormsTest {
                 for (level in listOf(0f, 0.37f, 1f)) for (watts in listOf(0f, 5f, 65f)) for (t in 0L..4000L step 480) add(state(watts, level, t) to null)
                 add(state(18f, 0.6f, 0, still = true) to null)
                 add(state(18f, 1f, 0, still = true) to null)
-                add(state(18f, 0.6f, 0).copy(stand = false) to null)
                 add(state(18f, 0.6f, 0).copy(reaction = Face.DIZZY) to null)
                 add(state(18f, 0.6f, 0).copy(needy = true, need = Face.SAD) to null)
                 for (plug in 0L..ChargeRenderer.PLUG_MS step 150) add(state(18f, 0.6f, 0) to plug)
@@ -138,7 +137,7 @@ class FormsTest {
                         800L -> engine.feed(accepted = true)
                         2000L -> engine.pet()
                         2800L -> engine.shake()
-                        3600L -> engine.celebrate()
+                        3600L -> engine.surge()
                         4400L -> engine.trick()
                         5200L -> engine.drop()
                     }

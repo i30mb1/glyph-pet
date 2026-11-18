@@ -86,7 +86,6 @@ import n7.glyphpet.pet.Nursery
 import n7.glyphpet.pet.PetEngine
 import n7.glyphpet.pet.PetRules
 import n7.glyphpet.pet.PetStore
-import n7.glyphpet.pet.PressResult
 import n7.glyphpet.pet.Rarity
 import n7.glyphpet.pet.Scene
 import n7.glyphpet.pet.Species
@@ -255,17 +254,18 @@ private fun PetScreen(
         toyOpened = ui.getBoolean(KEY_TOY_OPENED, false)
         hurt = store.hurt()
         notifications = PetAlerts.hasAccess(context)
+        // The preview plays the big moments too: the hatch and the evolution.
         val hatched = nursery.justHatched
-        if (hatched != null && hatched.id != celebratedId) engine.celebrate()
+        if (hatched != null && hatched.id != celebratedId) engine.hatchOf(hatched, golden = nursery.supporter)
         celebratedId = hatched?.id
         val evolved = nursery.justEvolved
-        if (evolved != null && evolved.id != celebratedForm) engine.celebrate()
+        if (evolved != null && evolved.id != celebratedForm) engine.evolveInto(evolved)
         celebratedForm = evolved?.id
     }
 
-    /** A press on egg [id] (a tile), or with null on the egg in the hands (the egg on the matrix). */
-    fun pressEgg(id: String?) {
-        if (store.pressEgg(id) == PressResult.CRACKED) engine.crack()
+    /** Puts egg [id] on the matrix (the pet steps away), or with null takes it off (the pet comes back). */
+    fun putOnMatrix(id: String?) {
+        if (id != null) store.putEggOnMatrix(id) else store.takeEggOffMatrix()
         refresh()
     }
 
@@ -283,6 +283,7 @@ private fun PetScreen(
                     battery = power.level,
                     hurt = hurt,
                     missedCall = notifications && PetAlerts.missedCalls > 0,
+                    ready = nursery.ready,
                 )
                 frame = PetEngine.toCells(engine.tick(80, scene))
                 delay(80)
@@ -292,9 +293,9 @@ private fun PetScreen(
     }
 
     val mood = PetRules.mood(nursery.stats, store.asleep(nursery.stats, now))
-    val action = ButtonRules.decide(nursery.active != null, mood, nursery.egg != null)
-    val crackLabel = stringResource(R.string.egg_crack_action)
+    val action = ButtonRules.decide(nursery.active != null, mood, eggOnMatrix = nursery.eggOnMatrix != null)
     val feedLabel = stringResource(R.string.action_feed)
+    val eggDescription = "${stringResource(R.string.egg_title)}: ${stringResource(R.string.egg_crack_action)}"
 
     Surface(modifier = Modifier.fillMaxSize(), color = N7Colors.Ground) {
         Column(
@@ -325,27 +326,26 @@ private fun PetScreen(
             }
 
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                // While there is an egg on it, a tap on the matrix is a press on that egg; a long press feeds, like
-                // holding the Glyph button.
-                val canFeed = nursery.active != null && mood != Mood.SLEEPING
+                // A long press feeds, like holding the Glyph button. An egg on the matrix is cracked only by the
+                // Glyph button itself.
+                val canFeed = nursery.active != null && nursery.eggOnMatrix == null && mood != Mood.SLEEPING
                 GlyphMatrix(
                     cells = frame,
                     modifier = Modifier
                         .size(224.dp)
                         .clip(CircleShape)
                         .combinedClickable(
-                            enabled = nursery.egg != null || canFeed,
-                            onClickLabel = crackLabel,
+                            enabled = canFeed,
                             role = Role.Button,
                             onLongClickLabel = feedLabel,
-                            onLongClick = if (canFeed) ({ engine.feed(store.feed()); refresh() }) else null,
-                            onClick = { if (nursery.egg != null) pressEgg(null) },
+                            onLongClick = { engine.feed(store.feed()); refresh() },
+                            onClick = {},
                         ),
-                    contentDescription = nursery.active?.name ?: stringResource(R.string.egg_title),
+                    contentDescription = if (nursery.eggOnMatrix != null) eggDescription else nursery.active?.name ?: eggDescription,
                 )
             }
 
-            NowCard(nursery = nursery, mood = mood, action = action)
+            NowCard(nursery = nursery, mood = mood, action = action, onPutOnMatrix = ::putOnMatrix)
 
             if (nursery.active != null) {
                 // Each need says how to fill it: the controls live on the phone, not in buttons here.
@@ -360,7 +360,7 @@ private fun PetScreen(
                 nursery.activeForm?.let { StatesCard(species = it) }
             }
 
-            Collection(nursery = nursery, onPick = { store.setActive(it.id); refresh() }, onEgg = { pressEgg(it.id) })
+            Collection(nursery = nursery, onPick = { store.setActive(it.id); refresh() }, onEgg = { putOnMatrix(it.id) })
 
             MatrixCard(
                 hideUnseen = hideUnseen,
@@ -396,10 +396,13 @@ private fun PetScreen(
     }
 }
 
-/** The one thing to read: what is happening, what the Glyph button does now, what comes next. */
+/**
+ * The one thing to read: what is happening, what the Glyph button does now, what comes next. [onPutOnMatrix] puts an
+ * egg on the matrix, or with null takes it off.
+ */
 @Composable
-private fun NowCard(nursery: Nursery, mood: Mood, action: ButtonAction) {
-    val egg = nursery.egg
+private fun NowCard(nursery: Nursery, mood: Mood, action: ButtonAction, onPutOnMatrix: (String?) -> Unit) {
+    val egg = nursery.eggOnMatrix
     val pet = nursery.active
     val presses = egg?.let { nursery.pressesOf(it.id) } ?: 0
     N7Card(Modifier.fillMaxWidth()) {
@@ -410,12 +413,13 @@ private fun NowCard(nursery: Nursery, mood: Mood, action: ButtonAction) {
             val headline = when {
                 nursery.justHatched != null -> stringResource(R.string.now_hatched, nursery.justHatched.name)
                 pet == null && egg != null -> stringResource(R.string.now_egg_first)
+                pet != null && egg != null -> stringResource(R.string.now_egg_on_matrix, pet.name)
                 pet != null -> stringResource(moodLine(mood), pet.name)
                 else -> ""
             }
             Text(headline, style = N7Type.Headline.copy(fontSize = 24.sp, lineHeight = 30.sp), color = N7Colors.Ink)
 
-            // 2. The egg in the hands: how many presses are left, and how to press
+            // 2. The egg on the matrix: how many presses are left, and how to press
             if (egg != null) {
                 Text(
                     stringResource(R.string.now_egg_presses, EggRules.PRESSES_TO_HATCH - presses),
@@ -424,10 +428,8 @@ private fun NowCard(nursery: Nursery, mood: Mood, action: ButtonAction) {
                 )
                 Dots(lit = presses, count = EggRules.PRESSES_TO_HATCH)
                 Text(stringResource(R.string.now_egg_how), style = N7Type.BodyS, color = N7Colors.InkMuted)
-                if (nursery.eggs.size > 1) {
-                    Text(stringResource(R.string.now_eggs_waiting, nursery.eggs.size), style = N7Type.BodyS, color = N7Colors.InkMuted)
-                }
             }
+            EggOnMatrixAction(nursery, onPutOnMatrix)
 
             // 3. What the Glyph button does right now
             Text(
@@ -447,6 +449,34 @@ private fun NowCard(nursery: Nursery, mood: Mood, action: ButtonAction) {
                 ),
                 style = N7Type.BodyS,
                 color = N7Colors.InkSubtle,
+            )
+        }
+    }
+}
+
+/**
+ * Putting an egg on the matrix, for now one plain button: with the pet on the matrix it puts the oldest waiting egg
+ * there; with an egg on it (and a pet to come back) it takes the egg off. Without a pet the first egg is on the matrix
+ * by itself, so there is nothing to do.
+ */
+@Composable
+private fun EggOnMatrixAction(nursery: Nursery, onPutOnMatrix: (String?) -> Unit) {
+    if (nursery.active == null) return
+    val onMatrix = nursery.eggOnMatrix
+    val waiting = nursery.eggs.firstOrNull()
+    when {
+        onMatrix != null -> N7Button(
+            text = stringResource(R.string.egg_take_off_matrix),
+            variant = N7ButtonVariant.Secondary,
+            onClick = { onPutOnMatrix(null) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        waiting != null -> {
+            Text(stringResource(R.string.now_eggs_waiting, nursery.eggs.size), style = N7Type.BodyS, color = N7Colors.InkMuted)
+            N7Button(
+                text = stringResource(R.string.egg_put_on_matrix),
+                onClick = { onPutOnMatrix(waiting.id) },
+                modifier = Modifier.fillMaxWidth(),
             )
         }
     }
@@ -478,8 +508,9 @@ private fun Collection(nursery: Nursery, onPick: (Species) -> Unit, onEgg: (Spec
                     val count = nursery.collection[s.id] ?: 0
                     val egg = count == 0 && s.id in eggIds
                     val presses = nursery.pressesOf(s.id)
-                    // Framed: the pet on the matrix, or the egg in the hands.
-                    val framed = if (egg) nursery.egg?.id == s.id else nursery.active?.id == s.id
+                    // Framed: what is on the matrix, the egg or the pet. A tap on an egg puts it there.
+                    val onMatrix = nursery.eggOnMatrix
+                    val framed = if (egg) onMatrix?.id == s.id else onMatrix == null && nursery.active?.id == s.id
                     val eggLabel = stringResource(R.string.egg_label)
                     val label = when {
                         count > 0 -> s.name

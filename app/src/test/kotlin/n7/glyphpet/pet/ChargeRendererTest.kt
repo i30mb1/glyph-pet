@@ -35,7 +35,6 @@ class ChargeRendererTest {
                 }
                 add(state(still = true) to null)
                 add(state(level = 1f, still = true) to null)
-                add(state().copy(stand = false) to null)
                 add(state().copy(reaction = Face.DIZZY) to null)
                 add(state().copy(needy = true) to null)
                 for (plug in 0L..ChargeRenderer.PLUG_MS step 150) add(state() to plug)

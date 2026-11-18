@@ -43,7 +43,7 @@ class SaveMigrationTest {
         val s = SaveMigration.from11(old(egg = "ghost", active = null, seen = emptyMap()), Random(1))
         assertEquals(listOf("ghost"), s.eggs)
         assertNull(s.active)
-        assertEquals("ghost", NurseryRules.current(s))
+        assertEquals("ghost", NurseryRules.onMatrix(s))
     }
 
     @Test

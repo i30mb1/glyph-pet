@@ -30,8 +30,9 @@ data class Power(val plugged: Boolean, val watts: Float, val level: Float) {
 
 /**
  * The whole save as the screens see it: needs of the active pet, the eggs, the collection and the supporter unlock.
- * @param eggs heroes ready to hatch, oldest first.
- * @param egg the egg in the player's hands: the matrix shows it and the Glyph button cracks it. Null: nothing to hatch.
+ * @param eggs heroes ready to hatch, oldest first. They wait in the app until the player puts one on the matrix.
+ * @param eggOnMatrix the egg on the matrix ([NurseryRules.onMatrix]): the matrix shows it instead of the pet and the
+ *   Glyph button cracks it. Null: the pet is on the matrix.
  * @param presses presses so far, per egg.
  * @param active the active pet as its hero (the teen of [SpeciesCatalog]: collection, names); [activeForm] is the form
  *   of it that lives on the matrix.
@@ -42,7 +43,7 @@ data class Nursery(
     val stats: PetStats,
     val active: Species?,
     val eggs: List<Species>,
-    val egg: Species?,
+    val eggOnMatrix: Species?,
     val presses: Map<String, Int>,
     val collection: Map<String, Int>,
     val supporter: Boolean,
@@ -56,11 +57,11 @@ data class Nursery(
     /** How far the active pet has grown, or null without a pet. */
     val activeGrowth: Growth? get() = active?.let { growth[it.id] }
 
-    /** The active pet may grow now: shakes grow it instead of cracking the egg. */
+    /** The active pet may grow now: shakes grow it. */
     val ready: Boolean get() = activeGrowth?.let { it.ready && it.reached.next != null } == true
 
-    /** How the egg in the hands looks on the matrix, or null when there is nothing to hatch. */
-    val eggView: EggView? get() = egg?.let { EggView(EggRules.stage(pressesOf(it.id)), supporter) }
+    /** How the egg on the matrix looks, or null while the pet is on the matrix. */
+    val eggView: EggView? get() = eggOnMatrix?.let { EggView(EggRules.stage(pressesOf(it.id)), supporter) }
 }
 
 /**
@@ -111,7 +112,7 @@ class PetStore(context: Context) {
             stats = stats,
             active = SpeciesCatalog.get(state.active),
             eggs = NurseryRules.available(state).mapNotNull(SpeciesCatalog::get),
-            egg = SpeciesCatalog.get(NurseryRules.current(state)),
+            eggOnMatrix = SpeciesCatalog.get(NurseryRules.onMatrix(state)),
             presses = state.presses,
             collection = SpeciesCatalog.all.associate { it.id to (state.seen[it.id] ?: 0) },
             supporter = state.supporter,
@@ -161,16 +162,25 @@ class PetStore(context: Context) {
         saveState(GrowthRules.makeReady(s, active))
     }
 
-    /**
-     * One press on egg [speciesId] (a tap on it in the app, which also puts it in the hands), or with null on the
-     * egg in the hands (the Glyph button).
-     */
+    /** One long press of the Glyph button on the egg on the matrix; the fifth hatches it. */
     @Synchronized
-    fun pressEgg(speciesId: String? = null, nowMs: Long = GameClock.now()): PressResult {
+    fun pressEgg(nowMs: Long = GameClock.now()): PressResult {
         val before = NurseryRules.advance(loadState(nowMs), nowMs, Random(nowMs))
-        val after = NurseryRules.press(before, speciesId, nowMs)
+        val after = NurseryRules.press(before, nowMs)
         saveState(after ?: before)
         return NurseryRules.result(before, after)
+    }
+
+    /** Puts egg [speciesId] on the matrix in place of the pet (see [NurseryRules.putOnMatrix]). */
+    @Synchronized
+    fun putEggOnMatrix(speciesId: String, nowMs: Long = GameClock.now()) {
+        saveState(NurseryRules.putOnMatrix(NurseryRules.advance(loadState(nowMs), nowMs, Random(nowMs)), speciesId))
+    }
+
+    /** Takes the egg off the matrix: the pet comes back, the egg keeps its presses. */
+    @Synchronized
+    fun takeEggOffMatrix(nowMs: Long = GameClock.now()) {
+        saveState(NurseryRules.takeOffMatrix(loadState(nowMs)))
     }
 
     /** Makes a collected pet the one on the matrix. */
@@ -237,7 +247,7 @@ class PetStore(context: Context) {
                     val (id, n) = entry.split(':').takeIf { it.size == 2 } ?: return@mapNotNull null
                     n.toIntOrNull()?.let { id to it }
                 }.toMap(),
-                selected = prefs.getString(KEY_SELECTED, null),
+                onMatrix = prefs.getString(KEY_ON_MATRIX, null),
                 grantDay = prefs.getInt(KEY_GRANT_DAY, 0),
                 hatchedAtMs = prefs.getLong(KEY_HATCHED_AT, 0),
                 hatchedId = prefs.getString(KEY_HATCHED_ID, null),
@@ -286,7 +296,7 @@ class PetStore(context: Context) {
             .putString(KEY_PRESSES, s.presses.entries.joinToString(",") { "${it.key}:${it.value}" })
             .putInt(KEY_GRANT_DAY, s.grantDay)
             .putLong(KEY_HATCHED_AT, s.hatchedAtMs)
-        if (s.selected != null) e.putString(KEY_SELECTED, s.selected) else e.remove(KEY_SELECTED)
+        if (s.onMatrix != null) e.putString(KEY_ON_MATRIX, s.onMatrix) else e.remove(KEY_ON_MATRIX)
         if (s.hatchedId != null) e.putString(KEY_HATCHED_ID, s.hatchedId)
         e.putString(KEY_GROWTH, s.growth.entries.joinToString(",") { (kind, g) -> formatGrowth(kind, g) })
             .putInt(KEY_CARE_DAY, s.care.day)
@@ -336,7 +346,8 @@ class PetStore(context: Context) {
         const val KEY_HATCHED_ID = "hatched_id"
         const val KEY_EGGS = "eggs"
         const val KEY_PRESSES = "egg_presses"
-        const val KEY_SELECTED = "egg_selected"
+        /** The egg on the matrix. Saves without it have none: the pet stays on the matrix. */
+        const val KEY_ON_MATRIX = "egg_on_matrix"
         const val KEY_GRANT_DAY = "grant_day"
         const val KEY_HURT_UNTIL = "hurt_until"
         const val KEY_HIDE_UNSEEN = "hide_unseen"
@@ -347,12 +358,14 @@ class PetStore(context: Context) {
         const val KEY_EVOLVED_AT = "evolved_at"
         const val KEY_EVOLVED_ID = "evolved_id"
 
-        // 1.1's timed egg: read once by the migration, then removed.
+        // Keys of older saves, removed on the next save. 1.1's timed egg is read once by the migration first.
         const val KEY_OLD_EGG_SPECIES = "egg_species"
         const val KEY_OLD_EGG_DAY = "egg_day"
         val OLD_KEYS = listOf(
             KEY_OLD_EGG_SPECIES, "egg_laid_at", "egg_warm", "egg_hatch_ms", "egg_golden",
             KEY_OLD_EGG_DAY, "egg_day_count", "ever_laid", "last_warm_at", "instant_day",
+            // Before eggs were put on the matrix: the egg in the hands, which sat in the corner beside the pet.
+            "egg_selected",
         )
 
         /** Any of these means 1.1 ran and saved its nursery. */
