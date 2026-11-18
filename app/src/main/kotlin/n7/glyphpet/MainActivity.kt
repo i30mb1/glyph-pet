@@ -634,6 +634,7 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
  * A collected hero: its three forms on pages, swiped inside the tile, three dots under it for the page. It opens on the
  * form shown on the matrix. A form not reached yet is a dim silhouette with a lock. A tap puts the form on the page on
  * the matrix; the one there now is framed when [live] (the hero is the active pet and no egg is on the matrix).
+ * Its status is drawn as an outline in dots ([statusFrame]); egg tiles have none, to keep the surprise.
  */
 @Composable
 private fun HeroTile(
@@ -668,6 +669,8 @@ private fun HeroTile(
         modifier
             .clip(RoundedCornerShape(20.dp))
             .background(N7Colors.SurfaceRaised)
+            // The hero's status as an outline just inside the tile's edge; the "on the matrix" border stays on the edge.
+            .statusFrame(hero.rarity, 20.dp)
             .then(if (framed) Modifier.border(1.dp, N7Colors.ControlBorder, RoundedCornerShape(20.dp)) else Modifier)
             .clickable(enabled = reached && !framed, role = Role.Button) { onShow(stage) }
             .padding(vertical = 10.dp)
@@ -933,6 +936,7 @@ private fun rarityName(rarity: Rarity): Int = when (rarity) {
     Rarity.COMMON -> R.string.rarity_common
     Rarity.RARE -> R.string.rarity_rare
     Rarity.LEGENDARY -> R.string.rarity_legendary
+    Rarity.MYTHIC -> R.string.rarity_mythic
 }
 
 private fun moodLine(mood: Mood): Int = when (mood) {

@@ -180,7 +180,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
 
     /** A big moment that takes over the whole matrix for a few seconds. */
     private sealed class Moment(val durationMs: Long)
-    private class Hatch(val baby: Species, val golden: Boolean) : Moment(Moments.HATCH_MS)
+    private class Hatch(val baby: Species, val golden: Boolean) : Moment(Moments.hatchMs(baby.rarity))
     private class Evolve(val from: Species, val to: Species) : Moment(Moments.EVOLVE_MS)
 
     private var time = 0L
@@ -387,7 +387,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
             ballAsked = false
             shown = Shown(null)
             if (egg != null) {
-                EggRenderer.big(frame, egg, wobble())
+                EggRenderer.big(frame, egg, wobble(), timeMs = time)
                 if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
             }
             return frame

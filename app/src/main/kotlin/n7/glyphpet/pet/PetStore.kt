@@ -61,7 +61,7 @@ data class Nursery(
     val ready: Boolean get() = activeGrowth?.let { it.ready && it.reached.next != null } == true
 
     /** How the egg on the matrix looks, or null while the pet is on the matrix. */
-    val eggView: EggView? get() = eggOnMatrix?.let { EggView(EggRules.stage(pressesOf(it.id)), supporter) }
+    val eggView: EggView? get() = eggOnMatrix?.let { EggView(EggRules.stage(pressesOf(it.id)), supporter, it.rarity) }
 }
 
 /**

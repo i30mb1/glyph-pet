@@ -25,6 +25,18 @@ object Moments {
     private const val POP_BRIGHT_MS = 130L
     const val HATCH_MS = 3200L
 
+    // A legendary hatch ends in sparkles around the whole round edge; a mythic one in two rings of them, for longer.
+    private const val LEGEND_HATCH_MS = 3900L
+    private const val MYTHIC_HATCH_MS = 4800L
+    private const val EDGE_FADE_MS = 500L
+
+    /** How long the hatch of a [rarity] hero lasts: legendary and mythic ones linger in their sparkles. */
+    fun hatchMs(rarity: Rarity): Long = when (rarity) {
+        Rarity.COMMON, Rarity.RARE -> HATCH_MS
+        Rarity.LEGENDARY -> LEGEND_HATCH_MS
+        Rarity.MYTHIC -> MYTHIC_HATCH_MS
+    }
+
     // The evolution: the old form fills with light, old and new silhouettes take turns faster and faster, the whole
     // matrix flashes, and the new form is there among sparkles running outward.
     private const val GLOW_END = 1200L
@@ -53,7 +65,8 @@ object Moments {
 
     /**
      * One frame of the hatch, [t] ms after the fifth press, into [frame]: [baby] is the hero's baby form, [golden] a
-     * supporter's egg.
+     * supporter's egg. A common or rare baby hops among sparkles circling it; a legendary or mythic one among
+     * sparkles running around the whole round edge of the matrix ([hatchMs] long).
      */
     fun hatch(frame: IntArray, t: Long, baby: Species, golden: Boolean) {
         val shell = if (golden) BRIGHT else BODY
@@ -89,7 +102,7 @@ object Moments {
         }
     }
 
-    /** The baby: a bright pop, a look around, then a happy hop with sparkles circling it. */
+    /** The baby: a bright pop, a look around, then a happy hop with sparkles circling it or along the edge. */
     private fun baby(frame: IntArray, t: Long, baby: Species) {
         val since = t - POP_AT
         when {
@@ -100,8 +113,30 @@ object Moments {
                 SpeciesRenderer.render(baby, Face.HAPPY, frame = frame, lift = lift, shadow = true)
             }
         }
+        if (baby.rarity >= Rarity.LEGENDARY) {
+            val total = hatchMs(baby.rarity)
+            val fadeIn = ((t - POP_AT).toFloat() / 300f).coerceIn(0f, 1f)
+            val fadeOut = ((total - t).toFloat() / EDGE_FADE_MS).coerceIn(0f, 1f)
+            val fade = minOf(fadeIn, fadeOut)
+            edge(frame, t, radius = 11f, count = 16, spin = t * 0.0025, fade = fade)
+            if (baby.rarity == Rarity.MYTHIC) edge(frame, t + 60, radius = 8.5f, count = 12, spin = -t * 0.0035, fade = fade)
+            return
+        }
         val r = maxOf(baby.width, baby.height) / 2f + 2f
         ring(frame, baby, t, radius = r, spin = t * 0.004, fade = 1f)
+    }
+
+    /**
+     * [count] sparkles on a ring of [radius] around the middle of the matrix, turning with [spin] and twinkling; [fade]
+     * 0..1 dims them. Radius 11 runs along the round edge.
+     */
+    private fun edge(frame: IntArray, t: Long, radius: Float, count: Int, spin: Double, fade: Float) {
+        if (fade <= 0f) return
+        val c = (SIZE - 1) / 2f
+        for (k in 0 until count) {
+            val a = spin + k * 2 * PI / count
+            sparkle(frame, (c + radius * cos(a)).roundToInt(), (c + radius * sin(a)).roundToInt(), t, k, fade)
+        }
     }
 
     /**
@@ -194,20 +229,22 @@ object Moments {
         val cy = s.oy + s.height / 2f
         for (k in 0 until 8) {
             val a = spin + k * PI / 4
-            val x = (cx + radius * cos(a)).roundToInt()
-            val y = (cy + radius * sin(a)).roundToInt()
-            val on = ((t / 120) + k) % 3 != 0L
-            val value = ((if (on) BRIGHT else BRIGHT / 4) * fade).toInt().coerceIn(0, BRIGHT)
-            if (value <= 0) continue
-            SpeciesRenderer.put(frame, x, y, value)
-            // The brightest moments of a sparkle are a little cross.
-            if (on && (t / 120 + k) % 3 == 1L) {
-                val arm = value / 3
-                SpeciesRenderer.put(frame, x - 1, y, arm)
-                SpeciesRenderer.put(frame, x + 1, y, arm)
-                SpeciesRenderer.put(frame, x, y - 1, arm)
-                SpeciesRenderer.put(frame, x, y + 1, arm)
-            }
+            sparkle(frame, (cx + radius * cos(a)).roundToInt(), (cy + radius * sin(a)).roundToInt(), t, k, fade)
+        }
+    }
+
+    /** The [k]th sparkle of a ring at ([x], [y]): twinkling, and a little cross at its brightest. */
+    private fun sparkle(frame: IntArray, x: Int, y: Int, t: Long, k: Int, fade: Float) {
+        val on = ((t / 120) + k) % 3 != 0L
+        val value = ((if (on) BRIGHT else BRIGHT / 4) * fade).toInt().coerceIn(0, BRIGHT)
+        if (value <= 0) return
+        SpeciesRenderer.put(frame, x, y, value)
+        if (on && (t / 120 + k) % 3 == 1L) {
+            val arm = value / 3
+            SpeciesRenderer.put(frame, x - 1, y, arm)
+            SpeciesRenderer.put(frame, x + 1, y, arm)
+            SpeciesRenderer.put(frame, x, y - 1, arm)
+            SpeciesRenderer.put(frame, x, y + 1, arm)
         }
     }
 

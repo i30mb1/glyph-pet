@@ -1,6 +1,10 @@
 package n7.glyphpet.pet
 
-enum class Rarity(val weight: Int) { COMMON(70), RARE(25), LEGENDARY(5) }
+/**
+ * A hero's status. [weight] is the tier's share of the eggs in per mille, split evenly over its heroes by
+ * [SpeciesCatalog.roll]: over the whole catalogue 70% common, 24.5% rare, 4% legendary and 1.5% mythic.
+ */
+enum class Rarity(val weight: Int) { COMMON(700), RARE(245), LEGENDARY(40), MYTHIC(15) }
 
 /**
  * How far a pet has grown. A hero hatches as a [BABY], grows into a [TEEN] (the form [SpeciesCatalog] draws) and
@@ -390,9 +394,9 @@ object SpeciesCatalog {
             ox = 5, oy = 8, eyes = listOf(3 to 4, 10 to 4), mouth = 6 to 6,
             habit = Habits::axolotl,
         ),
-        // Legendary: two more
+        // Mythic: the two rarest of all
         Species(
-            "gem", "Gem", Rarity.LEGENDARY,
+            "gem", "Gem", Rarity.MYTHIC,
             listOf(
                 "....ooooooo....", "...o#######o...", "..o#########o..", ".o###########o.", "ooooooooooooooo",
                 ".#############.", "..###########..", "...#########...", "....#######....", ".....##o##.....",
@@ -403,7 +407,7 @@ object SpeciesCatalog {
             habit = Habits::gem,
         ),
         Species(
-            "planet", "Planet", Rarity.LEGENDARY,
+            "planet", "Planet", Rarity.MYTHIC,
             listOf(
                 "......###......", "....#######....", "...#########...", "..###########..", "..###########..",
                 "..###########..", "..###########..", "o.###########.o", ".ooooooooooooo.", "...#########...",
@@ -421,7 +425,7 @@ object SpeciesCatalog {
 
     /**
      * Weighted draw from [pool]: each species weighs its tier's weight split evenly over the whole tier, so over the
-     * full catalogue the tiers come 70/25/5 and among the missing heroes every one keeps its odds against the others.
+     * full catalogue the tiers come 70/24.5/4/1.5 and among the missing heroes every one keeps its odds against the others.
      */
     fun roll(random: kotlin.random.Random, pool: List<Species> = all): Species {
         require(pool.isNotEmpty())

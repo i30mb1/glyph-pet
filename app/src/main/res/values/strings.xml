@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name" translatable="false">Glyph Pet</string>
     <string name="toy_name" translatable="false">Glyph Pet</string>
-    <string name="toy_summary">A new pet every day, as an egg. Put it on your Glyph Matrix and five long presses of the Glyph button hatch it. Collect all 28.</string>
+    <string name="toy_summary">A new pet every day, as an egg. Put it on your Glyph Matrix and five long presses of the Glyph button hatch it. Collect all 28, from common to mythic.</string>
 
     <string name="tagline">A pet that lives on your Glyph Matrix.</string>
     <string name="main_hint">A new pet every day, as an egg</string>
@@ -20,10 +20,11 @@
     <string name="egg_label">Egg</string>
 
     <string name="collection_title">Nursery · %1$d of %2$d</string>
-    <string name="collection_odds">Every day a new pet comes as an egg, never one you have. Common ones come most often, legendary ones rarely. Tap an egg to put it on the matrix, tap a pet to see its three forms.</string>
+    <string name="collection_odds">Every day a new pet comes as an egg, never one you have. Common ones come most often, legendary ones rarely, mythic ones almost never. Tap an egg to put it on the matrix, tap a pet to see its three forms.</string>
     <string name="rarity_common">Common</string>
     <string name="rarity_rare">Rare</string>
     <string name="rarity_legendary">Legendary</string>
+    <string name="rarity_mythic">Mythic</string>
 
     <string name="supporter_title">Supporter</string>
     <string name="supporter_thanks">Thank you for supporting n7!</string>
@@ -43,7 +44,7 @@
     <string name="intro_2_title">A button and gestures</string>
     <string name="intro_2_text">The pet lives on the back of your phone. Hold the Glyph button to feed it, rock the phone gently to play. A shake makes it dizzy, or grows it once it is ready.</string>
     <string name="intro_3_title">Collect all 28</string>
-    <string name="intro_3_text">Every new pet joins your nursery. Some are rare, five are legendary.</string>
+    <string name="intro_3_text">Every new pet joins your nursery. Some are rare, three are legendary and two are mythic.</string>
     <string name="intro_next">Next</string>
     <string name="intro_start">Start</string>
 
