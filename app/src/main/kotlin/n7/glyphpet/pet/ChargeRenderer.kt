@@ -68,6 +68,50 @@ object ChargeRenderer {
         7 to 8, 6 to 8, 5 to 8, 4 to 8, 3 to 7, 3 to 6, 3 to 5, 3 to 4,
     )
 
+    /** The adult Eye's iris: the same ring, three columns right and four rows down in its bigger sprite. */
+    private val IRIS_ADULT = IRIS.map { (x, y) -> x + 3 to y + 4 }
+
+    /**
+     * Where the Bot's indicator sits, in sprite coordinates.
+     * @param row the bottom row inside the screen, where the bar runs.
+     * @param from the bar's first column; it is [steps] LEDs long.
+     * @param antenna the antenna tip that blinks with the watts.
+     */
+    private class BarShape(val row: Int, val from: Int, val steps: Int, val antenna: Pair<Int, Int>)
+
+    private val BAR_TEEN = BarShape(row = 7, from = 1, steps = 9, antenna = 5 to 0)
+    private val BAR_ADULT = BarShape(row = 9, from = 4, steps = 11, antenna = 9 to 0)
+
+    /**
+     * How the Cloud storms.
+     * @param lift rows the charging cloud floats up, to make room for its lightning.
+     * @param fillRows the rows of the body that fill up, from the top; null for the whole sprite.
+     * @param strikes matrix columns a [LIGHTNING] drops from, under the cloud, in turn.
+     * @param bolt sprite cells of a bolt the cloud already holds: dim between strikes, bright on a strike.
+     */
+    private class StormShape(val lift: Int, val fillRows: Int?, val strikes: IntArray, val bolt: List<Pair<Int, Int>>)
+
+    private val STORM_TEEN = StormShape(lift = -3, fillRows = null, strikes = intArrayOf(8, 12, 15), bolt = emptyList())
+
+    /** The thundercloud is too big to float up or to drop lightning under itself: it flashes the bolt it carries. */
+    private val STORM_ADULT = StormShape(
+        lift = 0, fillRows = 11, strikes = IntArray(0),
+        bolt = (11..16).flatMap { y -> (9..12).map { x -> x to y } },
+    )
+
+    /**
+     * Where the UFO's indicator sits.
+     * @param hull the sprite row of the hull lights, [lights] their sprite columns (the battery, left to right).
+     * @param coneX the matrix column of the beam's middle, [coneY] the matrix row where it starts.
+     */
+    private class BeamShape(val hull: Int, val lights: List<Int>, val coneX: Int, val coneY: Int)
+
+    /** The beam starts right under the hull's feet: 9 rows below the teen's home row, 13 below the mothership's. */
+    private val BEAM_TEEN = BeamShape(hull = 6, lights = List(7) { 1 + it * 2 }, coneX = 12, coneY = 14)
+    private val BEAM_ADULT = BeamShape(hull = 8, lights = List(9) { 1 + it * 2 }, coneX = 12, coneY = 18)
+
+    private fun adult(s: Species): Boolean = s.stage == Stage.ADULT
+
     /** The outermost LEDs of the round matrix, clockwise from 12 o'clock: the wheel. */
     val RING: List<Pair<Int, Int>> = buildList {
         for (y in 0 until SIZE) for (x in 0 until SIZE) {
@@ -130,11 +174,13 @@ object ChargeRenderer {
         if (st.still && st.reaction == null) zzz(f, s, dy)
     }
 
-    /** The body is the battery: it fills from the bottom, with a wave on top and bubbles inside. */
-    private fun fill(f: IntArray, s: Species, st: ChargeState, dy: Int = 0, calm: Face = Face.CONTENT) {
+    /**
+     * The body is the battery: it fills from the bottom, with a wave on top and bubbles inside.
+     * @param h how many rows of the body fill up, from the top; the rows under them count as full.
+     */
+    private fun fill(f: IntArray, s: Species, st: ChargeState, dy: Int = 0, calm: Face = Face.CONTENT, h: Int = s.height) {
         val face = face(st) { if (st.done) Face.HAPPY else calm }
         val grid = SpeciesRenderer.carve(s, face, st.blink)
-        val h = s.height
         paint(f, s, grid, dy, still = st.still) { x, y ->
             if (st.done) return@paint FULL
             val wave = if (st.still) 0.0 else sin(x * 0.9 + st.pace) * 0.6
@@ -154,49 +200,62 @@ object ChargeRenderer {
         if (st.still && st.reaction == null) zzz(f, s, dy)
     }
 
-    /** The Bot: the bottom row of its screen is a nine-step bar and its antenna blinks with the watts. */
+    /** The Bot: the bottom row of its screen is a bar (nine steps, eleven on the adult) and its antenna blinks with the watts. */
     private fun bar(f: IntArray, s: Species, st: ChargeState) {
+        val shape = if (adult(s)) BAR_ADULT else BAR_TEEN
+        val n = shape.steps
         val face = face(st) { if (st.done) Face.HAPPY else Face.IDLE }
         paint(f, s, SpeciesRenderer.carve(s, face, st.blink, mouth = false), still = st.still)
-        val steps = if (st.done) 9 else (st.level * 9).toInt()
-        val y = s.oy + 7
+        val steps = if (st.done) n else (st.level * n).toInt()
+        val y = s.oy + shape.row
         val on = (st.pace * 0.7).toInt() % 2 == 1
-        for (i in 0 until steps) set(f, s.ox + 1 + i, y, if (st.still) BRIGHT / 2 else BRIGHT)
+        for (i in 0 until steps) set(f, s.ox + shape.from + i, y, if (st.still) BRIGHT / 2 else BRIGHT)
         if (st.live && on) {
-            if (steps < 9) set(f, s.ox + 1 + steps, y, BRIGHT)
-            set(f, s.ox + 5, s.oy, 0)
+            if (steps < n) set(f, s.ox + shape.from + steps, y, BRIGHT)
+            set(f, s.ox + shape.antenna.first, s.oy + shape.antenna.second, 0)
         }
         if (st.still && st.reaction == null) zzz(f, s, 0)
     }
 
     /** The Cloud fills up and strikes lightning, more often with more watts. */
     private fun storm(f: IntArray, s: Species, st: ChargeState) {
+        val shape = if (adult(s)) STORM_ADULT else STORM_TEEN
         val phase = st.pace / 6
         val strikeNo = floor(phase).toInt()
         val periodSec = 6 / (1 + 0.1 * st.watts)
         val strike = st.live && (phase - strikeNo) * periodSec < 0.25
-        val dy = if (st.live) -3 else 0
-        fill(f, s, st, dy, if (strike) Face.HAPPY else Face.CONTENT)
-        if (strike) SpeciesRenderer.glyph(f, LIGHTNING, intArrayOf(8, 12, 15)[strikeNo % 3], s.oy + dy + s.height + 1)
+        val dy = if (st.live) shape.lift else 0
+        fill(f, s, st, dy, if (strike) Face.HAPPY else Face.CONTENT, h = shape.fillRows ?: s.height)
+        if (strike && shape.strikes.isNotEmpty()) {
+            val x = shape.strikes[Math.floorMod(strikeNo, shape.strikes.size)]
+            SpeciesRenderer.glyph(f, LIGHTNING, x, s.oy + dy + s.height + 1)
+        }
+        // The bolt it carries smoulders while the cloud charges and flashes on every strike.
+        if (st.live && !strike) for ((x, y) in shape.bolt) {
+            if (s.rows.getOrNull(y)?.getOrNull(x) == 'o') set(f, s.ox + x, s.oy + dy + y, LOW)
+        }
     }
 
-    /** The UFO: seven hull lights are the battery, sparks climb its beam faster with more watts. */
+    /** The UFO: its hull lights are the battery, sparks climb its beam faster with more watts. */
     private fun beam(f: IntArray, s: Species, st: ChargeState) {
-        val lit = if (st.done) 7 else (st.level * 7 + 0.001f).toInt()
+        val shape = if (adult(s)) BEAM_ADULT else BEAM_TEEN
+        val n = shape.lights.size
+        val lit = if (st.done) n else (st.level * n + 0.001f).toInt()
         val grid = SpeciesRenderer.carve(s, face(st) { if (st.done) Face.HAPPY else Face.CONTENT }, st.blink)
         val blinkOn = (st.pace * 0.7).toInt() % 2 == 1
-        for (i in 0 until 7) {
+        val hull = grid.getOrNull(shape.hull)
+        shape.lights.forEachIndexed { i, x ->
             val on = if (st.done && !st.still) ((st.timeMs / 160).toInt() + i) % 3 != 0 else i < lit || (st.live && i == lit && blinkOn)
-            grid[6][1 + i * 2] = if (on) 'o' else '#'
+            if (hull != null && x in hull.indices) hull[x] = if (on) 'o' else '#'
         }
         paint(f, s, grid, still = st.still)
         if (st.live) {
-            SpeciesRenderer.glyph(f, CONE, 8, 14, hashValue = LOW)
+            SpeciesRenderer.glyph(f, CONE, shape.coneX - CONE[0].length / 2, shape.coneY, hashValue = LOW)
             val offsets = floatArrayOf(-0.8f, 0.1f, 0.7f, -0.3f)
             for (j in offsets.indices) {
                 val row = floor(6 - ((st.pace * 1.6 + j * 1.7) % 7)).toInt()
                 if (row !in 0..5) continue
-                set(f, 12 + (offsets[j] * min(4, row + 1)).roundToInt(), 14 + row, BRIGHT)
+                set(f, shape.coneX + (offsets[j] * min(4, row + 1)).roundToInt(), shape.coneY + row, BRIGHT)
             }
         }
         if (st.still && st.reaction == null) zzz(f, s, 0)
@@ -204,13 +263,17 @@ object ChargeRenderer {
 
     /** The Eye: the ring of its iris is the battery, its pupil darts faster with more watts. */
     private fun iris(f: IntArray, s: Species, st: ChargeState) {
-        val lit = if (st.done) IRIS.size else (st.level * IRIS.size).roundToInt()
+        val ring = if (adult(s)) IRIS_ADULT else IRIS
+        val lit = if (st.done) ring.size else (st.level * ring.size).roundToInt()
         val shift = if (st.live) sin(st.pace).roundToInt() else 0
         val grid = SpeciesRenderer.carve(s, face(st) { if (st.done) Face.HAPPY else Face.IDLE }, st.blink, eyeDx = shift)
-        IRIS.forEachIndexed { i, (x, y) -> grid[y][x] = if (i < lit) 'o' else '.' }
+        ring.forEachIndexed { i, (x, y) ->
+            val row = grid.getOrNull(y)
+            if (row != null && x in row.indices) row[x] = if (i < lit) 'o' else '.'
+        }
         paint(f, s, grid, still = st.still)
-        if (st.live && lit < IRIS.size && (st.pace * 0.7).toInt() % 2 == 1) {
-            set(f, s.ox + IRIS[lit].first, s.oy + IRIS[lit].second, BRIGHT)
+        if (st.live && lit < ring.size && (st.pace * 0.7).toInt() % 2 == 1) {
+            set(f, s.ox + ring[lit].first, s.oy + ring[lit].second, BRIGHT)
         }
         if (st.still && st.reaction == null) zzz(f, s, 0)
     }

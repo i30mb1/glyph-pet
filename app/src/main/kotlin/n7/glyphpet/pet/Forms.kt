@@ -6,17 +6,14 @@ package n7.glyphpet.pet
  * [Species.inverted]. It has no face extras, so every face is carved the plain way, and an id of its own
  * ("cat.baby", "cat.adult"), since the engine caches per species id.
  *
- * Charging: every baby fills up ([ChargeWay.FILL]). An adult charges the teen's way, except the indicators drawn on the
- * teen's own coordinates (the Bot's bar, the Cloud's storm, the UFO's beam, the Eye's iris), which fill up for now.
+ * Charging: every baby fills up ([ChargeWay.FILL]); an adult charges the teen's way ([ChargeRenderer] knows where the
+ * adult Bot's bar, Cloud's bolt, UFO's hull lights and Eye's iris sit).
  * Habits: see [Habits.forStage].
  */
 object SpeciesForms {
 
     /** A baby or adult sprite: rows, home spot and the 2x2 eye and 3x2 mouth slots, as in [Species]. */
     private class Sprite(val rows: List<String>, val ox: Int, val oy: Int, val eyes: List<Pair<Int, Int>>, val mouth: Pair<Int, Int>?)
-
-    /** Charging ways that only work on the teen's coordinates; their adults fill up until they get their own. */
-    private val TEEN_ONLY_CHARGE = setOf(ChargeWay.BAR, ChargeWay.STORM, ChargeWay.BEAM, ChargeWay.IRIS)
 
     private val BABY: Map<String, Sprite> = mapOf(
         // cat: kitten
@@ -358,11 +355,7 @@ object SpeciesForms {
         eyes = sprite.eyes,
         mouth = sprite.mouth,
         inverted = teen.inverted,
-        charge = when {
-            stage == Stage.BABY -> ChargeWay.FILL
-            teen.charge in TEEN_ONLY_CHARGE -> ChargeWay.FILL
-            else -> teen.charge
-        },
+        charge = if (stage == Stage.BABY) ChargeWay.FILL else teen.charge,
         habit = { rows -> Habits.forStage(teen.kind, stage, rows) },
         kind = teen.kind,
         stage = stage,
