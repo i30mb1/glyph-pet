@@ -162,6 +162,28 @@ class PetStore(context: Context) {
         saveState(GrowthRules.makeReady(s, active))
     }
 
+    /**
+     * Debug builds: everything open at once. Every hero collected and grown up (the form on the matrix stays as it
+     * was), no eggs waiting, a pet on the matrix.
+     */
+    @Synchronized
+    fun unlockAll(nowMs: Long = GameClock.now()) {
+        val s = loadState(nowMs)
+        val today = EggRules.dayKey(nowMs)
+        val growth = SpeciesCatalog.all.associate { hero ->
+            hero.id to (s.growth[hero.id]?.copy(reached = Stage.ADULT, ready = false, evolvePresses = 0)
+                ?: Growth(Stage.ADULT, Stage.ADULT, 0, false, today))
+        }
+        val open = s.copy(
+            seen = SpeciesCatalog.all.associate { it.id to maxOf(1, s.seen[it.id] ?: 0) },
+            growth = growth,
+            eggs = emptyList(),
+            presses = emptyMap(),
+            onMatrix = null,
+        )
+        saveState(if (open.active == null) NurseryRules.setActive(open, SpeciesCatalog.all.first().id) else open)
+    }
+
     /** One long press of the Glyph button on the egg on the matrix; the fifth hatches it. */
     @Synchronized
     fun pressEgg(nowMs: Long = GameClock.now()): PressResult {

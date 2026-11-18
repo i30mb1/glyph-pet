@@ -423,11 +423,8 @@ private fun PetScreen(
             }
 
             if (BuildConfig.DEBUG) {
-                DebugPanel(onChanged = ::refresh, onGrow = { store.makeReady(); refresh() }, onResetGame = {
-                    context.getSharedPreferences("pet", Context.MODE_PRIVATE).edit().clear().apply()
-                    GameClock.reset(context)
-                    onResetIntro()
-                })
+                // Debug builds only: one button that opens every hero and every form.
+                N7Button("Unlock all", { store.unlockAll(); refresh() }, Modifier.fillMaxWidth(), N7ButtonVariant.Secondary)
             }
 
             MoreFromN7(Modifier.fillMaxWidth())
@@ -893,39 +890,6 @@ private fun ToggleRow(title: String, text: String, checked: Boolean, onChange: (
 }
 
 /** Debug builds only: run the game day in minutes. */
-@Composable
-private fun DebugPanel(onChanged: () -> Unit, onGrow: () -> Unit, onResetGame: () -> Unit) {
-    val context = LocalContext.current
-    var speed by remember { mutableStateOf(GameClock.currentSpeed) }
-    N7Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            SectionLabel("Test mode · time ×${speed.toInt()}")
-            Text(
-                "Now: " + DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(GameClock.now())),
-                style = N7Type.Caption,
-                color = N7Colors.InkSubtle,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(1f, 60f, 600f).forEach { s ->
-                    N7Button(
-                        text = "×${s.toInt()}",
-                        variant = if (s == speed) N7ButtonVariant.Primary else N7ButtonVariant.Secondary,
-                        modifier = Modifier.weight(1f),
-                        onClick = { GameClock.setSpeed(context, s); speed = s; onChanged() },
-                    )
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                N7Button("+1 h", { GameClock.skip(context, 3_600_000); onChanged() }, Modifier.weight(1f), N7ButtonVariant.Secondary)
-                N7Button("+6 h", { GameClock.skip(context, 6 * 3_600_000L); onChanged() }, Modifier.weight(1f), N7ButtonVariant.Secondary)
-                N7Button("Reset", { onResetGame(); speed = 1f }, Modifier.weight(1f), N7ButtonVariant.Secondary)
-            }
-            // The active pet may grow now: three shakes on the toy grow it.
-            N7Button("Grow", onGrow, Modifier.fillMaxWidth(), N7ButtonVariant.Secondary)
-        }
-    }
-}
-
 /** [lit] of [count] LED dots of size [dot], [gap] apart. */
 @Composable
 private fun Dots(lit: Int, count: Int = 10, dot: Dp = 10.dp, gap: Dp = 5.dp) {
