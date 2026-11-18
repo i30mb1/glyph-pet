@@ -37,7 +37,7 @@ enum class PressResult { NONE, CRACKED, HATCHED }
  * The egg-and-collection game, as pure functions of state and time:
  * - on every game day (from 6:00 local) on which the game runs, one hero the player does not have yet becomes
  *   available as an egg, rolled with the rarity weights among the missing ones; days the game does not run give none;
- * - eggs not opened stay; once all 18 are collected there are no more;
+ * - eggs not opened stay; once every hero is collected there are no more;
  * - eggs wait in the app until the player puts one on the matrix ([putOnMatrix]); the very first one (no pet yet) is
  *   on the matrix by itself. While an egg is on it the pet is away;
  * - five long presses of the Glyph button open the egg on the matrix and the hero becomes the active pet, as a baby
@@ -147,7 +147,7 @@ object SaveMigration {
     /**
      * A 1.1 save in the 1.2 game. Collected heroes (with their counts), the active pet and the supporter unlock stay.
      * An egg that was waiting becomes an available egg of a hero the player does not have: the same one if it is
-     * still missing, else one rolled among the missing, and none when all 18 are collected. The day of 1.1's last egg
+     * still missing, else one rolled among the missing, and none when every hero is collected. The day of 1.1's last egg
      * counts as already given, so the player gets no second hero that day. [old] null: a new install.
      */
     fun from11(old: Nursery11?, random: Random): NurseryState {

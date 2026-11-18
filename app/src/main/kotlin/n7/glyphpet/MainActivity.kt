@@ -808,7 +808,7 @@ private fun SupporterDialog(owned: Boolean, price: String?, onBuy: () -> Unit, o
                     style = N7Type.Title,
                     color = N7Colors.Ink,
                 )
-                Step("18", stringResource(R.string.supporter_perk_all))
+                Step("${SpeciesCatalog.all.size}", stringResource(R.string.supporter_perk_all))
                 Text(stringResource(R.string.supporter_rest_free), style = N7Type.BodyS, color = N7Colors.InkMuted)
                 if (!owned) {
                     N7Button(

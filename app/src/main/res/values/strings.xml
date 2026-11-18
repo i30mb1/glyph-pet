@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name" translatable="false">Glyph Pet</string>
     <string name="toy_name" translatable="false">Glyph Pet</string>
-    <string name="toy_summary">A new pet every day, as an egg. Put it on your Glyph Matrix and five long presses of the Glyph button hatch it. Collect all 18.</string>
+    <string name="toy_summary">A new pet every day, as an egg. Put it on your Glyph Matrix and five long presses of the Glyph button hatch it. Collect all 28.</string>
 
     <string name="tagline">A pet that lives on your Glyph Matrix.</string>
     <string name="main_hint">A new pet every day, as an egg</string>
@@ -42,8 +42,8 @@
     <string name="intro_1_text">Every day you play, a new pet comes as an egg, always one you do not have yet. Put it on the matrix and press the Glyph button five times: it hatches.</string>
     <string name="intro_2_title">A button and gestures</string>
     <string name="intro_2_text">The pet lives on the back of your phone. Hold the Glyph button to feed it, rock the phone gently to play. A shake makes it dizzy, or grows it once it is ready.</string>
-    <string name="intro_3_title">Collect all 18</string>
-    <string name="intro_3_text">Every new pet joins your nursery. Some are rare, three are legendary.</string>
+    <string name="intro_3_title">Collect all 28</string>
+    <string name="intro_3_text">Every new pet joins your nursery. Some are rare, five are legendary.</string>
     <string name="intro_next">Next</string>
     <string name="intro_start">Start</string>
 
@@ -74,7 +74,7 @@
     <string name="button_crack">the egg cracks</string>
     <string name="button_nothing">nothing happens</string>
     <string name="next_egg_tomorrow">Next: a new pet in an egg tomorrow at 6:00.</string>
-    <string name="next_complete">You have all 18 pets. There are no more eggs.</string>
+    <string name="next_complete">You have all 28 pets. There are no more eggs.</string>
     <string name="next_supporter">Every pet you do not have yet is already waiting in an egg.</string>
 
     <string name="mood_sleeping">Sleeping. It wakes up in the morning or once it has rested.</string>
@@ -136,6 +136,26 @@
     <string name="habit_crow">Crowing</string>
     <string name="habit_bob">Bobbing</string>
     <string name="habit_thunder">Thunder</string>
+    <string name="habit_hide">Hiding in the shell</string>
+    <string name="habit_roll">Rolling up</string>
+    <string name="habit_side_step">Side step</string>
+    <string name="habit_spout">Spout</string>
+    <string name="habit_hover">Hovering</string>
+    <string name="habit_hang">Hanging upside down</string>
+    <string name="habit_tongue_shot">Tongue shot</string>
+    <string name="habit_bubble">Bubble</string>
+    <string name="habit_sparkle">Sparkle</string>
+    <string name="habit_ring_tilt">Ring tilt</string>
+    <string name="habit_firefly">Firefly</string>
+    <string name="habit_shake_off">Shake-off</string>
+    <string name="habit_fiddle">Fiddling</string>
+    <string name="habit_dive">Dive</string>
+    <string name="habit_pollinate">Flower visit</string>
+    <string name="habit_cloak">Wing cloak</string>
+    <string name="habit_camo">Camouflage</string>
+    <string name="habit_gill_wave">Gill wave</string>
+    <string name="habit_spin">Spin</string>
+    <string name="habit_moon_orbit">Moon orbit</string>
     <string name="matrix_title">On the matrix</string>
     <string name="matrix_hide_title">Dark when nobody sees it</string>
     <string name="matrix_hide_text">The matrix goes out while the phone lies screen up or is in a pocket, and lights up again when you pick it up.</string>

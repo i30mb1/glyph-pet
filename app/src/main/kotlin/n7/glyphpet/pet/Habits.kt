@@ -1,8 +1,12 @@
 package n7.glyphpet.pet
 
+import kotlin.math.abs
+import kotlin.math.roundToInt
+
 /**
  * The signature idle animations, each about 1-1.5 s: one per species for the teens, one per species for the adults
- * (the same idea re-placed on the bigger sprite) and a shared one for the babies. Every habit is plain data: a list
+ * (the first eighteen re-place the teen's idea on the bigger sprite, the second batch has ideas of its own, with ids
+ * of their own) and a shared one for the babies. Every habit is plain data: a list
  * of [HabitFrame]s built from the form's own rows, so a new species only needs a few frames here.
  * Overlay positions are in sprite coordinates from the species' home spot.
  */
@@ -44,6 +48,16 @@ object Habits {
         "eye" -> ::eyestalks
         "toast" -> ::eggToast
         "ufo" -> ::mothership
+        "snail" -> ::gardenSnail
+        "hedgehog" -> ::appleHedgehog
+        "crab" -> ::fiddler
+        "whale" -> ::spoutingWhale
+        "bee" -> ::queenBee
+        "bat" -> ::nightGuard
+        "chameleon" -> ::hornedChameleon
+        "axolotl" -> ::fanAxolotl
+        "gem" -> ::sparklingGem
+        "planet" -> ::moonPlanet
         else -> null
     }
 
@@ -67,6 +81,16 @@ object Habits {
         "eye" -> ::eye
         "toast" -> ::toast
         "ufo" -> ::ufo
+        "snail" -> ::snail
+        "hedgehog" -> ::hedgehog
+        "crab" -> ::crab
+        "whale" -> ::whale
+        "bee" -> ::bee
+        "bat" -> ::bat
+        "chameleon" -> ::chameleon
+        "axolotl" -> ::axolotl
+        "gem" -> ::gem
+        "planet" -> ::planet
         else -> null
     }
 
@@ -137,6 +161,20 @@ object Habits {
             String(out)
         }
 
+    /** Empties the cells of rows [ys] within columns [xs]. */
+    private fun blank(rows: List<String>, ys: IntRange, xs: IntRange): List<String> =
+        rows.mapIndexed { y, row -> if (y !in ys) row else String(CharArray(row.length) { x -> if (x in xs) '.' else row[x] }) }
+
+    /** Lights the given cells (sprite coordinates); cells off the rows are skipped. */
+    private fun lit(rows: List<String>, cells: Collection<Pair<Int, Int>>): List<String> =
+        rows.mapIndexed { y, row -> String(CharArray(row.length) { x -> if (x to y in cells) 'o' else row[x] }) }
+
+    /** Folds the wings away: the bright cells of rows [ys] in columns up to [left] and from [right] on go dark. */
+    private fun wingless(rows: List<String>, ys: IntRange, left: Int, right: Int): List<String> =
+        rows.mapIndexed { y, row ->
+            if (y !in ys) row else String(CharArray(row.length) { x -> if (row[x] == 'o' && (x <= left || x >= right)) '.' else row[x] })
+        }
+
     /** Cat: its thin tail pops up behind it and the tip flicks. */
     fun cat(rows: List<String>): Habit {
         val base = listOf(".#.", "#..", "#..", "#..", ".#.", "..#", "...##")
@@ -183,7 +221,7 @@ object Habits {
     fun frog(rows: List<String>) = catchFly(listOf(16 to 2, 15 to 1, 17 to 3, 16 to 5), (8..16).map { it to 5 })
 
     /** A fly buzzing through the four points of [fly] and a [tongue] (from the mouth out to the last point) snapping it up. */
-    private fun catchFly(fly: List<Pair<Int, Int>>, tongue: List<Pair<Int, Int>>): Habit {
+    private fun catchFly(fly: List<Pair<Int, Int>>, tongue: List<Pair<Int, Int>>, id: String = "tongue"): Habit {
         fun buzz(i: Int) = dots(listOf(fly[i]))
         val half = dots(tongue.take(5))
         val frames = listOf(
@@ -197,7 +235,7 @@ object Habits {
             HabitFrame(90, over = listOf(dots(tongue.take(2)))),
             HabitFrame(260, face = Face.CONTENT, blink = true),
         )
-        return Habit("tongue", frames)
+        return Habit(id, frames)
     }
 
     /** Dino: opens its jaw and roars, the sound rolling out in waves while it stomps. */
@@ -480,6 +518,220 @@ object Habits {
                 HabitFrame(140, rows = frame(0, 2), dy = -1),
                 HabitFrame(140, rows = withRow(rows, lights, hull { false })),
                 HabitFrame(240, rows = withRow(rows, lights, hull { true }), face = Face.HAPPY),
+            ),
+        )
+    }
+
+    /**
+     * Snail: pulls its horns in and its head after them, hides in the shell, then peeks out with one eye on a stalk
+     * before it comes out again. Everything stays inside its own silhouette.
+     */
+    fun snail(rows: List<String>): Habit {
+        val head = 0..6
+        val shortHorns = stamp(blank(rows, 0..0, head), 0, 1, ".o...o.")
+        val noHorns = blank(rows, 0..2, head)
+        val halfIn = blank(noHorns, 3..8, 0..2)
+        val hidden = blank(blank(rows, 0..8, head), 9..10, 0..4)
+        // One eye on its stalk at the mouth of the shell: the second eye slot carves the eye into the stub.
+        val peek = stamp(hidden, 4, 1, ".o.", ".#.", ".#.", "###", "###", "###", "###")
+        return Habit(
+            "hide",
+            listOf(
+                HabitFrame(120, rows = shortHorns),
+                HabitFrame(120, rows = noHorns),
+                HabitFrame(150, rows = halfIn),
+                HabitFrame(380, rows = hidden),
+                HabitFrame(300, rows = peek),
+                HabitFrame(150, rows = halfIn),
+                HabitFrame(180, face = Face.CONTENT),
+            ),
+        )
+    }
+
+    /**
+     * Hedgehog: curls up into a spiky ball (no face, the eyes moved off it and the mouth under it) and rolls to one
+     * side and the other, its spines turning, then uncurls.
+     */
+    fun hedgehog(rows: List<String>): Habit {
+        val a = listOf(
+            "......#.#......",
+            "....#######....",
+            "...#########...",
+            "..###########..",
+            "...#########...",
+            "..###########..",
+            "...#########...",
+            "....#######....",
+        )
+        val b = listOf(
+            ".....#...#.....",
+            "....#######....",
+            "...#########...",
+            "...#########...",
+            "..###########..",
+            "...#########...",
+            "..###########..",
+            "....#######....",
+        )
+        // The ball sits on the ground where the feet were.
+        val down = rows.size - a.size
+        fun ball(shape: List<String>, dx: Int, ms: Long = 130) = HabitFrame(ms, rows = shape, dx = dx, dy = down, eyeDx = 30)
+        return Habit(
+            "roll",
+            listOf(
+                HabitFrame(120, dy = 1, blink = true),
+                ball(a, 0), ball(b, 1), ball(a, 2), ball(b, 1), ball(a, 0), ball(b, -1), ball(a, -2), ball(b, -1),
+                ball(a, 0, ms = 120),
+                HabitFrame(150, face = Face.CONTENT),
+            ),
+        )
+    }
+
+    /** Crab: snaps both claws shut and steps sideways, legs shuffling, two steps out and two back. */
+    fun crab(rows: List<String>): Habit {
+        val w = rows[0].length
+        val shut = stamp(stamp(rows, 0, 0, ".o."), w - 3, 0, ".o.")
+        val legs = rows.lastIndex
+        fun step(base: List<String>) = slide(base, legs..legs, base[0].indices, 1, '.')
+        return Habit(
+            "side_step",
+            listOf(
+                HabitFrame(110, rows = shut),
+                HabitFrame(100, rows = step(rows), dx = 1),
+                HabitFrame(110, rows = shut, dx = 1),
+                HabitFrame(100, rows = step(rows), dx = 2),
+                HabitFrame(110, rows = shut, dx = 2),
+                HabitFrame(150, dx = 2, face = Face.CONTENT),
+                HabitFrame(100, rows = step(rows), dx = 1),
+                HabitFrame(110, rows = shut, dx = 1),
+                HabitFrame(100, rows = step(rows)),
+                HabitFrame(110, rows = shut),
+                HabitFrame(200, face = Face.CONTENT),
+            ),
+        )
+    }
+
+    /** Whale: the spout shoots up into a column and bursts, the drops falling down on both sides of it. */
+    fun whale(rows: List<String>) = Habit(
+        "spout",
+        listOf(
+            HabitFrame(120, over = listOf(o(4, -1, "o"))),
+            HabitFrame(120, over = listOf(o(4, -3, "o", "o", "o"))),
+            HabitFrame(140, over = listOf(o(3, -5, ".o.", "o.o", ".o.", ".o.", ".o."))),
+            HabitFrame(140, over = listOf(o(1, -4, "..o.o..", ".o...o.", "o.....o"))),
+            HabitFrame(140, over = listOf(o(0, -2, "o.......o"))),
+            HabitFrame(140, over = listOf(o(-1, 1, "o.........o"))),
+            HabitFrame(120, face = Face.CONTENT, blink = true),
+            HabitFrame(200, face = Face.CONTENT),
+        ),
+    )
+
+    /** Bee: hovers, bobbing up and down, its wings flickering in and out of sight. */
+    fun bee(rows: List<String>): Habit {
+        val folded = wingless(rows, 0..3, 3, rows[0].length - 4)
+        fun buzz(dy: Int, up: Boolean) = HabitFrame(100, rows = if (up) rows else folded, dy = dy)
+        return Habit(
+            "hover",
+            listOf(
+                buzz(-1, false), buzz(-1, true), buzz(-2, false), buzz(-2, true), buzz(-2, false), buzz(-1, true),
+                buzz(-1, false), buzz(0, false), buzz(0, true), buzz(-1, false), buzz(-1, true),
+                HabitFrame(200, face = Face.CONTENT),
+            ),
+        )
+    }
+
+    /**
+     * Bat: flips upside down under a branch and dozes there, its head swinging like a pendulum, then flips back. Only
+     * the head rows (at the bottom now) swing, so no wing tip runs off the sprite.
+     */
+    fun bat(rows: List<String>): Habit {
+        val flipped = rows.reversed()
+        fun swing(d: Int) = slide(flipped, 7 until flipped.size, flipped[0].indices, d, '.')
+        val branch = o(3, -1, "#########")
+        fun hang(r: List<String>, ms: Long = 150) = HabitFrame(ms, rows = r, blink = true, over = listOf(branch))
+        return Habit(
+            "hang",
+            listOf(
+                HabitFrame(120, dy = -1),
+                hang(flipped), hang(swing(1)), hang(flipped), hang(swing(-1)), hang(flipped), hang(swing(1)),
+                hang(flipped, ms = 120),
+                HabitFrame(120, dy = -1),
+                HabitFrame(150, face = Face.CONTENT),
+            ),
+        )
+    }
+
+    /** Chameleon: a fly buzzes by in front of it and its long tongue shoots out of the mouth and snaps it up. */
+    fun chameleon(rows: List<String>) =
+        catchFly(listOf(-2 to 0, -4 to 1, -3 to 3, -5 to 6), (2 downTo -5).map { it to 6 }, "tongue_shot")
+
+    /** Axolotl: its gills flutter while it blows a bubble that rises over its head, grows and pops. */
+    fun axolotl(rows: List<String>): Habit {
+        val w = rows[0].length
+        val flutter = stamp(stamp(rows, 0, 0, "...", "o..", ".oo", "o.#", ".o#"), w - 3, 0, "...", "..o", "oo.", "#.o", "#o.")
+        val ring = o(6, -4, ".o.", "o.o", ".o.")
+        return Habit(
+            "bubble",
+            listOf(
+                HabitFrame(110, rows = flutter),
+                HabitFrame(110, over = listOf(o(7, -1, "o"))),
+                HabitFrame(110, rows = flutter, over = listOf(o(7, -2, "o"))),
+                HabitFrame(130, over = listOf(ring)),
+                HabitFrame(130, rows = flutter, over = listOf(ring)),
+                HabitFrame(150, over = listOf(o(5, -6, ".ooo.", "o...o", "o...o", ".ooo."))),
+                HabitFrame(120, over = listOf(o(4, -6, "o.....o", "...o...", "o.....o"))),
+                HabitFrame(120, rows = flutter),
+                HabitFrame(200, face = Face.CONTENT),
+            ),
+        )
+    }
+
+    /**
+     * Gem: its crown goes dim and a glint runs round its edge, up one side, along the table and down the other, then
+     * a sparkle flashes over the table.
+     */
+    fun gem(rows: List<String>): Habit {
+        val girdle = rows.indexOfFirst { it.isNotEmpty() && it.all { c -> c == 'o' } }.coerceAtLeast(0)
+        val dim = rows.mapIndexed { y, row -> if (y > girdle) row else row.replace('o', '#') }
+        val left = (girdle downTo 1).map { y -> rows[y].indexOf('o') to y }
+        val table = rows[0].indices.filter { rows[0][it] == 'o' }.map { it to 0 }
+        val right = (1..girdle).map { y -> rows[y].lastIndexOf('o') to y }
+        val edge = (left + table + right).filter { it.first >= 0 }
+        val glints = edge.indices.step(2).map { i -> HabitFrame(100, rows = lit(dim, edge.subList(i, minOf(i + 2, edge.size)))) }
+        return Habit(
+            "sparkle",
+            glints + listOf(
+                HabitFrame(180, over = listOf(o(6, -4, ".o.", "ooo", ".o.")), face = Face.CONTENT),
+                HabitFrame(100, over = listOf(o(7, -3, "o"))),
+                HabitFrame(150),
+            ),
+        )
+    }
+
+    /** Planet: tilts its ring one way, then the other, the ring crossing in front of it at a slant. */
+    fun planet(rows: List<String>): Habit {
+        val ring = rows.indexOfFirst { row -> row.count { it == 'o' } > 2 }.coerceAtLeast(1)
+        val w = rows[0].length
+        val mid = w / 2
+        // Without the ring: its row takes the shape of the row above it.
+        val bare = rows.mapIndexed { y, row -> (if (y == ring) rows[ring - 1] else row).replace('o', '.') }
+        fun tilt(k: Double): List<String> {
+            val cells = (0 until w).map { x ->
+                val level = if (x == 0 || x == w - 1) ring - 1 else ring
+                x to level + ((x - mid) * k).roundToInt()
+            }
+            return lit(bare, cells)
+        }
+        return Habit(
+            "ring_tilt",
+            listOf(
+                HabitFrame(130, rows = tilt(-0.15)),
+                HabitFrame(200, rows = tilt(-0.3)),
+                HabitFrame(130, rows = tilt(-0.15)),
+                HabitFrame(130, rows = tilt(0.15)),
+                HabitFrame(200, rows = tilt(0.3)),
+                HabitFrame(130, rows = tilt(0.15)),
+                HabitFrame(200, face = Face.CONTENT),
             ),
         )
     }
@@ -903,6 +1155,240 @@ object Habits {
                 HabitFrame(140, rows = withRow(withRow(rows, lights, hull { false }), under, below { false })),
                 HabitFrame(240, rows = withRow(rows, lights, hull { true }), face = Face.HAPPY),
             ),
+        )
+    }
+
+    // The second batch's adults have ideas of their own, not the teen's habit re-placed.
+
+    /**
+     * Garden snail: the flower on its shell closes to a bud and opens wide, and a firefly flies in, lands in it and
+     * blinks.
+     */
+    fun gardenSnail(rows: List<String>): Habit {
+        val flower = rows[0].lastIndexOf('o') - 2
+        val bud = o(flower, 0, "x.x")
+        val wide = o(flower - 1, -1, "o.o.o")
+        fun fly(x: Int, y: Int) = o(x, y, "o")
+        val landed = fly(flower + 1, 0)
+        return Habit(
+            "firefly",
+            listOf(
+                HabitFrame(150, over = listOf(bud)),
+                HabitFrame(100, over = listOf(fly(flower - 5, -3))),
+                HabitFrame(150, over = listOf(wide, fly(flower - 5, -3))),
+                HabitFrame(130, over = listOf(wide, fly(flower - 3, -4))),
+                HabitFrame(130, over = listOf(wide, fly(flower - 1, -3))),
+                HabitFrame(130, over = listOf(wide, fly(flower + 1, -2))),
+                HabitFrame(250, over = listOf(wide, landed), face = Face.CONTENT),
+                HabitFrame(100, over = listOf(wide)),
+                HabitFrame(200, over = listOf(wide, landed), face = Face.CONTENT),
+            ),
+        )
+    }
+
+    /** Hedgehog with an apple: shakes itself, the apple on its spines jumps up two rows and lands again. */
+    fun appleHedgehog(rows: List<String>): Habit {
+        val apple = arrayOf("...o.", ".ooo.", "ooooo", "ooooo", ".ooo.")
+        val at = rows[2].indexOf('o')
+        // The spines and back under the apple.
+        val bare = stamp(rows, at, 0, ".....", ".....", "..#..", ".#.#.", "#####")
+        fun up(d: Int) = listOf(o(at, -d, *apple))
+        return Habit(
+            "shake_off",
+            listOf(
+                HabitFrame(120, dx = -1),
+                HabitFrame(120, dx = 1),
+                HabitFrame(120, dx = -1),
+                HabitFrame(120, rows = bare, over = up(1)),
+                HabitFrame(160, rows = bare, over = up(2)),
+                HabitFrame(140, rows = bare, over = up(1)),
+                HabitFrame(100, dy = 1),
+                HabitFrame(120, rows = bare, over = up(1)),
+                HabitFrame(200, face = Face.CONTENT),
+            ),
+        )
+    }
+
+    /**
+     * Fiddler crab: saws its huge claw up and down like a violin bow while the small claw conducts, opening and
+     * shutting.
+     */
+    fun fiddler(rows: List<String>): Habit {
+        val claw = 12 until rows[0].length
+        fun bow(d: Int, conduct: Boolean): List<String> {
+            val moved = shiftDown(rows, claw, 0..6, d)
+            // Raised, the arm keeps its joint on the shell.
+            val arm = if (d < 0) stamp(moved, 14, 6, "#") else moved
+            return if (conduct) stamp(arm, 0, 3, ".o.") else arm
+        }
+        return Habit(
+            "fiddle",
+            listOf(
+                HabitFrame(140, rows = bow(-1, true)),
+                HabitFrame(140, rows = bow(1, false)),
+                HabitFrame(140, rows = bow(-1, true)),
+                HabitFrame(140, rows = bow(1, false)),
+                HabitFrame(140, rows = bow(-1, true)),
+                HabitFrame(120, rows = stamp(rows, 0, 3, ".o.")),
+                HabitFrame(140, rows = bow(1, true)),
+                HabitFrame(140, rows = bow(-1, false)),
+                HabitFrame(200, face = Face.CONTENT),
+            ),
+        )
+    }
+
+    /**
+     * Whale with a spout: the fountain sinks, then rises and scatters in arcs; the whale dives a row down while the
+     * drops fall, and surfaces again.
+     */
+    fun spoutingWhale(rows: List<String>): Habit {
+        val fountain = 0..3
+        val all = rows[0].indices
+        val dry = blank(rows, fountain, all)
+        return Habit(
+            "dive",
+            listOf(
+                HabitFrame(150, rows = shiftDown(rows, all, fountain, 2)),
+                HabitFrame(150, rows = shiftDown(rows, all, fountain, 1)),
+                HabitFrame(180, over = listOf(o(0, -1, "o...........o"))),
+                HabitFrame(180, rows = dry, over = listOf(o(0, 2, "o...........o"))),
+                HabitFrame(200, rows = dry, dy = 1, over = listOf(o(-1, 4, "o.............o"))),
+                HabitFrame(160, rows = dry, dy = 1, blink = true),
+                HabitFrame(140, rows = shiftDown(rows, all, fountain, 2)),
+                HabitFrame(200, face = Face.CONTENT),
+            ),
+        )
+    }
+
+    /**
+     * Queen bee: flies a little loop beside a flower, wings flickering, settles over it for a moment and comes home.
+     * The big sprite has no room to fly round the flower itself, so the flower waits under its left wing.
+     */
+    fun queenBee(rows: List<String>): Habit {
+        val folded = wingless(rows, 0..6, 5, rows[0].length - 6)
+        val flower = o(0, 13, "o.o", ".o.", ".#.")
+        fun fly(dx: Int, dy: Int, up: Boolean, ms: Long = 120, face: Face? = null) =
+            HabitFrame(ms, rows = if (up) rows else folded, dx = dx, dy = dy, over = listOf(flower), face = face)
+        return Habit(
+            "pollinate",
+            listOf(
+                fly(-1, 1, false), fly(-1, 2, true), fly(0, 2, false), fly(1, 2, true), fly(1, 1, false), fly(0, 1, true),
+                fly(-1, 1, false),
+                fly(-1, 2, true, ms = 250, face = Face.CONTENT),
+                HabitFrame(120, rows = folded, dy = 1),
+                HabitFrame(150, face = Face.CONTENT),
+            ),
+        )
+    }
+
+    /** Night guard: wraps itself in its wings like a cloak, goes dark inside, then flings them open. */
+    fun nightGuard(rows: List<String>): Habit {
+        val w = rows[0].length
+        val half = blank(blank(rows, 4..9, 0..1), 4..9, w - 2 until w)
+        val wrap = "...o###########o..."
+        val cloaked = stamp(rows, 0, 4, wrap, wrap, wrap, wrap, "....o#########o....", ".....o##o#o##o.....")
+        return Habit(
+            "cloak",
+            listOf(
+                HabitFrame(120, rows = half),
+                HabitFrame(150, rows = cloaked, blink = true),
+                HabitFrame(300, rows = cloaked, blink = true, body = 0.6f),
+                HabitFrame(150, rows = cloaked),
+                HabitFrame(100, rows = half),
+                HabitFrame(180, dy = -1, face = Face.CONTENT),
+                HabitFrame(120, face = Face.CONTENT),
+                HabitFrame(150, blink = true),
+            ),
+        )
+    }
+
+    /**
+     * Three-horned chameleon: a bright stripe runs over its body from the tail to the head, then it fades almost out
+     * of sight (only its bright eye ring and horns stay) and comes back.
+     */
+    fun hornedChameleon(rows: List<String>): Habit {
+        fun stripe(c: Int) = rows.map { row -> String(CharArray(row.length) { x -> if (x in c..c + 1 && row[x] == '#') 'o' else row[x] }) }
+        val run = (rows[0].length - 2 downTo 2 step 3).map { HabitFrame(100, rows = stripe(it)) }
+        return Habit(
+            "camo",
+            run + listOf(
+                HabitFrame(120, body = 0.5f),
+                HabitFrame(300, body = 0.15f),
+                HabitFrame(120, body = 0.5f),
+                HabitFrame(200, face = Face.CONTENT),
+            ),
+        )
+    }
+
+    /** Fan axolotl: a wave of light runs up its gill fans from the bottom to the top; the rest of them dims meanwhile. */
+    fun fanAxolotl(rows: List<String>): Habit {
+        val w = rows[0].length
+        fun wave(center: Int) = rows.mapIndexed { y, row ->
+            String(CharArray(row.length) { x ->
+                val gill = row[x] == 'o' && (x <= 3 || x >= w - 4)
+                if (gill && abs(y - center) > 1) '#' else row[x]
+            })
+        }
+        return Habit(
+            "gill_wave",
+            (rows.size downTo -1 step 2).map { HabitFrame(120, rows = wave(it)) } + HabitFrame(250, face = Face.CONTENT),
+        )
+    }
+
+    /**
+     * Gem in sparkles: turns round its axis (squeezed narrower and back, its face turning away and back) twice, the
+     * four sparks round it flashing one at a time, clockwise.
+     */
+    fun sparklingGem(rows: List<String>): Habit {
+        val w = rows[0].length
+        val mid = w / 2
+        val sparks = listOf<(Int, Int) -> Boolean>(
+            { x, y -> y <= 2 && x <= 3 },
+            { x, y -> y in 2..4 && x >= w - 3 },
+            { x, y -> y in 12..14 && x >= w - 3 },
+            { x, y -> y in 10..12 && x <= 2 },
+        )
+        val stone = rows.mapIndexed { y, row -> String(CharArray(row.length) { x -> if (sparks.any { it(x, y) }) '.' else row[x] }) }
+
+        /** The stone squeezed to [s] of its width round the middle column, with spark number [spark] lit. */
+        fun turned(s: Double, spark: Int) = stone.mapIndexed { y, row ->
+            String(CharArray(row.length) { x ->
+                if (sparks[spark](x, y)) rows[y][x] else row.getOrElse(mid + ((x - mid) / s).roundToInt()) { '.' }
+            })
+        }
+        return Habit(
+            "spin",
+            listOf(
+                HabitFrame(120, rows = turned(1.0, 0)),
+                HabitFrame(120, rows = turned(0.6, 1)),
+                HabitFrame(140, rows = turned(0.3, 2)),
+                HabitFrame(120, rows = turned(0.6, 3)),
+                HabitFrame(120, rows = turned(1.0, 0)),
+                HabitFrame(120, rows = turned(0.6, 1)),
+                HabitFrame(140, rows = turned(0.3, 2)),
+                HabitFrame(120, rows = turned(0.6, 3)),
+                HabitFrame(250, face = Face.CONTENT),
+            ),
+        )
+    }
+
+    /**
+     * Planet with a moon: the moon leaves its spot and goes round the planet, in front of it across the lower half and
+     * behind it across the upper half, where the planet hides every moon cell it covers.
+     */
+    fun moonPlanet(rows: List<String>): Habit {
+        val moonX = rows[0].indexOf('o').coerceAtLeast(0)
+        val sky = blank(rows, 0..1, moonX..moonX + 1)
+        fun moon(x: Int, y: Int, behind: Boolean): List<Overlay> {
+            val cells = listOf(x to y, x + 1 to y, x to y + 1, x + 1 to y + 1)
+                .filter { (cx, cy) -> !behind || sky.getOrNull(cy)?.getOrNull(cx).let { it == null || it == '.' } }
+            return if (cells.isEmpty()) emptyList() else listOf(dots(cells))
+        }
+        val path = listOf(18 to 3, 17 to 8, 13 to 11, 8 to 12, 3 to 10, 0 to 6, 3 to 3, 8 to 2, 13 to 1)
+        return Habit(
+            "moon_orbit",
+            path.mapIndexed { i, (x, y) -> HabitFrame(120, rows = sky, over = moon(x, y, behind = i >= 6)) } +
+                HabitFrame(200, face = Face.CONTENT),
         )
     }
 }

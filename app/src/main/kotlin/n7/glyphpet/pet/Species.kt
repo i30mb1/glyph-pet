@@ -308,6 +308,111 @@ object SpeciesCatalog {
             charge = ChargeWay.BEAM,
             habit = Habits::ufo,
         ),
+        // Common: the second batch, five more
+        Species(
+            "snail", "Snail", Rarity.COMMON,
+            listOf(
+                ".o...o.........", ".#...#...oooo..", ".#...#..o####o.", "#######o##oo##o", "#######o#o##o#o",
+                "#######o#o#oo#o", "#######o##o###o", "#######.o####o.", "#######..oooo..", "##############.",
+                "..############.",
+            ),
+            ox = 5, oy = 7, eyes = listOf(1 to 4, 4 to 4), mouth = 2 to 7,
+            charge = ChargeWay.FILL,
+            habit = Habits::snail,
+        ),
+        Species(
+            "hedgehog", "Hedgehog", Rarity.COMMON,
+            listOf(
+                "...#..#.#..#...", "#..##.###.##..#", ".#############.", "###############", ".#############.",
+                "###############", ".#############.", "#######o#######", ".#############.", "..###########..",
+                "...#########...", "...##.....##...",
+            ),
+            ox = 5, oy = 7, eyes = listOf(4 to 5, 9 to 5), mouth = 6 to 8,
+            habit = Habits::hedgehog,
+        ),
+        Species(
+            "crab", "Crab", Rarity.COMMON,
+            listOf(
+                "o.o.........o.o", ".o...o...o...o.", ".#...#...#...#.", ".##.#######.##.", "..###########..",
+                ".#############.", "###############", "###############", ".#############.", "..###########..",
+                ".#.#.#...#.#.#.",
+            ),
+            ox = 5, oy = 7, eyes = listOf(4 to 5, 9 to 5), mouth = 6 to 7,
+            habit = Habits::crab,
+        ),
+        Species(
+            "whale", "Whale", Rarity.COMMON,
+            listOf(
+                "...o.o.........", "....o..........", "..#######......", ".#########...##", "###########.##.",
+                "#############..", "############...", "###########....", ".##########....", "..########.....",
+            ),
+            ox = 5, oy = 8, eyes = listOf(2 to 5, 6 to 5), mouth = 4 to 7,
+            charge = ChargeWay.FILL,
+            habit = Habits::whale,
+        ),
+        Species(
+            "bee", "Bee", Rarity.COMMON,
+            listOf(
+                "oo..o.....o..oo", "o.o..#...#..o.o", "o..o#######o..o", ".oo#########oo.", "..###########..",
+                "..###########..", "..###########..", "..###########..", "...ooooooooo...", "...#########...",
+                "....ooooooo....", ".....#####.....", ".......o.......",
+            ),
+            ox = 5, oy = 6, eyes = listOf(4 to 4, 9 to 4), mouth = 6 to 6,
+            charge = ChargeWay.FILL,
+            habit = Habits::bee,
+        ),
+        // Rare: three more
+        Species(
+            "bat", "Bat", Rarity.RARE,
+            listOf(
+                "....#.....#....", "....##...##....", "....#######....", "#..#########..#", "##.#########.##",
+                "###############", "###############", "#.#.#######.#.#", ".....#####.....", ".....#...#.....",
+            ),
+            ox = 5, oy = 8, eyes = listOf(4 to 4, 9 to 4), mouth = 6 to 6,
+            charge = ChargeWay.FILL,
+            habit = Habits::bat,
+        ),
+        Species(
+            "chameleon", "Chameleon", Rarity.RARE,
+            listOf(
+                "....#####......", "...#######.....", "..oooo######...", ".#o##o########.", "##o##o#########",
+                "##oooo#########", "###############", "###########...#", ".##...##....#.#", ".##...##....##.",
+            ),
+            ox = 5, oy = 8, eyes = listOf(3 to 3), mouth = 0 to 6,
+            habit = Habits::chameleon,
+        ),
+        Species(
+            "axolotl", "Axolotl", Rarity.RARE,
+            listOf(
+                "o.............o", ".o..#######..o.", "ooo#########ooo", "..###########..", "oo###########oo",
+                "..###########..", "..###########..", "...#########...", "....#######....", "...##.....##...",
+            ),
+            ox = 5, oy = 8, eyes = listOf(3 to 4, 10 to 4), mouth = 6 to 6,
+            habit = Habits::axolotl,
+        ),
+        // Legendary: two more
+        Species(
+            "gem", "Gem", Rarity.LEGENDARY,
+            listOf(
+                "....ooooooo....", "...o#######o...", "..o#########o..", ".o###########o.", "ooooooooooooooo",
+                ".#############.", "..###########..", "...#########...", "....#######....", ".....##o##.....",
+                "......#o#......", ".......o.......",
+            ),
+            ox = 5, oy = 7, eyes = listOf(4 to 5, 9 to 5), mouth = 6 to 7,
+            charge = ChargeWay.FILL,
+            habit = Habits::gem,
+        ),
+        Species(
+            "planet", "Planet", Rarity.LEGENDARY,
+            listOf(
+                "......###......", "....#######....", "...#########...", "..###########..", "..###########..",
+                "..###########..", "..###########..", "o.###########.o", ".ooooooooooooo.", "...#########...",
+                "....#######....", "......###......",
+            ),
+            ox = 5, oy = 7, eyes = listOf(4 to 4, 9 to 4), mouth = 6 to 6,
+            charge = ChargeWay.FILL,
+            habit = Habits::planet,
+        ),
     )
 
     private val byId = all.associateBy { it.id }

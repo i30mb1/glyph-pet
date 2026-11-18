@@ -199,5 +199,25 @@ internal fun habitName(habitId: String): Int? = when (habitId) {
     "crow" -> R.string.habit_crow
     "bob" -> R.string.habit_bob
     "thunder" -> R.string.habit_thunder
+    "hide" -> R.string.habit_hide
+    "roll" -> R.string.habit_roll
+    "side_step" -> R.string.habit_side_step
+    "spout" -> R.string.habit_spout
+    "hover" -> R.string.habit_hover
+    "hang" -> R.string.habit_hang
+    "tongue_shot" -> R.string.habit_tongue_shot
+    "bubble" -> R.string.habit_bubble
+    "sparkle" -> R.string.habit_sparkle
+    "ring_tilt" -> R.string.habit_ring_tilt
+    "firefly" -> R.string.habit_firefly
+    "shake_off" -> R.string.habit_shake_off
+    "fiddle" -> R.string.habit_fiddle
+    "dive" -> R.string.habit_dive
+    "pollinate" -> R.string.habit_pollinate
+    "cloak" -> R.string.habit_cloak
+    "camo" -> R.string.habit_camo
+    "gill_wave" -> R.string.habit_gill_wave
+    "spin" -> R.string.habit_spin
+    "moon_orbit" -> R.string.habit_moon_orbit
     else -> null
 }
