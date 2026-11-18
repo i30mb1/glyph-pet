@@ -89,6 +89,54 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
             return -room..room
         }
 
+        /** How far past [walkRange] a tilted pet may slide out over the round edge. */
+        const val MAX_PEEK = 3
+
+        private val slideCache = java.util.concurrent.ConcurrentHashMap<String, IntRange>()
+
+        /**
+         * How far a tilted pet may slide: [walkRange], and for a big pet further out over the round edge, up to
+         * [MAX_PEEK] cells, as long as both eyes stay on the matrix and at least three quarters of it can be seen.
+         * Only a slide goes there; the pet walks back once the phone is level.
+         */
+        fun slideRange(species: Species): IntRange = slideCache.getOrPut(species.id) {
+            var room = walkRange(species).last
+            while (room < MAX_PEEK && peeks(species, room + 1) && peeks(species, -(room + 1))) room++
+            -room..room
+        }
+
+        private fun peeks(s: Species, dx: Int): Boolean {
+            var total = 0
+            var seen = 0
+            s.rows.forEachIndexed { y, row ->
+                row.forEachIndexed { x, c ->
+                    if (c != '.') {
+                        total++
+                        if (GlyphMatrixSpec.isVisible(s.ox + x + dx, s.oy + y)) seen++
+                    }
+                }
+            }
+            val eyes = s.eyes.all { (ex, ey) ->
+                (0..1).all { a -> (0..1).all { b -> GlyphMatrixSpec.isVisible(s.ox + ex + a + dx, s.oy + ey + b) } }
+            }
+            return eyes && seen * 4 >= total * 3
+        }
+
+        private val leanCache = java.util.concurrent.ConcurrentHashMap<Pair<String, Int>, HabitFrame>()
+
+        /**
+         * A big pet leaning with the phone: the rows down to just under its eyes (never its mouth) shift [lean] cells
+         * sideways and the eyes go with them, the rest stays where it stands.
+         */
+        fun leanFrame(species: Species, lean: Int): HabitFrame = leanCache.getOrPut(species.id to lean) {
+            val split = minOf(species.eyes.maxOf { it.second } + 2, species.mouth?.second ?: species.height)
+                .coerceIn(1, species.height)
+            val rows = species.rows.mapIndexed { y, row ->
+                if (y >= split) row else String(CharArray(row.length) { x -> row.getOrNull(x - lean) ?: '.' })
+            }
+            HabitFrame(0, rows = rows, eyeDx = lean)
+        }
+
         private val habitSpotCache = java.util.concurrent.ConcurrentHashMap<String, Set<Int>>()
 
         /**
@@ -304,11 +352,15 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         updateFood(dtMs, species)
         updateHabit(dtMs, species, scene, sliding)
         updateHop(dtMs, scene.mood, sliding)
-        updateMovement(dtMs, scene, range, asleep, sliding)
+        updateMovement(dtMs, scene, range, slideRange(species), asleep, sliding)
         updateYawn(dtMs, scene.mood)
 
-        val habit = if (habitMs >= 0) species.habit.frameAt(habitMs) else null
-        val face = habit?.face ?: face(scene.mood, asleep, sliding)
+        val own = if (habitMs >= 0) species.habit.frameAt(habitMs) else null
+        // A big pet, with little room to slide, also leans with the phone while it is rocked or tilted.
+        val leaning = own == null && !asleep && range.last <= 1 && abs(scene.tilt) > 0.15f &&
+            (action == Action.NONE || action == Action.LOVED)
+        val habit = own ?: if (leaning) leanFrame(species, (scene.tilt * 2.2f).roundToInt().coerceIn(-2, 2)) else null
+        val face = own?.face ?: face(scene.mood, asleep, sliding)
         val lift = if (hopMs >= 0) HOP.getOrElse((hopMs / 80).toInt()) { 0 } else 0
         val shudder = action == Action.REFUSING || action == Action.SURGE || (action == Action.HURT && ouch())
         val jitter = if (shudder) (if ((time / 120) % 2 == 0L) -1 else 1) else 0
@@ -320,7 +372,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         if (action == Action.SURGE) surgeGlow(frame)
         if (scene.ready && action != Action.SURGE) readySparkle(frame, species, dx, lift)
         if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
-        shown = Shown(face, habit = habit != null, lift = lift, step = habit, dx = dx)
+        shown = Shown(face, habit = own != null, lift = lift, step = own, dx = dx)
         return frame
     }
 
@@ -495,17 +547,21 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         }
     }
 
-    private fun updateMovement(dtMs: Long, scene: Scene, range: IntRange, asleep: Boolean, sliding: Boolean) {
-        if (x < range.first || x > range.last) x = x.coerceIn(range.first.toFloat(), range.last.toFloat())
+    /** [range]: where the pet walks by itself; [slide]: how far a tilt takes it, out over the edge for a big pet. */
+    private fun updateMovement(dtMs: Long, scene: Scene, range: IntRange, slide: IntRange, asleep: Boolean, sliding: Boolean) {
+        if (x < slide.first || x > slide.last) x = x.coerceIn(slide.first.toFloat(), slide.last.toFloat())
         if (asleep || action != Action.NONE || habitMs >= 0) return
         if (sliding) {
-            x = (x + scene.tilt * dtMs * 0.01f).coerceIn(range.first.toFloat(), range.last.toFloat())
+            x = (x + scene.tilt * dtMs * 0.01f).coerceIn(slide.first.toFloat(), slide.last.toFloat())
             targetX = x
             return
         }
         wanderInMs -= dtMs
         val spot = habitSpot
-        if (spot != null) {
+        if (x < range.first || x > range.last) {
+            // Slid out over the edge: back onto the matrix, a step at a time.
+            targetX = x.coerceIn(range.first.toFloat(), range.last.toFloat())
+        } else if (spot != null) {
             targetX = spot.toFloat()
         } else if (wanderInMs <= 0) {
             // A sick pet only shuffles a step or so from its home spot.
