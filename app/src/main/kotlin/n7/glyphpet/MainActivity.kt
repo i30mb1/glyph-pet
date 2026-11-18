@@ -59,6 +59,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -768,14 +769,32 @@ internal fun ExpandRow(title: String, open: Boolean, onToggle: () -> Unit) {
     val state = stringResource(if (open) R.string.section_open else R.string.section_closed)
     Row(
         Modifier
-            .fillMaxWidth()
+            // The whole card is the button: the ripple reaches its edges, over the card's own padding
+            // (N7Card: 20dp at the sides, 8dp top and bottom; closed, the row is all there is).
+            .bleed(horizontal = 20.dp, top = 8.dp, bottom = if (open) 0.dp else 8.dp)
             .clickable(role = Role.Button, onClick = onToggle)
-            .padding(vertical = 12.dp)
+            .padding(horizontal = 20.dp)
+            .padding(top = 20.dp, bottom = if (open) 12.dp else 20.dp)
             .semantics(mergeDescendants = true) { stateDescription = state },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SectionLabel(title, Modifier.weight(1f))
         Text("›", style = N7Type.Title, color = N7Colors.InkSubtle, modifier = Modifier.rotate(if (open) 90f else 0f))
+    }
+}
+
+/** Lets this element reach past its parent's padding by the given amounts, so its background or ripple fills the parent. */
+private fun Modifier.bleed(horizontal: Dp, top: Dp, bottom: Dp): Modifier = layout { measurable, constraints ->
+    val h = horizontal.roundToPx()
+    val t = top.roundToPx()
+    val b = bottom.roundToPx()
+    val wide = constraints.copy(
+        minWidth = constraints.maxWidth + 2 * h,
+        maxWidth = constraints.maxWidth + 2 * h,
+    )
+    val placeable = measurable.measure(wide)
+    layout(constraints.maxWidth, (placeable.height - t - b).coerceAtLeast(0)) {
+        placeable.place(-h, -t)
     }
 }
 
