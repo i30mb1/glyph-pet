@@ -17,6 +17,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,7 +36,6 @@ import kotlinx.coroutines.delay
 import n7.glyph.ui.components.GlyphMatrix
 import n7.glyph.ui.components.N7Card
 import n7.glyph.ui.components.N7PagerDots
-import n7.glyph.ui.components.SectionLabel
 import n7.glyph.ui.matrix.Cell
 import n7.glyph.ui.theme.N7Colors
 import n7.glyph.ui.theme.N7Type
@@ -50,7 +50,8 @@ private class LiveFrame(val speciesId: String, val page: Int, val cells: List<Ce
 /**
  * "States": every state of the active pet, one page at a time, swiped sideways with dots under it. Each page plays
  * its state on its own [StatePreview], which never touches the saved pet. Only the settled page animates, and only
- * while the screen is resumed and the card is on screen; any other page shows a still of its state.
+ * while the screen is resumed and the card is on screen and open; any other page shows a still of its state. Folded
+ * to one row ("All states") by default.
  */
 @Composable
 internal fun StatesCard(species: Species, modifier: Modifier = Modifier) {
@@ -58,14 +59,15 @@ internal fun StatesCard(species: Species, modifier: Modifier = Modifier) {
     val pager = rememberPagerState(pageCount = { states.size })
     val lifecycleOwner = LocalLifecycleOwner.current
     var onScreen by remember { mutableStateOf(false) }
+    var open by rememberSaveable { mutableStateOf(false) }
     var live by remember { mutableStateOf<LiveFrame?>(null) }
     // A still per state, made when its page first shows up during a swipe.
     val stills = remember(species.id) { HashMap<PetState, List<Cell>>() }
     val playing = pager.settledPage
 
-    LaunchedEffect(species.id, playing, onScreen, lifecycleOwner) {
+    LaunchedEffect(species.id, playing, onScreen, open, lifecycleOwner) {
         live = null
-        if (!onScreen) return@LaunchedEffect
+        if (!onScreen || !open) return@LaunchedEffect
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             // From the start each time the page comes back on screen.
             val preview = StatePreview(species, states[playing])
@@ -82,8 +84,8 @@ internal fun StatesCard(species: Species, modifier: Modifier = Modifier) {
             // Clipped by the scrolling screen: zero height once the card is scrolled away.
             .onGloballyPositioned { onScreen = it.boundsInWindow().height > 0f },
     ) {
-        Column(Modifier.padding(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SectionLabel(stringResource(R.string.states_title))
+        ExpandRow(stringResource(R.string.states_all), open) { open = !open }
+        if (open) Column(Modifier.padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Box {
                 // The tallest page decides the height, so the card does not jump while swiping. These copies are
                 // never seen and never read aloud.

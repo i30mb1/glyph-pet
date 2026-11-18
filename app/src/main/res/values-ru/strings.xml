@@ -18,7 +18,7 @@
     <string name="egg_label">Яйцо</string>
 
     <string name="collection_title">Питомник · %1$d из %2$d</string>
-    <string name="collection_odds">Каждый день в яйце приходит питомец, которого у тебя ещё нет. Обычные чаще, легендарные редко. Нажми на яйцо, чтобы положить его на матрицу, на питомца — чтобы вернуть его туда.</string>
+    <string name="collection_odds">Каждый день в яйце приходит питомец, которого у тебя ещё нет. Обычные чаще, легендарные редко. Нажми на яйцо, чтобы положить его на матрицу, на питомца — чтобы увидеть три его формы.</string>
     <string name="rarity_common">Обычный</string>
     <string name="rarity_rare">Редкий</string>
     <string name="rarity_legendary">Легендарный</string>
@@ -63,7 +63,7 @@
     <string name="now_sad">%1$s скучает</string>
     <string name="now_happy">%1$s счастлив</string>
     <string name="now_content">У %1$s всё хорошо</string>
-    <string name="button_now">Если сейчас зажать кнопку Glyph: %1$s.</string>
+    <string name="button_now">Кнопка Glyph сейчас: %1$s.</string>
     <string name="button_feed">питомец поест (сытый отвернётся)</string>
     <string name="button_stir">питомец приоткроет глаз и уснёт дальше</string>
     <string name="button_hatch">из яйца вылупится питомец</string>
@@ -139,4 +139,37 @@
     <string name="matrix_notify_text">Питомец поднимает голову на уведомление и показывает трубку, пока висит пропущенный звонок. Glyph Pet видит только тип уведомления, текст не читает.</string>
     <string name="matrix_drop_text">Уронил телефон? Питомец скажет «ай» и до завтра будет с пластырем.</string>
     <string name="matrix_drop_hurt">Телефон уронили: питомец с пластырем до завтрашнего утра.</string>
+
+    <!-- Compact main screen, forms in the collection -->
+    <string name="need_food_hint">зажми кнопку</string>
+    <string name="need_joy_hint">покачай</string>
+    <string name="need_sleep_hint">ночью и на зарядке</string>
+    <string name="egg_put_on_matrix_count">Положить яйцо на матрицу · %1$d</string>
+    <string name="states_all">Все состояния</string>
+    <string name="settings_title">Настройки</string>
+    <string name="section_open">открыто</string>
+    <string name="section_closed">свёрнуто</string>
+    <string name="collection_forms">Форм %1$d/%2$d</string>
+    <string name="stage_baby">Малыш</string>
+    <string name="stage_teen">Подросток</string>
+    <string name="stage_adult">Взрослый</string>
+    <string name="form_on_matrix">На матрице</string>
+    <string name="form_ready">Готов</string>
+    <string name="form_tomorrow">завтра утром</string>
+    <string name="form_care_dots">дни заботы</string>
+    <plurals name="form_care_days">
+        <item quantity="one">заботься о нём %d день</item>
+        <item quantity="few">заботься о нём %d дня</item>
+        <item quantity="many">заботься о нём %d дней</item>
+        <item quantity="other">заботься о нём %d дня</item>
+    </plurals>
+    <string name="grow_ready">Готов расти: потряси телефон 3 раза</string>
+    <string name="grow_ready_pick">Готов расти: положи его на матрицу и потряси телефон 3 раза</string>
+    <string name="grow_tomorrow">Вырастет завтра утром</string>
+    <plurals name="grow_care_days">
+        <item quantity="one">Вырастет через %d день заботы</item>
+        <item quantity="few">Вырастет через %d дня заботы</item>
+        <item quantity="many">Вырастет через %d дней заботы</item>
+        <item quantity="other">Вырастет через %d дня заботы</item>
+    </plurals>
 </resources>

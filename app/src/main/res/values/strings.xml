@@ -20,7 +20,7 @@
     <string name="egg_label">Egg</string>
 
     <string name="collection_title">Nursery · %1$d of %2$d</string>
-    <string name="collection_odds">Every day a new pet comes as an egg, never one you have. Common ones come most often, legendary ones rarely. Tap an egg to put it on the matrix, tap a pet to bring it back there.</string>
+    <string name="collection_odds">Every day a new pet comes as an egg, never one you have. Common ones come most often, legendary ones rarely. Tap an egg to put it on the matrix, tap a pet to see its three forms.</string>
     <string name="rarity_common">Common</string>
     <string name="rarity_rare">Rare</string>
     <string name="rarity_legendary">Legendary</string>
@@ -65,7 +65,7 @@
     <string name="now_sad">%1$s is bored</string>
     <string name="now_happy">%1$s is happy</string>
     <string name="now_content">%1$s is fine</string>
-    <string name="button_now">If you hold the Glyph button now: %1$s.</string>
+    <string name="button_now">Glyph button now: %1$s.</string>
     <string name="button_feed">your pet eats (a full one turns away)</string>
     <string name="button_stir">your pet opens one eye and sleeps on</string>
     <string name="button_hatch">the egg hatches</string>
@@ -141,4 +141,33 @@
     <string name="matrix_notify_text">The pet looks up when a notification comes and shows a phone while a call is missed. Glyph Pet sees only the kind of a notification, never its text.</string>
     <string name="matrix_drop_text">Dropped the phone? The pet says ouch and wears a plaster until tomorrow.</string>
     <string name="matrix_drop_hurt">The phone was dropped: the pet wears a plaster until tomorrow morning.</string>
+
+    <!-- Compact main screen, forms in the collection -->
+    <string name="need_food_hint">hold the button</string>
+    <string name="need_joy_hint">rock the phone</string>
+    <string name="need_sleep_hint">at night, on the charger</string>
+    <string name="egg_put_on_matrix_count">Put an egg on the matrix · %1$d</string>
+    <string name="states_all">All states</string>
+    <string name="settings_title">Settings</string>
+    <string name="section_open">open</string>
+    <string name="section_closed">closed</string>
+    <string name="collection_forms">Forms %1$d/%2$d</string>
+    <string name="stage_baby">Baby</string>
+    <string name="stage_teen">Teen</string>
+    <string name="stage_adult">Adult</string>
+    <string name="form_on_matrix">On the matrix</string>
+    <string name="form_ready">Ready</string>
+    <string name="form_tomorrow">tomorrow morning</string>
+    <string name="form_care_dots">care days</string>
+    <plurals name="form_care_days">
+        <item quantity="one">care for it %d day</item>
+        <item quantity="other">care for it %d days</item>
+    </plurals>
+    <string name="grow_ready">Ready to grow: shake the phone 3 times</string>
+    <string name="grow_ready_pick">Ready to grow: put it on the matrix and shake the phone 3 times</string>
+    <string name="grow_tomorrow">Grows tomorrow morning</string>
+    <plurals name="grow_care_days">
+        <item quantity="one">Grows after %d more day of care</item>
+        <item quantity="other">Grows after %d more days of care</item>
+    </plurals>
 </resources>
