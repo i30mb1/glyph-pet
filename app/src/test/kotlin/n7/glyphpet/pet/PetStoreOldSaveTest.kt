@@ -6,6 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -222,7 +223,7 @@ class PetStoreOldSaveTest {
         assertNull(n.active)
         assertEquals(1, n.eggs.size)
         assertEquals(EggView(EggStage.WHOLE, golden = false), n.eggView)
-        assertEquals(2, prefs.map["save_version"])
+        assertEquals(3, prefs.map["save_version"])
     }
 
     @Test
@@ -281,5 +282,107 @@ class PetStoreOldSaveTest {
         assertEquals(Mood.SAD, PetRules.mood(fed.stats, asleep = false))
         assertEquals(38f, prefs.map["satiety"])
         assertEquals(7f, prefs.map["joy"])
+    }
+
+    /** Exactly what 1.2's saveStats + saveState put into the "pet" prefs (save_version 2, before growth stages). */
+    private fun write12(prefs: MemoryPrefs, now: Long, active: String?, seen: Map<String, Int>, eggs: List<String> = emptyList()) {
+        val m = prefs.map
+        m["satiety"] = 70f
+        m["joy"] = 70f
+        m["energy"] = 70f
+        m["born_at"] = now - 3 * PetStats.DAY_MS
+        m["updated_at"] = now
+        if (active != null) m["active_species"] = active
+        seen.forEach { (id, count) -> m["seen_$id"] = count }
+        m["save_version"] = 2
+        m["supporter"] = false
+        m["eggs"] = eggs.joinToString(",")
+        m["egg_presses"] = ""
+        m["grant_day"] = EggRules.dayKey(now)
+        m["hatched_at"] = now - PetStats.DAY_MS
+        if (active != null) m["hatched_id"] = active
+    }
+
+    @Test
+    fun `a 1_2 save loads with every collected pet grown up as a teen, as it always looked`() {
+        val now = at(2026, 11, 18, 12)
+        val prefs = MemoryPrefs()
+        write12(prefs, now, active = "fox", seen = mapOf("fox" to 1, "cat" to 3, "ufo" to 1), eggs = listOf("owl"))
+        val n = PetStore(fakeContext(prefs)).nursery(now)
+        val teen = Growth(Stage.TEEN, Stage.TEEN, careDays = 0, ready = false, sinceDay = EggRules.dayKey(now))
+        assertEquals(mapOf("fox" to teen, "cat" to teen, "ufo" to teen), n.growth)
+        assertEquals("fox", n.active?.id)
+        assertSame(SpeciesCatalog.get("fox"), n.activeForm)
+        assertEquals(teen, n.activeGrowth)
+        assertFalse(n.ready)
+        assertEquals("owl", n.egg?.id)
+        assertEquals(3, prefs.map["save_version"])
+        assertEquals(listOf("fox", "cat", "ufo").map { "$it:TEEN:TEEN:0:0:${EggRules.dayKey(now)}:0" }.toSet(), (prefs.map["growth"] as String).split(',').toSet())
+        // Loaded again days later: the same teens, the day they became teens kept.
+        val later = PetStore(fakeContext(prefs)).nursery(now + 3 * PetStats.DAY_MS)
+        assertEquals(teen, later.growth["cat"])
+    }
+
+    @Test
+    fun `a 1_1 save gets teens too`() {
+        val now = at(2026, 11, 18, 12)
+        val prefs = MemoryPrefs()
+        write11(
+            prefs, PetStats(50f, 50f, 50f, now - PetStats.DAY_MS, now), egg = null, active = "eye", seen = mapOf("eye" to 1),
+            supporter = false, eggDay = EggRules.dayKey(now), eggDayCount = 1, everLaid = true, lastWarmMs = 0,
+            instantDay = 0, hatchedAtMs = 0, hatchedId = null,
+        )
+        val n = PetStore(fakeContext(prefs)).nursery(now)
+        assertEquals(Stage.TEEN, n.activeGrowth?.reached)
+        assertSame(SpeciesCatalog.get("eye"), n.activeForm)
+    }
+
+    @Test
+    fun `growth is saved - a hatched baby grows up by shakes the next day and keeps the form picked`() {
+        val day1 = at(2026, 11, 18, 10)
+        val prefs = MemoryPrefs()
+        val store = PetStore(fakeContext(prefs))
+        store.nursery(day1)
+        repeat(EggRules.PRESSES_TO_HATCH) { store.pressEgg(nowMs = day1 + 1000) }
+        val hatched = PetStore(fakeContext(prefs)).nursery(day1 + 2000)
+        val kind = hatched.active!!.id
+        assertEquals("$kind.baby", hatched.activeForm?.id)
+        assertEquals(GrowthRules.hatched(EggRules.dayKey(day1)), hatched.activeGrowth)
+        assertEquals(GrowResult.NONE, store.growShake(day1 + 3000))
+
+        val day2 = day1 + PetStats.DAY_MS
+        assertTrue(PetStore(fakeContext(prefs)).nursery(day2).ready)
+        assertEquals(GrowResult.SHOOK, store.growShake(day2))
+        assertEquals(GrowResult.SHOOK, PetStore(fakeContext(prefs)).growShake(day2 + 1))
+        assertEquals(GrowResult.EVOLVED, store.growShake(day2 + 2))
+        val teen = PetStore(fakeContext(prefs)).nursery(day2 + 3)
+        assertEquals(kind, teen.activeForm?.id)
+        assertEquals(kind, teen.justEvolved?.id)
+        assertEquals(Stage.TEEN, teen.activeGrowth?.reached)
+
+        store.setShown(kind, Stage.BABY, day2 + 4)
+        assertEquals("$kind.baby", PetStore(fakeContext(prefs)).nursery(day2 + 5).activeForm?.id)
+        store.setShown(kind, Stage.ADULT, day2 + 6)
+        assertEquals("not reached yet", "$kind.baby", PetStore(fakeContext(prefs)).nursery(day2 + 7).activeForm?.id)
+    }
+
+    @Test
+    fun `a meal counts toward growing, a sick day does not`() {
+        val now = at(2026, 11, 18, 12)
+        val prefs = MemoryPrefs()
+        write12(prefs, now, active = "cat", seen = mapOf("cat" to 1))
+        prefs.map["satiety"] = 40f
+        val store = PetStore(fakeContext(prefs))
+        assertTrue(store.feed(now))
+        val nextDay = store.nursery(now + PetStats.DAY_MS)
+        assertEquals(1, nextDay.activeGrowth?.careDays)
+        // A neglected pet is sick that day: fed later, the day still does not count.
+        prefs.map["satiety"] = 2f
+        prefs.map["joy"] = 2f
+        prefs.map["updated_at"] = now + PetStats.DAY_MS
+        store.nursery(now + PetStats.DAY_MS + 1000)
+        assertEquals(true, prefs.map["care_sick"])
+        assertTrue(store.feed(now + PetStats.DAY_MS + 2000))
+        assertEquals(1, store.nursery(now + 2 * PetStats.DAY_MS).activeGrowth?.careDays)
     }
 }

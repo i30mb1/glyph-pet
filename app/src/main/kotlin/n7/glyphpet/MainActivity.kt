@@ -12,6 +12,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -241,6 +242,7 @@ private fun PetScreen(
     var now by remember { mutableStateOf(GameClock.now()) }
     var frame by remember { mutableStateOf<List<Cell>>(emptyList()) }
     var celebratedId by remember { mutableStateOf<String?>(null) }
+    var celebratedForm by remember { mutableStateOf<String?>(null) }
     var toyOpened by remember { mutableStateOf(ui.getBoolean(KEY_TOY_OPENED, false)) }
     var hurt by remember { mutableStateOf(store.hurt()) }
     var hideUnseen by remember { mutableStateOf(store.hideWhenUnseen) }
@@ -256,6 +258,9 @@ private fun PetScreen(
         val hatched = nursery.justHatched
         if (hatched != null && hatched.id != celebratedId) engine.celebrate()
         celebratedId = hatched?.id
+        val evolved = nursery.justEvolved
+        if (evolved != null && evolved.id != celebratedForm) engine.celebrate()
+        celebratedForm = evolved?.id
     }
 
     /** A press on egg [id] (a tile), or with null on the egg in the hands (the egg on the matrix). */
@@ -270,7 +275,7 @@ private fun PetScreen(
             while (true) {
                 if (sinceSync >= 1000) { refresh(); sinceSync = 0 }
                 val scene = Scene(
-                    species = nursery.active,
+                    species = nursery.activeForm,
                     mood = PetRules.mood(nursery.stats, store.asleep(nursery.stats)),
                     charging = power.plugged,
                     egg = nursery.eggView,
@@ -287,8 +292,9 @@ private fun PetScreen(
     }
 
     val mood = PetRules.mood(nursery.stats, store.asleep(nursery.stats, now))
-    val action = ButtonRules.decide(nursery.active != null, mood, nursery.egg != null, nursery.stats.satiety)
+    val action = ButtonRules.decide(nursery.active != null, mood, nursery.egg != null)
     val crackLabel = stringResource(R.string.egg_crack_action)
+    val feedLabel = stringResource(R.string.action_feed)
 
     Surface(modifier = Modifier.fillMaxSize(), color = N7Colors.Ground) {
         Column(
@@ -319,13 +325,22 @@ private fun PetScreen(
             }
 
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                // While there is an egg on it, a tap on the matrix is a press on that egg.
+                // While there is an egg on it, a tap on the matrix is a press on that egg; a long press feeds, like
+                // holding the Glyph button.
+                val canFeed = nursery.active != null && mood != Mood.SLEEPING
                 GlyphMatrix(
                     cells = frame,
                     modifier = Modifier
                         .size(224.dp)
                         .clip(CircleShape)
-                        .clickable(enabled = nursery.egg != null, onClickLabel = crackLabel, role = Role.Button) { pressEgg(null) },
+                        .combinedClickable(
+                            enabled = nursery.egg != null || canFeed,
+                            onClickLabel = crackLabel,
+                            role = Role.Button,
+                            onLongClickLabel = feedLabel,
+                            onLongClick = if (canFeed) ({ engine.feed(store.feed()); refresh() }) else null,
+                            onClick = { if (nursery.egg != null) pressEgg(null) },
+                        ),
                     contentDescription = nursery.active?.name ?: stringResource(R.string.egg_title),
                 )
             }
@@ -333,31 +348,16 @@ private fun PetScreen(
             NowCard(nursery = nursery, mood = mood, action = action)
 
             if (nursery.active != null) {
+                // Each need says how to fill it: the controls live on the phone, not in buttons here.
                 N7Card(Modifier.fillMaxWidth()) {
-                    NeedMeter(stringResource(R.string.need_food), nursery.stats.satiety)
+                    NeedMeter(stringResource(R.string.need_food), nursery.stats.satiety, stringResource(R.string.need_food_how))
                     N7Divider()
-                    NeedMeter(stringResource(R.string.need_joy), nursery.stats.joy)
+                    NeedMeter(stringResource(R.string.need_joy), nursery.stats.joy, stringResource(R.string.need_joy_how))
                     N7Divider()
-                    NeedMeter(stringResource(R.string.need_sleep), nursery.stats.energy)
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    N7Button(
-                        text = stringResource(R.string.action_feed),
-                        variant = N7ButtonVariant.Secondary,
-                        modifier = Modifier.weight(1f),
-                        enabled = mood != Mood.SLEEPING,
-                        onClick = { engine.feed(store.feed()); refresh() },
-                    )
-                    N7Button(
-                        text = stringResource(R.string.action_pet),
-                        variant = N7ButtonVariant.Secondary,
-                        modifier = Modifier.weight(1f),
-                        enabled = mood != Mood.SLEEPING,
-                        onClick = { store.update { PetRules.play(it) }; engine.pet(); refresh() },
-                    )
+                    NeedMeter(stringResource(R.string.need_sleep), nursery.stats.energy, stringResource(R.string.need_sleep_how))
                 }
                 // Everything this pet can show, each played by its own engine: never the saved pet.
-                nursery.active?.let { StatesCard(species = it) }
+                nursery.activeForm?.let { StatesCard(species = it) }
             }
 
             Collection(nursery = nursery, onPick = { store.setActive(it.id); refresh() }, onEgg = { pressEgg(it.id) })
@@ -382,7 +382,7 @@ private fun PetScreen(
             }
 
             if (BuildConfig.DEBUG) {
-                DebugPanel(onChanged = ::refresh, onResetGame = {
+                DebugPanel(onChanged = ::refresh, onGrow = { store.makeReady(); refresh() }, onResetGame = {
                     context.getSharedPreferences("pet", Context.MODE_PRIVATE).edit().clear().apply()
                     GameClock.reset(context)
                     onResetIntro()
@@ -607,7 +607,7 @@ private fun SupporterCard(owned: Boolean, price: String?, onBuy: () -> Unit) {
 
 /** Debug builds only: run the game day in minutes. */
 @Composable
-private fun DebugPanel(onChanged: () -> Unit, onResetGame: () -> Unit) {
+private fun DebugPanel(onChanged: () -> Unit, onGrow: () -> Unit, onResetGame: () -> Unit) {
     val context = LocalContext.current
     var speed by remember { mutableStateOf(GameClock.currentSpeed) }
     N7Card(Modifier.fillMaxWidth()) {
@@ -633,6 +633,8 @@ private fun DebugPanel(onChanged: () -> Unit, onResetGame: () -> Unit) {
                 N7Button("+6 h", { GameClock.skip(context, 6 * 3_600_000L); onChanged() }, Modifier.weight(1f), N7ButtonVariant.Secondary)
                 N7Button("Reset", { onResetGame(); speed = 1f }, Modifier.weight(1f), N7ButtonVariant.Secondary)
             }
+            // The active pet may grow now: three shakes on the toy grow it.
+            N7Button("Grow", onGrow, Modifier.fillMaxWidth(), N7ButtonVariant.Secondary)
         }
     }
 }
@@ -647,16 +649,19 @@ private fun Dots(lit: Int, count: Int = 10) {
 
 /** A need as ten LED dots: lit dots are how full it is. */
 @Composable
-private fun NeedMeter(label: String, value: Float) {
+private fun NeedMeter(label: String, value: Float, how: String) {
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(vertical = 14.dp)
-            .semantics(mergeDescendants = true) { contentDescription = "$label ${value.toInt()}%" },
+            .padding(vertical = 12.dp)
+            .semantics(mergeDescendants = true) { contentDescription = "$label ${value.toInt()}%. $how" },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(label.uppercase(), style = N7Type.Label, color = N7Colors.InkSubtle, modifier = Modifier.weight(1f))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(label.uppercase(), style = N7Type.Label, color = N7Colors.InkSubtle)
+            Text(how, style = N7Type.BodyS, color = N7Colors.InkMuted)
+        }
         Dots(lit = ((value + 5f) / 10f).toInt().coerceIn(0, 10))
     }
 }
@@ -689,6 +694,6 @@ private fun moodLine(mood: Mood): Int = when (mood) {
 private fun buttonLine(action: ButtonAction, pressesLeft: Int): Int = when (action) {
     ButtonAction.CRACK_EGG -> if (pressesLeft <= 1) R.string.button_hatch else R.string.button_crack
     ButtonAction.FEED -> R.string.button_feed
-    ButtonAction.PET -> R.string.button_pet
+    ButtonAction.STIR -> R.string.button_stir
     ButtonAction.NOTHING -> R.string.button_nothing
 }

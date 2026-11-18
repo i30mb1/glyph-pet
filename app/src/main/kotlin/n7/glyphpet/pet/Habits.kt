@@ -10,6 +10,67 @@ object Habits {
 
     private fun o(x: Int, y: Int, vararg rows: String, level: Float = 1f) = Overlay(rows.toList(), x, y, level)
 
+    /**
+     * The habit of [kind] at [stage], built from that form's [rows]. A teen has its species' own habit. A baby has the
+     * [wiggle], which fits any silhouette. An adult keeps the teen's habit where it draws nothing at the teen's own
+     * coordinates and so still reads on the bigger body ([ADULT_KEEPS]: the Ghost fading away, the UFO's light show),
+     * otherwise it wiggles too.
+     */
+    fun forStage(kind: String, stage: Stage, rows: List<String>): Habit {
+        val own = teen(kind)
+        return when {
+            own == null -> wiggle(rows)
+            stage == Stage.TEEN -> own(rows)
+            stage == Stage.ADULT && kind in ADULT_KEEPS -> own(rows)
+            else -> wiggle(rows)
+        }
+    }
+
+    /** Adults whose teen habit works on their own rows; see [forStage]. */
+    private val ADULT_KEEPS = setOf("ghost", "ufo")
+
+    /** The teen habit of [kind], or null for an unknown kind. */
+    private fun teen(kind: String): ((List<String>) -> Habit)? = when (kind) {
+        "cat" -> ::cat
+        "ghost" -> ::ghost
+        "bot" -> ::bot
+        "frog" -> ::frog
+        "dino" -> ::dino
+        "jelly" -> ::jelly
+        "bunny" -> ::bunny
+        "chick" -> ::chick
+        "shroom" -> ::shroom
+        "cloud" -> ::cloud
+        "owl" -> ::owl
+        "fox" -> ::fox
+        "cactus" -> ::cactus
+        "penguin" -> ::penguin
+        "slime" -> ::slime
+        "eye" -> ::eye
+        "toast" -> ::toast
+        "ufo" -> ::ufo
+        else -> null
+    }
+
+    /**
+     * Any form: a little hop, a wobble from side to side and a contented blink. Whole-body moves only, so it fits every
+     * silhouette.
+     */
+    fun wiggle(rows: List<String>) = Habit(
+        "wiggle",
+        listOf(
+            HabitFrame(110, dy = -1),
+            HabitFrame(150, dy = -1),
+            HabitFrame(110),
+            HabitFrame(130, dx = -1),
+            HabitFrame(130, dx = 1),
+            HabitFrame(130, dx = -1),
+            HabitFrame(130, dx = 1),
+            HabitFrame(110),
+            HabitFrame(200, face = Face.CONTENT, blink = true),
+        ),
+    )
+
     /** Single bright dots at the given sprite coordinates, as one overlay. */
     private fun dots(points: List<Pair<Int, Int>>): Overlay {
         val left = points.minOf { it.first }

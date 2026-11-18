@@ -8,8 +8,10 @@
     <string name="need_food">Food</string>
     <string name="need_joy">Joy</string>
     <string name="need_sleep">Sleep</string>
+    <string name="need_food_how">Hold the Glyph button</string>
+    <string name="need_joy_how">Rock the phone gently side to side</string>
+    <string name="need_sleep_how">Sleeps at night, rests on the charger</string>
     <string name="action_feed">Feed</string>
-    <string name="action_pet">Pet</string>
     <string name="activate_toy">Activate toy</string>
 
     <string name="egg_title">Egg</string>
@@ -31,13 +33,13 @@
     <string name="supporter_unavailable">Coming soon on Google Play</string>
 
     <string name="step_activate">Activate Glyph Pet in Glyph Toys</string>
-    <string name="step_play">Shake gently to play, tilt to make it slide</string>
+    <string name="step_play">Rock the phone gently to play, shake it to crack an egg</string>
     <string name="step_aod">Set it as the Always-on Glyph Toy to keep it with you</string>
 
     <string name="intro_1_title">A new pet every day</string>
     <string name="intro_1_text">Every day you play, a new pet comes as an egg, always one you do not have yet. Press it five times and it hatches.</string>
-    <string name="intro_2_title">One button</string>
-    <string name="intro_2_text">The pet lives on the back of your phone. Hold the Glyph button and the egg cracks, or your pet eats or cheers up. The app always tells you which.</string>
+    <string name="intro_2_title">A button and gestures</string>
+    <string name="intro_2_text">The pet lives on the back of your phone. Hold the Glyph button to feed it, rock the phone gently to play, shake it to crack an egg.</string>
     <string name="intro_3_title">Collect all 18</string>
     <string name="intro_3_text">Every new pet joins your nursery. Some are rare, three are legendary.</string>
     <string name="intro_next">Next</string>
@@ -51,7 +53,7 @@
     <string name="now_egg_first">Your first pet is inside this egg</string>
     <string name="now_hatched">%1$s has hatched!</string>
     <string name="now_eggs_waiting">Eggs waiting: %1$d. Tap one in the nursery to take it in your hands.</string>
-    <string name="now_egg_how">Tap the egg here or hold the Glyph button.</string>
+    <string name="now_egg_how">Shake the phone, or tap the egg here.</string>
     <string name="now_egg_presses">Presses left to open the egg: %1$d</string>
     <string name="now_sleeping">%1$s is asleep</string>
     <string name="now_sick">%1$s feels sick</string>
@@ -61,8 +63,8 @@
     <string name="now_happy">%1$s is happy</string>
     <string name="now_content">%1$s is fine</string>
     <string name="button_now">If you hold the Glyph button now: %1$s.</string>
-    <string name="button_feed">your pet eats</string>
-    <string name="button_pet">your pet cheers up</string>
+    <string name="button_feed">your pet eats (a full one turns away)</string>
+    <string name="button_stir">your pet opens one eye and sleeps on</string>
     <string name="button_hatch">the egg hatches</string>
     <string name="button_crack">the egg cracks</string>
     <string name="button_nothing">nothing happens</string>
@@ -72,9 +74,9 @@
 
     <string name="mood_sleeping">Sleeping. It wakes up in the morning or once it has rested.</string>
     <string name="mood_sick">Feels sick. Feed it.</string>
-    <string name="mood_hungry">Hungry. Long-press the Glyph button or tap Feed.</string>
+    <string name="mood_hungry">Hungry. Hold the Glyph button.</string>
     <string name="mood_tired">Tired. It will nap soon.</string>
-    <string name="mood_sad">Bored. Shake the phone or tap Pet.</string>
+    <string name="mood_sad">Bored. Rock the phone gently side to side.</string>
     <string name="mood_happy">Happy and full.</string>
     <string name="mood_content">Doing fine.</string>
 
@@ -94,11 +96,11 @@
     <string name="state_asleep">Asleep</string>
     <string name="state_asleep_when">At night from 23:00 to 7:00, or when Sleep is almost empty</string>
     <string name="state_eating">Eating</string>
-    <string name="state_eating_when">When you tap Feed or hold the Glyph button</string>
+    <string name="state_eating_when">When you hold the Glyph button</string>
     <string name="state_loved">Loved</string>
-    <string name="state_loved_when">When you tap Pet or hold the Glyph button</string>
+    <string name="state_loved_when">When you rock the phone gently side to side</string>
     <string name="state_dizzy">Dizzy</string>
-    <string name="state_dizzy_when">When you shake the phone</string>
+    <string name="state_dizzy_when">When you shake the phone and no egg is waiting</string>
     <string name="state_scared">Scared</string>
     <string name="state_scared_when">When you tilt the phone: it slides down</string>
     <string name="state_trick">Its own trick</string>

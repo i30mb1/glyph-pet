@@ -18,6 +18,13 @@ data class NurseryState(
     val grantDay: Int = 0,
     val hatchedAtMs: Long = 0,
     val hatchedId: String? = null,
+    /** How far each collected hero has grown, by kind; see [GrowthRules]. */
+    val growth: Map<String, Growth> = emptyMap(),
+    /** Today's care of the active pet, counted toward growing at the next game day. */
+    val care: CareDay = CareDay(),
+    /** When a pet last grew, and the id of the form it grew into ([SpeciesForms.id]). */
+    val evolvedAtMs: Long = 0,
+    val evolvedId: String? = null,
 )
 
 /** What a press on an egg did. */
@@ -28,7 +35,7 @@ enum class PressResult { NONE, CRACKED, HATCHED }
  * - on every game day (from 6:00 local) on which the game runs, one hero the player does not have yet becomes
  *   available as an egg, rolled with the rarity weights among the missing ones; days the game does not run give none;
  * - eggs not opened stay; once all 18 are collected there are no more;
- * - five presses open an egg and the hero becomes the active pet;
+ * - five presses open an egg and the hero becomes the active pet, as a baby ([GrowthRules]);
  * - a supporter has every missing hero available as an egg at once.
  */
 object NurseryRules {
@@ -58,8 +65,12 @@ object NurseryRules {
 
     fun presses(s: NurseryState, id: String): Int = s.presses[id] ?: 0
 
-    /** Gives today's hero, once per game day. A clock turned back gives nothing again. */
-    fun advance(state: NurseryState, nowMs: Long, random: Random): NurseryState {
+    /**
+     * Rolls growth over to the current game day ([GrowthRules.advance]) and gives today's hero, once per game day. A
+     * clock turned back gives nothing again.
+     */
+    fun advance(before: NurseryState, nowMs: Long, random: Random): NurseryState {
+        val state = GrowthRules.advance(before, nowMs)
         val today = EggRules.dayKey(nowMs)
         if (today <= state.grantDay) return state
         val pool = missing(state).filter { it.id !in state.eggs }
@@ -71,7 +82,7 @@ object NurseryRules {
     /**
      * One press on egg [id], or, with null, on the egg in the hands (the Glyph button). A press on a named egg (a tap
      * in the app) also puts that egg in the hands. The fifth press hatches it: the hero joins the collection and goes
-     * on the matrix. Returns the new state, or null when there is no such egg.
+     * on the matrix as a baby. Returns the new state, or null when there is no such egg.
      */
     fun press(s: NurseryState, id: String?, nowMs: Long): NurseryState? {
         val egg = id ?: current(s) ?: return null
@@ -80,7 +91,7 @@ object NurseryRules {
         if (n < EggRules.PRESSES_TO_HATCH) {
             return s.copy(presses = s.presses + (egg to n), selected = if (id != null) egg else s.selected)
         }
-        return s.copy(
+        return GrowthRules.switched(s, egg).copy(
             eggs = s.eggs - egg,
             presses = s.presses - egg,
             selected = null,
@@ -88,6 +99,7 @@ object NurseryRules {
             seen = s.seen + (egg to (s.seen[egg] ?: 0) + 1),
             hatchedAtMs = nowMs,
             hatchedId = egg,
+            growth = s.growth + (egg to GrowthRules.hatched(EggRules.dayKey(nowMs))),
         )
     }
 
@@ -100,7 +112,7 @@ object NurseryRules {
 
     /** Only collected pets can live on the matrix. */
     fun setActive(s: NurseryState, speciesId: String): NurseryState =
-        if (has(s, speciesId)) s.copy(active = speciesId) else s
+        if (has(s, speciesId)) GrowthRules.switched(s, speciesId).copy(active = speciesId) else s
 
     fun justHatched(s: NurseryState, nowMs: Long): Species? =
         if (nowMs - s.hatchedAtMs in 0..JUST_HATCHED_MS) SpeciesCatalog.get(s.hatchedId) else null
@@ -141,19 +153,46 @@ object SaveMigration {
             ?: NurseryRules.missing(base).takeIf { it.isNotEmpty() }?.let { SpeciesCatalog.roll(random, it).id }
         return base.copy(eggs = listOfNotNull(egg))
     }
+
+    /**
+     * A save from before growth stages: every collected hero without a [Growth] becomes a teen (the form it always had),
+     * counting from game day [today]. Saves that already have growth stay as they are.
+     */
+    fun withGrowth(s: NurseryState, today: Int): NurseryState {
+        val missing = s.seen.filter { (id, n) -> n > 0 && id !in s.growth }.keys
+        if (missing.isEmpty()) return s
+        return s.copy(growth = s.growth + missing.associateWith { GrowthRules.grownUp(today) })
+    }
 }
 
-enum class ButtonAction { CRACK_EGG, FEED, PET, NOTHING }
+enum class ButtonAction { CRACK_EGG, FEED, STIR, NOTHING }
 
-/** What the single Glyph button does right now: the most useful thing. */
+enum class ShakeAction { GROW, CRACK_EGG, DIZZY, NOTHING }
+
+/**
+ * The controls, one gesture for one thing: holding the Glyph button feeds, rocking the phone gently from side to
+ * side plays, shaking cracks the egg in the hands, or grows a pet that is ready to.
+ */
 object ButtonRules {
-    fun decide(hasPet: Boolean, mood: Mood, eggWaiting: Boolean, satiety: Float): ButtonAction = when {
-        // An egg is opened by five presses, so it comes first: at night and for a hungry pet too.
-        eggWaiting -> ButtonAction.CRACK_EGG
-        !hasPet -> ButtonAction.NOTHING
-        mood == Mood.SLEEPING -> ButtonAction.PET
-        mood == Mood.SICK || mood == Mood.HUNGRY -> ButtonAction.FEED
-        satiety < 70f -> ButtonAction.FEED
-        else -> ButtonAction.PET
+    /** Holding the Glyph button: feeds (a full pet refuses); a sleeper only opens one eye. The first egg also cracks. */
+    fun decide(hasPet: Boolean, mood: Mood, eggWaiting: Boolean): ButtonAction = when {
+        // Before the first pet there is nothing to feed, so the button opens the egg too.
+        !hasPet -> if (eggWaiting) ButtonAction.CRACK_EGG else ButtonAction.NOTHING
+        mood == Mood.SLEEPING -> ButtonAction.STIR
+        else -> ButtonAction.FEED
     }
+
+    /**
+     * A shake: grows the pet while it is ready to ([GrowthRules.ready]; this comes before an egg), else cracks the egg
+     * in the hands while there is one, otherwise the pet gets dizzy.
+     */
+    fun shake(hasPet: Boolean, eggWaiting: Boolean, petReady: Boolean): ShakeAction = when {
+        hasPet && petReady -> ShakeAction.GROW
+        eggWaiting -> ShakeAction.CRACK_EGG
+        hasPet -> ShakeAction.DIZZY
+        else -> ShakeAction.NOTHING
+    }
+
+    /** Rocking plays with a pet that is awake; a sleeper is only lulled, its needs stay as they are. */
+    fun rockPlays(hasPet: Boolean, mood: Mood): Boolean = hasPet && mood != Mood.SLEEPING
 }

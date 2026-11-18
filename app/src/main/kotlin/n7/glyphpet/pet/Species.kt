@@ -3,6 +3,17 @@ package n7.glyphpet.pet
 enum class Rarity(val weight: Int) { COMMON(70), RARE(25), LEGENDARY(5) }
 
 /**
+ * How far a pet has grown. A hero hatches as a [BABY], grows into a [TEEN] (the form [SpeciesCatalog] draws) and
+ * then into an [ADULT], the final form. See [GrowthRules] and [SpeciesForms].
+ */
+enum class Stage {
+    BABY, TEEN, ADULT;
+
+    /** The stage this one grows into, or null for the final one. */
+    val next: Stage? get() = entries.getOrNull(ordinal + 1)
+}
+
+/**
  * Everything a pet can show. Each species draws all of them from one silhouette.
  * [SAD] cries a tear, [HUNGRY] opens its mouth and thinks of food, [PEEK] is a sleeper opening one eye,
  * [TIRED] is awake with heavy eyes.
@@ -59,6 +70,8 @@ enum class ChargeWay { WHEEL, FILL, BAR, STORM, BEAM, IRIS }
  * [inverted] species (the bot's screen) light their eyes and mouth instead of carving them.
  * [habit] builds its own idle animation from its rows. [tearFrom] is where a single sad tear starts, in sprite
  * coordinates (default: one under each eye).
+ * [kind] is the hero this is a form of (the id its collection, eggs and saves use) and [stage] how far it has grown:
+ * the species of [SpeciesCatalog] are the teens, with [id] == [kind]; [SpeciesForms] has the babies and adults.
  */
 class Species(
     val id: String,
@@ -75,6 +88,8 @@ class Species(
     val charge: ChargeWay = ChargeWay.WHEEL,
     habit: (rows: List<String>) -> Habit,
     val tearFrom: Pair<Int, Int>? = null,
+    val kind: String = id,
+    val stage: Stage = Stage.TEEN,
 ) {
     val habit: Habit = habit(rows)
     val width: Int get() = rows[0].length

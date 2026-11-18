@@ -11,10 +11,16 @@ import kotlin.math.sqrt
 
 /**
  * Reads the accelerometer: [tilt] is the sideways lean (-1..1, positive = the pet slides to the right
- * of the matrix as seen from the back), [consumeShake] reports a shake once, [consumeDrop] a drop once.
+ * of the matrix as seen from the back), [consumeShake] reports a shake once, [consumeDrop] a drop once,
+ * [consumeRock] a gentle rock from side to side once ([RockDetector]).
  * With the proximity and light sensors it also tells how the phone lies ([pose]): screen up, in a pocket.
  */
 class MotionSensor(context: Context) : SensorEventListener {
+
+    private companion object {
+        /** Shakes closer together count as one; short enough that five shakes open an egg in a few seconds. */
+        const val SHAKE_GAP_MS = 1200L
+    }
 
     private val sensors = context.getSystemService(SensorManager::class.java)
     private val accelerometer = sensors?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
@@ -33,8 +39,10 @@ class MotionSensor(context: Context) : SensorEventListener {
     private var running = false
     private var shaken = false
     private var dropped = false
+    private var rocked = false
     private var lastShakeMs = 0L
     private val drops = DropDetector()
+    private val rocks = RockDetector()
 
     /** How the phone lies, or null before the accelerometer has said anything. */
     val pose: Pose? get() = if (readings > 0) Pose(gravityZ, near, lux) else null
@@ -78,6 +86,9 @@ class MotionSensor(context: Context) : SensorEventListener {
     @Synchronized
     fun consumeDrop(): Boolean = dropped.also { dropped = false }
 
+    @Synchronized
+    fun consumeRock(): Boolean = rocked.also { rocked = false }
+
     override fun onSensorChanged(event: SensorEvent) {
         when (event.sensor.type) {
             Sensor.TYPE_PROXIMITY -> {
@@ -102,8 +113,9 @@ class MotionSensor(context: Context) : SensorEventListener {
         if (drops.feed(magnitude, now)) synchronized(this) { dropped = true }
 
         val force = magnitude - SensorManager.GRAVITY_EARTH
+        if (rocks.feed(tilt, force, now)) synchronized(this) { rocked = true }
         val wall = System.currentTimeMillis()
-        if (force > 9f && wall - lastShakeMs > 2500) {
+        if (force > 9f && wall - lastShakeMs > SHAKE_GAP_MS) {
             lastShakeMs = wall
             synchronized(this) { shaken = true }
         }

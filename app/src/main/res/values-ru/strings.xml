@@ -6,8 +6,10 @@
     <string name="need_food">Еда</string>
     <string name="need_joy">Радость</string>
     <string name="need_sleep">Сон</string>
+    <string name="need_food_how">Зажми кнопку Glyph</string>
+    <string name="need_joy_how">Покачай телефон из стороны в сторону</string>
+    <string name="need_sleep_how">Спит ночью, отдыхает на зарядке</string>
     <string name="action_feed">Покормить</string>
-    <string name="action_pet">Погладить</string>
     <string name="activate_toy">Активировать игрушку</string>
 
     <string name="egg_title">Яйцо</string>
@@ -29,13 +31,13 @@
     <string name="supporter_unavailable">Скоро в Google Play</string>
 
     <string name="step_activate">Включи Glyph Pet в Glyph-игрушках</string>
-    <string name="step_play">Потряси, чтобы поиграть, наклони — и он покатится</string>
+    <string name="step_play">Покачай телефон, чтобы поиграть, потряси — и яйцо треснет</string>
     <string name="step_aod">Сделай его Always-on игрушкой, чтобы он всегда был с тобой</string>
 
     <string name="intro_1_title">Каждый день — новый питомец</string>
     <string name="intro_1_text">Каждый день, когда ты играешь, приходит новый питомец в яйце, всегда тот, которого у тебя ещё нет. Нажми на яйцо пять раз, и он вылупится.</string>
-    <string name="intro_2_title">Одна кнопка</string>
-    <string name="intro_2_text">Питомец живёт на задней панели телефона. Зажми кнопку Glyph — треснет яйцо, питомец поест или обрадуется. Что именно, приложение всегда подскажет.</string>
+    <string name="intro_2_title">Кнопка и жесты</string>
+    <string name="intro_2_text">Питомец живёт на задней панели телефона. Зажми кнопку Glyph — он поест. Покачай телефон — поиграете. Потряси — треснет яйцо.</string>
     <string name="intro_3_title">Собери всех 18</string>
     <string name="intro_3_text">Каждый новый питомец попадает в питомник. Некоторые редкие, а трое — легендарные.</string>
     <string name="intro_next">Дальше</string>
@@ -49,7 +51,7 @@
     <string name="now_egg_first">В этом яйце — твой первый питомец</string>
     <string name="now_hatched">Вылупился %1$s!</string>
     <string name="now_eggs_waiting">Яиц ждёт: %1$d. Нажми на любое в питомнике, чтобы взять его в руки.</string>
-    <string name="now_egg_how">Нажми на яйцо здесь или зажми кнопку Glyph.</string>
+    <string name="now_egg_how">Потряси телефон или нажми на яйцо здесь.</string>
     <string name="now_egg_presses">Осталось нажатий до вылупления: %1$d</string>
     <string name="now_sleeping">%1$s спит</string>
     <string name="now_sick">%1$s болеет</string>
@@ -59,8 +61,8 @@
     <string name="now_happy">%1$s счастлив</string>
     <string name="now_content">У %1$s всё хорошо</string>
     <string name="button_now">Если сейчас зажать кнопку Glyph: %1$s.</string>
-    <string name="button_feed">питомец поест</string>
-    <string name="button_pet">питомец обрадуется</string>
+    <string name="button_feed">питомец поест (сытый отвернётся)</string>
+    <string name="button_stir">питомец приоткроет глаз и уснёт дальше</string>
     <string name="button_hatch">из яйца вылупится питомец</string>
     <string name="button_crack">яйцо треснет</string>
     <string name="button_nothing">ничего не случится</string>
@@ -70,9 +72,9 @@
 
     <string name="mood_sleeping">Спит. Проснётся утром или когда отдохнёт.</string>
     <string name="mood_sick">Болеет. Покорми его.</string>
-    <string name="mood_hungry">Голодный. Зажми кнопку Glyph или нажми «Покормить».</string>
+    <string name="mood_hungry">Голодный. Зажми кнопку Glyph.</string>
     <string name="mood_tired">Устал и скоро уснёт.</string>
-    <string name="mood_sad">Скучает. Потряси телефон или погладь.</string>
+    <string name="mood_sad">Скучает. Покачай телефон из стороны в сторону.</string>
     <string name="mood_happy">Сытый и довольный.</string>
     <string name="mood_content">Всё хорошо.</string>
 
@@ -92,11 +94,11 @@
     <string name="state_asleep">Спит</string>
     <string name="state_asleep_when">Ночью с 23:00 до 7:00 или когда Сон почти на нуле</string>
     <string name="state_eating">Ест</string>
-    <string name="state_eating_when">Когда жмёшь «Покормить» или зажимаешь кнопку Glyph</string>
+    <string name="state_eating_when">Когда зажимаешь кнопку Glyph</string>
     <string name="state_loved">Его гладят</string>
-    <string name="state_loved_when">Когда жмёшь «Погладить» или зажимаешь кнопку Glyph</string>
+    <string name="state_loved_when">Когда качаешь телефон из стороны в сторону</string>
     <string name="state_dizzy">Голова кругом</string>
-    <string name="state_dizzy_when">Когда трясёшь телефон</string>
+    <string name="state_dizzy_when">Когда трясёшь телефон, а яйца нет</string>
     <string name="state_scared">Испуган</string>
     <string name="state_scared_when">Когда наклоняешь телефон: он катится вниз</string>
     <string name="state_trick">Свой трюк</string>

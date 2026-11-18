@@ -15,6 +15,7 @@ import com.nothing.ketchum.GlyphToy
 import n7.glyphpet.alerts.PetAlerts
 import n7.glyphpet.pet.ButtonAction
 import n7.glyphpet.pet.ButtonRules
+import n7.glyphpet.pet.GrowResult
 import n7.glyphpet.pet.Mood
 import n7.glyphpet.pet.Nursery
 import n7.glyphpet.pet.PetEngine
@@ -22,11 +23,13 @@ import n7.glyphpet.pet.PetRules
 import n7.glyphpet.pet.PetStore
 import n7.glyphpet.pet.Power
 import n7.glyphpet.pet.PressResult
+import n7.glyphpet.pet.ShakeAction
 import n7.glyphpet.pet.Scene
 
 /**
- * The pet as a Glyph Toy. Live: animates at ~12 fps; the long-press does what is needed most
- * (crack the egg in the hands, feed a hungry pet, otherwise stroke); shake and tilt play.
+ * The pet as a Glyph Toy. Live: animates at ~12 fps. Holding the Glyph button feeds, rocking the phone gently from
+ * side to side plays, a shake cracks the egg in the hands (without one the pet gets dizzy), a steady tilt rolls it. A pet
+ * that is ready to grow grows after a few shakes instead. The matrix shows the form of the pet the player picked.
  * On the charger the pet shows the battery level and the charging speed in its own way.
  * Always-on: one calm frame per EVENT_AOD (once a minute); a notification wakes the pet for a moment.
  * Nobody sees the matrix while the phone lies screen up or is in a pocket: then it stays dark (a setting, on by default).
@@ -57,6 +60,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
     private var mood = Mood.CONTENT
     private var power = Power.NONE
     private var celebratedId: String? = null
+    private var celebratedForm: String? = null
     private var hurt = false
     private var hideUnseen = true
     private val hideGate = HideGate()
@@ -118,25 +122,27 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         stopLive()
     }
 
-    /** One button, the most useful thing: crack the egg, feed when hungry, otherwise stroke. */
+    /** Holding the button feeds (a sleeper only opens one eye); before the first pet it cracks the egg. */
     private fun onLongPress() {
         // The button was pressed: someone has the phone in hand. Light up now, hide again later if it is put away.
         burstUntil = 0
         hideGate.reset()
         if (!running) startLive()
         val n = nursery ?: store.nursery()
-        when (ButtonRules.decide(hasPet = n.active != null, mood = mood, eggWaiting = n.egg != null, satiety = n.stats.satiety)) {
-            // A crack wobbles the egg at once; a hatch is celebrated by sync() below, through justHatched.
-            ButtonAction.CRACK_EGG -> if (store.pressEgg() == PressResult.CRACKED) engine.crack()
+        when (ButtonRules.decide(hasPet = n.active != null, mood = mood, eggWaiting = n.egg != null)) {
+            ButtonAction.CRACK_EGG -> crackEgg()
             ButtonAction.FEED -> engine.feed(store.feed())
-            ButtonAction.PET -> {
-                if (mood != Mood.SLEEPING) store.update { PetRules.play(it) }
-                engine.pet()
-            }
+            // The stroke turns into a peek for a sleeper, and its needs stay as they are.
+            ButtonAction.STIR -> engine.pet()
             ButtonAction.NOTHING -> Unit
         }
         sync(force = true)
         Log.d(TAG, "Long press handled, mood=$mood")
+    }
+
+    /** A crack wobbles the egg at once; a hatch is celebrated by sync(), through justHatched. */
+    private fun crackEgg() {
+        if (store.pressEgg() == PressResult.CRACKED) engine.crack()
     }
 
     private fun onAod() {
@@ -209,10 +215,20 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             return
         }
         dark = false
-        if (motion.consumeShake() && nursery?.active != null) {
-            // A sleeper only opens one eye: shaking it gives no joy.
-            if (mood != Mood.SLEEPING) store.update { PetRules.shake(it) }
-            engine.shake()
+        if (motion.consumeShake()) {
+            val n = nursery
+            when (ButtonRules.shake(hasPet = n?.active != null, eggWaiting = n?.egg != null, petReady = n?.ready == true)) {
+                // Growing is celebrated by sync(), through justEvolved; a shake before that only gets a look.
+                ShakeAction.GROW -> { if (store.growShake() == GrowResult.SHOOK) engine.alert(); sync(force = true) }
+                ShakeAction.CRACK_EGG -> { crackEgg(); sync(force = true) }
+                // Shaking is no game: dizzy stars, no joy. A sleeper only opens one eye.
+                ShakeAction.DIZZY -> engine.shake()
+                ShakeAction.NOTHING -> Unit
+            }
+        }
+        if (motion.consumeRock() && ButtonRules.rockPlays(hasPet = nursery?.active != null, mood = mood)) {
+            store.update { PetRules.play(it) }
+            engine.pet()
         }
         sync(force = false)
         send(engine.tick(dt, scene(tilt = motion.tilt)))
@@ -241,7 +257,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
     private fun scene(tilt: Float = 0f): Scene {
         val n = nursery ?: return Scene(null, Mood.CONTENT)
         return Scene(
-            species = n.active,
+            species = n.activeForm,
             mood = mood,
             tilt = tilt,
             charging = power.plugged,
@@ -266,6 +282,11 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         val hatched = n.justHatched
         if (hatched != null && hatched.id != celebratedId) {
             celebratedId = hatched.id
+            engine.celebrate()
+        }
+        val evolved = n.justEvolved
+        if (evolved != null && evolved.id != celebratedForm) {
+            celebratedForm = evolved.id
             engine.celebrate()
         }
     }

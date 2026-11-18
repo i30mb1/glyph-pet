@@ -1,6 +1,7 @@
 package n7.glyphpet.pet
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -269,14 +270,26 @@ class NurseryRulesTest {
     // --- The Glyph button ----------------------------------------------------------------------------
 
     @Test
-    fun `the Glyph button does the most useful thing`() {
-        assertEquals(ButtonAction.CRACK_EGG, ButtonRules.decide(hasPet = false, mood = Mood.CONTENT, eggWaiting = true, satiety = 80f))
-        assertEquals(ButtonAction.NOTHING, ButtonRules.decide(hasPet = false, mood = Mood.CONTENT, eggWaiting = false, satiety = 80f))
-        assertEquals(ButtonAction.CRACK_EGG, ButtonRules.decide(hasPet = true, mood = Mood.SLEEPING, eggWaiting = true, satiety = 10f))
-        assertEquals(ButtonAction.CRACK_EGG, ButtonRules.decide(hasPet = true, mood = Mood.HUNGRY, eggWaiting = true, satiety = 10f))
-        assertEquals(ButtonAction.PET, ButtonRules.decide(hasPet = true, mood = Mood.SLEEPING, eggWaiting = false, satiety = 10f))
-        assertEquals(ButtonAction.FEED, ButtonRules.decide(hasPet = true, mood = Mood.HUNGRY, eggWaiting = false, satiety = 10f))
-        assertEquals(ButtonAction.FEED, ButtonRules.decide(hasPet = true, mood = Mood.CONTENT, eggWaiting = false, satiety = 50f))
-        assertEquals(ButtonAction.PET, ButtonRules.decide(hasPet = true, mood = Mood.HAPPY, eggWaiting = false, satiety = 90f))
+    fun `holding the Glyph button feeds, and opens only the first egg`() {
+        assertEquals(ButtonAction.CRACK_EGG, ButtonRules.decide(hasPet = false, mood = Mood.CONTENT, eggWaiting = true))
+        assertEquals(ButtonAction.NOTHING, ButtonRules.decide(hasPet = false, mood = Mood.CONTENT, eggWaiting = false))
+        assertEquals(ButtonAction.FEED, ButtonRules.decide(hasPet = true, mood = Mood.HUNGRY, eggWaiting = true))
+        assertEquals(ButtonAction.STIR, ButtonRules.decide(hasPet = true, mood = Mood.SLEEPING, eggWaiting = true))
+        assertEquals(ButtonAction.FEED, ButtonRules.decide(hasPet = true, mood = Mood.HAPPY, eggWaiting = false))
+    }
+
+    @Test
+    fun `a shake cracks the egg, without one the pet gets dizzy`() {
+        assertEquals(ShakeAction.CRACK_EGG, ButtonRules.shake(hasPet = true, eggWaiting = true, petReady = false))
+        assertEquals(ShakeAction.CRACK_EGG, ButtonRules.shake(hasPet = false, eggWaiting = true, petReady = false))
+        assertEquals(ShakeAction.DIZZY, ButtonRules.shake(hasPet = true, eggWaiting = false, petReady = false))
+        assertEquals(ShakeAction.NOTHING, ButtonRules.shake(hasPet = false, eggWaiting = false, petReady = false))
+    }
+
+    @Test
+    fun `rocking plays with a pet that is awake`() {
+        assertTrue(ButtonRules.rockPlays(hasPet = true, mood = Mood.SAD))
+        assertFalse(ButtonRules.rockPlays(hasPet = true, mood = Mood.SLEEPING))
+        assertFalse(ButtonRules.rockPlays(hasPet = false, mood = Mood.CONTENT))
     }
 }

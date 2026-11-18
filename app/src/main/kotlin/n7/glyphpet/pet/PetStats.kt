@@ -33,7 +33,6 @@ object PetRules {
     const val FULL = 90f
     const val PLAY_JOY = 15f
     const val PLAY_ENERGY = 3f
-    const val SHAKE_JOY = 4f
 
     /** Below both of these the pet is sick: nobody fed or played with it for about half a day. Food cures it. */
     const val SICK_SATIETY = 5f
@@ -81,8 +80,6 @@ object PetRules {
 
     fun play(stats: PetStats): PetStats =
         stats.copy(joy = (stats.joy + PLAY_JOY).clamp(), energy = (stats.energy - PLAY_ENERGY).clamp())
-
-    fun shake(stats: PetStats): PetStats = stats.copy(joy = (stats.joy + SHAKE_JOY).clamp())
 
     /** A drop hurts: some joy is gone, and the pet wears a plaster until [hurtUntil]. */
     const val DROP_JOY = 10f

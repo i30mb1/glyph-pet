@@ -45,28 +45,15 @@ class ReviewRulesTest {
     }
 
     @Test
-    fun `the button for every mood, with and without an egg and a pet, at every Food level`() {
-        // The owner's order: an egg is cracked first (also at night and when hungry), then a sleeper stirs, a hungry
-        // (or sick) pet eats, Food below 70 eats, otherwise a stroke. Without pet or egg nothing happens.
-        for (pet in listOf(false, true)) for (mood in Mood.entries) for (egg in listOf(false, true)) for (s in grid) {
+    fun `the button for every mood, with and without an egg and a pet`() {
+        // Holding the button feeds; a sleeper only stirs; before the first pet it opens the egg. Eggs are shaken open.
+        for (pet in listOf(false, true)) for (mood in Mood.entries) for (egg in listOf(false, true)) {
             val expected = when {
-                egg -> ButtonAction.CRACK_EGG
-                !pet -> ButtonAction.NOTHING
-                mood == Mood.SLEEPING -> ButtonAction.PET
-                mood == Mood.HUNGRY || mood == Mood.SICK -> ButtonAction.FEED
-                s < 70f -> ButtonAction.FEED
-                else -> ButtonAction.PET
+                !pet -> if (egg) ButtonAction.CRACK_EGG else ButtonAction.NOTHING
+                mood == Mood.SLEEPING -> ButtonAction.STIR
+                else -> ButtonAction.FEED
             }
-            assertEquals("pet=$pet $mood egg=$egg s=$s", expected, ButtonRules.decide(hasPet = pet, mood = mood, eggWaiting = egg, satiety = s))
-        }
-    }
-
-    @Test
-    fun `a sleeper is never fed or played with by the button, so the peek leaves the needs alone`() {
-        // The toy only calls PetRules.play when the mood is not SLEEPING and only feeds on FEED: the button never says FEED to a sleeper.
-        for (egg in listOf(false, true)) for (s in grid) {
-            val action = ButtonRules.decide(hasPet = true, mood = Mood.SLEEPING, eggWaiting = egg, satiety = s)
-            assertEquals(if (egg) ButtonAction.CRACK_EGG else ButtonAction.PET, action)
+            assertEquals("pet=$pet $mood egg=$egg", expected, ButtonRules.decide(hasPet = pet, mood = mood, eggWaiting = egg))
         }
     }
 

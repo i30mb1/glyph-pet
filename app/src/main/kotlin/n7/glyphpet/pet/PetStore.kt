@@ -33,6 +33,10 @@ data class Power(val plugged: Boolean, val watts: Float, val level: Float) {
  * @param eggs heroes ready to hatch, oldest first.
  * @param egg the egg in the player's hands: the matrix shows it and the Glyph button cracks it. Null: nothing to hatch.
  * @param presses presses so far, per egg.
+ * @param active the active pet as its hero (the teen of [SpeciesCatalog]: collection, names); [activeForm] is the form
+ *   of it that lives on the matrix.
+ * @param growth how far each collected hero has grown, by kind.
+ * @param justEvolved the form a pet just grew into, for a few seconds.
  */
 data class Nursery(
     val stats: PetStats,
@@ -43,8 +47,17 @@ data class Nursery(
     val collection: Map<String, Int>,
     val supporter: Boolean,
     val justHatched: Species?,
+    val activeForm: Species? = active,
+    val growth: Map<String, Growth> = emptyMap(),
+    val justEvolved: Species? = null,
 ) {
     fun pressesOf(id: String): Int = presses[id] ?: 0
+
+    /** How far the active pet has grown, or null without a pet. */
+    val activeGrowth: Growth? get() = active?.let { growth[it.id] }
+
+    /** The active pet may grow now: shakes grow it instead of cracking the egg. */
+    val ready: Boolean get() = activeGrowth?.let { it.ready && it.reached.next != null } == true
 
     /** How the egg in the hands looks on the matrix, or null when there is nothing to hatch. */
     val eggView: EggView? get() = egg?.let { EggView(EggRules.stage(pressesOf(it.id)), supporter) }
@@ -90,7 +103,9 @@ class PetStore(context: Context) {
     fun nursery(nowMs: Long = GameClock.now()): Nursery {
         val stats = PetRules.advance(loadStats(nowMs), nowMs, isCharging())
         saveStats(stats)
-        val state = NurseryRules.advance(loadState(nowMs), nowMs, Random(nowMs))
+        var state = NurseryRules.advance(loadState(nowMs), nowMs, Random(nowMs))
+        // A sick pet is sick asleep too: the day does not count toward growing.
+        if (PetRules.mood(stats, asleep = false) == Mood.SICK) state = GrowthRules.markSick(state, nowMs)
         saveState(state)
         return Nursery(
             stats = stats,
@@ -101,6 +116,9 @@ class PetStore(context: Context) {
             collection = SpeciesCatalog.all.associate { it.id to (state.seen[it.id] ?: 0) },
             supporter = state.supporter,
             justHatched = NurseryRules.justHatched(state, nowMs),
+            activeForm = GrowthRules.activeForm(state),
+            growth = state.seen.keys.mapNotNull { id -> GrowthRules.of(state, id)?.let { id to it } }.toMap(),
+            justEvolved = GrowthRules.justEvolved(state, nowMs),
         )
     }
 
@@ -112,11 +130,35 @@ class PetStore(context: Context) {
         return stats
     }
 
-    /** Feeds the active pet; false when it was full and refused. */
+    /** Feeds the active pet; false when it was full and refused. A meal it ate counts toward today's care. */
+    @Synchronized
     fun feed(nowMs: Long = GameClock.now()): Boolean {
         var ate = false
         update(nowMs) { stats -> PetRules.feed(stats).also { ate = it.second }.first }
+        if (ate) saveState(GrowthRules.markFed(NurseryRules.advance(loadState(nowMs), nowMs, Random(nowMs)), nowMs))
         return ate
+    }
+
+    /** A shake while the active pet is ready to grow: counts it, the last one grows the pet (see [GrowthRules.shake]). */
+    @Synchronized
+    fun growShake(nowMs: Long = GameClock.now()): GrowResult {
+        val (after, result) = GrowthRules.shake(NurseryRules.advance(loadState(nowMs), nowMs, Random(nowMs)), nowMs)
+        saveState(after)
+        return result
+    }
+
+    /** Puts the [stage] form of [kind] on the matrix, if that hero has grown that far. */
+    @Synchronized
+    fun setShown(kind: String, stage: Stage, nowMs: Long = GameClock.now()) {
+        saveState(GrowthRules.setShown(loadState(nowMs), kind, stage))
+    }
+
+    /** Debug builds: the active pet may grow right now. */
+    @Synchronized
+    fun makeReady(nowMs: Long = GameClock.now()) {
+        val s = loadState(nowMs)
+        val active = s.active ?: return
+        saveState(GrowthRules.makeReady(s, active))
     }
 
     /**
@@ -178,10 +220,15 @@ class PetStore(context: Context) {
             .apply()
     }
 
-    /** The saved nursery; a save from 1.1 (or none at all) goes through [SaveMigration] once and is saved in the 1.2 format. */
+    /**
+     * The saved nursery; a save from 1.1 (or none at all) goes through [SaveMigration] once and is saved in the current
+     * format. Heroes collected before growth stages (1.2 saves) become teens ([SaveMigration.withGrowth]).
+     */
     private fun loadState(nowMs: Long): NurseryState {
-        if (prefs.getInt(KEY_VERSION, 0) >= VERSION) {
-            return NurseryState(
+        val today = EggRules.dayKey(nowMs)
+        val version = prefs.getInt(KEY_VERSION, 0)
+        if (version >= VERSION_EGGS) {
+            val loaded = NurseryState(
                 active = prefs.getString(KEY_ACTIVE, null),
                 seen = loadSeen(),
                 supporter = prefs.getBoolean(KEY_SUPPORTER, false),
@@ -194,7 +241,18 @@ class PetStore(context: Context) {
                 grantDay = prefs.getInt(KEY_GRANT_DAY, 0),
                 hatchedAtMs = prefs.getLong(KEY_HATCHED_AT, 0),
                 hatchedId = prefs.getString(KEY_HATCHED_ID, null),
+                growth = prefs.getString(KEY_GROWTH, null).orEmpty().split(',').mapNotNull(::parseGrowth).toMap(),
+                care = CareDay(
+                    day = prefs.getInt(KEY_CARE_DAY, 0),
+                    fed = prefs.getBoolean(KEY_CARE_FED, false),
+                    sick = prefs.getBoolean(KEY_CARE_SICK, false),
+                ),
+                evolvedAtMs = prefs.getLong(KEY_EVOLVED_AT, 0),
+                evolvedId = prefs.getString(KEY_EVOLVED_ID, null),
             )
+            val grown = SaveMigration.withGrowth(loaded, today)
+            if (version < VERSION || grown !== loaded) saveState(grown)
+            return grown
         }
         val old = if (OLD_MARKS.any(prefs::contains) || loadSeen().isNotEmpty()) {
             Nursery11(
@@ -209,7 +267,7 @@ class PetStore(context: Context) {
         } else {
             null
         }
-        val migrated = SaveMigration.from11(old, Random(nowMs))
+        val migrated = SaveMigration.withGrowth(SaveMigration.from11(old, Random(nowMs)), today)
         saveState(migrated)
         return migrated
     }
@@ -230,12 +288,40 @@ class PetStore(context: Context) {
             .putLong(KEY_HATCHED_AT, s.hatchedAtMs)
         if (s.selected != null) e.putString(KEY_SELECTED, s.selected) else e.remove(KEY_SELECTED)
         if (s.hatchedId != null) e.putString(KEY_HATCHED_ID, s.hatchedId)
+        e.putString(KEY_GROWTH, s.growth.entries.joinToString(",") { (kind, g) -> formatGrowth(kind, g) })
+            .putInt(KEY_CARE_DAY, s.care.day)
+            .putBoolean(KEY_CARE_FED, s.care.fed)
+            .putBoolean(KEY_CARE_SICK, s.care.sick)
+            .putLong(KEY_EVOLVED_AT, s.evolvedAtMs)
+        if (s.evolvedId != null) e.putString(KEY_EVOLVED_ID, s.evolvedId)
         e.apply()
+    }
+
+    /** One hero's growth as "kind:reached:shown:careDays:ready:sinceDay:evolvePresses", e.g. "cat:TEEN:BABY:2:0:20261118:0". */
+    private fun formatGrowth(kind: String, g: Growth): String =
+        listOf(kind, g.reached.name, g.shown.name, g.careDays, if (g.ready) 1 else 0, g.sinceDay, g.evolvePresses).joinToString(":")
+
+    /** The reverse of [formatGrowth]; null for an entry it cannot read, which then counts as never saved. */
+    private fun parseGrowth(entry: String): Pair<String, Growth>? {
+        val p = entry.split(':').takeIf { it.size == 7 } ?: return null
+        val reached = Stage.entries.firstOrNull { it.name == p[1] } ?: return null
+        val shown = Stage.entries.firstOrNull { it.name == p[2] }?.takeIf { it <= reached } ?: reached
+        return p[0] to Growth(
+            reached = reached,
+            shown = shown,
+            careDays = p[3].toIntOrNull() ?: 0,
+            ready = p[4] == "1",
+            sinceDay = p[5].toIntOrNull() ?: 0,
+            evolvePresses = p[6].toIntOrNull() ?: 0,
+        )
     }
 
     private companion object {
         /** 1.2: eggs opened by presses. Saves without this key are from 1.1 (or new). */
-        const val VERSION = 2
+        const val VERSION_EGGS = 2
+
+        /** Growth stages ([KEY_GROWTH] and the care of the day). A version 2 save has none: its heroes become teens. */
+        const val VERSION = 3
         const val KEY_VERSION = "save_version"
 
         const val KEY_SATIETY = "satiety"
@@ -254,6 +340,12 @@ class PetStore(context: Context) {
         const val KEY_GRANT_DAY = "grant_day"
         const val KEY_HURT_UNTIL = "hurt_until"
         const val KEY_HIDE_UNSEEN = "hide_unseen"
+        const val KEY_GROWTH = "growth"
+        const val KEY_CARE_DAY = "care_day"
+        const val KEY_CARE_FED = "care_fed"
+        const val KEY_CARE_SICK = "care_sick"
+        const val KEY_EVOLVED_AT = "evolved_at"
+        const val KEY_EVOLVED_ID = "evolved_id"
 
         // 1.1's timed egg: read once by the migration, then removed.
         const val KEY_OLD_EGG_SPECIES = "egg_species"

@@ -10,7 +10,7 @@ enum class Cue { FEED, PET, SHAKE, TRICK }
  * [cueEveryMs] (first at [cueFirstMs]). [tiltEveryMs] > 0 tilts the phone the other way that often. [face] is what the
  * state shows (null: the charging indicator, or the species' habit for [PetState.TRICK]).
  */
-class Stage(
+class Staging(
     val mood: Mood,
     val face: Face?,
     val cue: Cue? = null,
@@ -30,45 +30,45 @@ class Stage(
  * Every state the app previews, in the order the player swipes through them. [id] is a stable short name for tests
  * and logs (the screen picks its texts by the enum itself). The comment on each says when the toy shows it.
  */
-enum class PetState(val id: String, val stage: Stage) {
+enum class PetState(val id: String, val stage: Staging) {
     /** Nothing urgent: Food, Joy and Sleep are fine. */
-    CALM("calm", Stage(Mood.CONTENT, Face.IDLE)),
+    CALM("calm", Staging(Mood.CONTENT, Face.IDLE)),
 
     /** Joy above 70% and Food above half: smiles and hops. */
-    HAPPY("happy", Stage(Mood.HAPPY, Face.CONTENT)),
+    HAPPY("happy", Staging(Mood.HAPPY, Face.CONTENT)),
 
     /** Food below a quarter: mouth open, thinks of food. */
-    HUNGRY("hungry", Stage(Mood.HUNGRY, Face.HUNGRY)),
+    HUNGRY("hungry", Staging(Mood.HUNGRY, Face.HUNGRY)),
 
     /** Joy below a quarter: a tear runs down. */
-    SAD("sad", Stage(Mood.SAD, Face.SAD)),
+    SAD("sad", Staging(Mood.SAD, Face.SAD)),
 
     /** Sleep below a fifth: heavy eyes, yawns. */
-    TIRED("tired", Stage(Mood.TIRED, Face.TIRED)),
+    TIRED("tired", Staging(Mood.TIRED, Face.TIRED)),
 
     /** Food and Joy both almost empty: pale, hardly moves. Feeding cures it. */
-    SICK("sick", Stage(Mood.SICK, Face.SICK)),
+    SICK("sick", Staging(Mood.SICK, Face.SICK)),
 
     /** At night (23:00-7:00) or when Sleep is almost empty. A touch, a shake or food makes it open one eye. */
-    ASLEEP("asleep", Stage(Mood.SLEEPING, Face.SLEEP, Cue.PET, cueFirstMs = 1800, cueEveryMs = 4000)),
+    ASLEEP("asleep", Staging(Mood.SLEEPING, Face.SLEEP, Cue.PET, cueFirstMs = 1800, cueEveryMs = 4000)),
 
     /** Fed with the Glyph button or the Feed button. */
-    EATING("eating", Stage(Mood.CONTENT, Face.EAT, Cue.FEED, cueFirstMs = 300, cueEveryMs = 3600)),
+    EATING("eating", Staging(Mood.CONTENT, Face.EAT, Cue.FEED, cueFirstMs = 300, cueEveryMs = 3600)),
 
     /** Stroked with the Glyph button or the Pet button. */
-    LOVED("loved", Stage(Mood.CONTENT, Face.LOVE, Cue.PET, cueFirstMs = 200, cueEveryMs = 2400)),
+    LOVED("loved", Staging(Mood.CONTENT, Face.LOVE, Cue.PET, cueFirstMs = 200, cueEveryMs = 2400)),
 
     /** The phone is shaken. */
-    DIZZY("dizzy", Stage(Mood.CONTENT, Face.DIZZY, Cue.SHAKE, cueFirstMs = 200, cueEveryMs = 3300)),
+    DIZZY("dizzy", Staging(Mood.CONTENT, Face.DIZZY, Cue.SHAKE, cueFirstMs = 200, cueEveryMs = 3300)),
 
     /** The phone is tilted: it slides to the low side. */
-    SCARED("scared", Stage(Mood.CONTENT, Face.SCARED, tiltEveryMs = 1500)),
+    SCARED("scared", Staging(Mood.CONTENT, Face.SCARED, tiltEveryMs = 1500)),
 
     /** Every 6-12 s while calm or happy: the species' own habit, named by [Habit.id]. */
-    TRICK("trick", Stage(Mood.CONTENT, null, Cue.TRICK, cueFirstMs = 400, cueEveryMs = 3200)),
+    TRICK("trick", Staging(Mood.CONTENT, null, Cue.TRICK, cueFirstMs = 400, cueEveryMs = 3200)),
 
     /** On the charger: shows the battery level and the charging speed. */
-    CHARGING("charging", Stage(Mood.CONTENT, null, charging = true)),
+    CHARGING("charging", Staging(Mood.CONTENT, null, charging = true)),
     ;
 
     /** Whether the frame described by [shown] shows this state (a sleeper's peek still counts as asleep). */
@@ -83,7 +83,7 @@ enum class PetState(val id: String, val stage: Stage) {
 /**
  * One state of one species, played by its own [PetEngine] in a forced scene, so the preview can only show what the
  * toy does. Pure: it never reads or writes the saved pet. The engine runs on without restarts (no jump between
- * loops) and the state's [Stage.cue] repeats every [loopMs]; for the same species and state the frames are always
+ * loops) and the state's [Staging.cue] repeats every [loopMs]; for the same species and state the frames are always
  * the same from [reset].
  */
 class StatePreview(val species: Species, val state: PetState) {
@@ -131,8 +131,8 @@ class StatePreview(val species: Species, val state: PetState) {
             mood = stage.mood,
             tilt = tilt,
             charging = stage.charging,
-            watts = if (stage.charging) Stage.WATTS else 0f,
-            battery = Stage.BATTERY,
+            watts = if (stage.charging) Staging.WATTS else 0f,
+            battery = Staging.BATTERY,
         )
         return engine.tick(dtMs, scene)
     }
