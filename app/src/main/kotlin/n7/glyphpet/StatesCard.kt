@@ -189,5 +189,10 @@ internal fun habitName(habitId: String): Int? = when (habitId) {
     "look_around" -> R.string.habit_look_around
     "pop_up" -> R.string.habit_pop_up
     "light_show" -> R.string.habit_light_show
+    "claw_snap" -> R.string.habit_claw_snap
+    "ear_twitch" -> R.string.habit_ear_twitch
+    "crow" -> R.string.habit_crow
+    "bob" -> R.string.habit_bob
+    "thunder" -> R.string.habit_thunder
     else -> null
 }

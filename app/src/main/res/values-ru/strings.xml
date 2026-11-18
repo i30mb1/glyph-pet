@@ -127,6 +127,11 @@
     <string name="habit_look_around">Озирается</string>
     <string name="habit_pop_up">Выпрыгивает</string>
     <string name="habit_light_show">Мигает огнями</string>
+    <string name="habit_claw_snap">Щёлкает клешнями</string>
+    <string name="habit_ear_twitch">Шевелит ушами</string>
+    <string name="habit_crow">Кукарекает</string>
+    <string name="habit_bob">Подпрыгивают</string>
+    <string name="habit_thunder">Гремит</string>
     <string name="matrix_title">На матрице</string>
     <string name="matrix_hide_title">Гаснуть, когда никто не видит</string>
     <string name="matrix_hide_text">Матрица гаснет, пока телефон лежит экраном вверх или в кармане, и загорается, когда берёшь его в руки.</string>

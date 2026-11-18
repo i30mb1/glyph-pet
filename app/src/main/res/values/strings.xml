@@ -129,6 +129,11 @@
     <string name="habit_look_around">Look around</string>
     <string name="habit_pop_up">Pop-up</string>
     <string name="habit_light_show">Light show</string>
+    <string name="habit_claw_snap">Claw snap</string>
+    <string name="habit_ear_twitch">Ear twitch</string>
+    <string name="habit_crow">Crowing</string>
+    <string name="habit_bob">Bobbing</string>
+    <string name="habit_thunder">Thunder</string>
     <string name="matrix_title">On the matrix</string>
     <string name="matrix_hide_title">Dark when nobody sees it</string>
     <string name="matrix_hide_text">The matrix goes out while the phone lies screen up or is in a pocket, and lights up again when you pick it up.</string>
