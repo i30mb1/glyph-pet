@@ -458,7 +458,7 @@ private fun NowCard(nursery: Nursery, mood: Mood, action: ButtonAction, onPutOnM
     val presses = egg?.let { nursery.pressesOf(it.id) } ?: 0
     val growing = egg == null && nursery.ready
     N7Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             // 1. What is happening
             val headline = when {
                 nursery.justHatched != null -> stringResource(R.string.now_hatched, nursery.justHatched.name)
@@ -469,22 +469,24 @@ private fun NowCard(nursery: Nursery, mood: Mood, action: ButtonAction, onPutOnM
             }
             Text(headline, style = N7Type.Title, color = N7Colors.Ink)
 
-            // 2. What the Glyph button does right now, or that shakes grow the pet
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (egg != null) Dots(lit = presses, count = EggRules.PRESSES_TO_HATCH, dot = 8.dp, gap = 4.dp)
-                Text(
-                    if (growing) {
-                        stringResource(R.string.grow_ready)
-                    } else {
-                        stringResource(R.string.button_now, stringResource(buttonLine(action, EggRules.PRESSES_TO_HATCH - presses)))
-                    },
-                    style = N7Type.BodyS,
-                    color = if (growing) N7Colors.Ink else N7Colors.InkMuted,
-                )
+            // 2. One line: the egg's presses, that shakes grow the pet, or what comes next. Feeding and playing are
+            // explained by the needs card.
+            if (egg != null || growing || pet == null) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (egg != null) Dots(lit = presses, count = EggRules.PRESSES_TO_HATCH, dot = 6.dp, gap = 3.dp)
+                    Text(
+                        if (growing) {
+                            stringResource(R.string.grow_ready)
+                        } else {
+                            stringResource(R.string.button_now, stringResource(buttonLine(action, EggRules.PRESSES_TO_HATCH - presses)))
+                        },
+                        style = N7Type.Caption,
+                        color = if (growing) N7Colors.Ink else N7Colors.InkMuted,
+                    )
+                }
+            } else {
+                NextLine(nursery)
             }
-
-            // 3. What comes next: the pet's growth, or the next egg
-            if (pet != null && egg == null && !growing) NextLine(nursery)
 
             EggOnMatrixAction(nursery, onPutOnMatrix)
         }
@@ -570,7 +572,6 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
             SectionLabel(stringResource(R.string.collection_title, found, SpeciesCatalog.all.size), Modifier.weight(1f))
             SectionLabel(stringResource(R.string.collection_forms, forms, SpeciesForms.all.size))
         }
-        Text(stringResource(R.string.collection_odds), style = N7Type.Caption, color = N7Colors.InkSubtle)
         SpeciesCatalog.all.chunked(3).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { s ->

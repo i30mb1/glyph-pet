@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -85,7 +86,7 @@ internal fun StatesCard(species: Species, modifier: Modifier = Modifier) {
             .onGloballyPositioned { onScreen = it.boundsInWindow().height > 0f },
     ) {
         ExpandRow(stringResource(R.string.states_all), open) { open = !open }
-        if (open) Column(Modifier.padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (open) Column(Modifier.padding(bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Box {
                 // The tallest page decides the height, so the card does not jump while swiping. These copies are
                 // never seen and never read aloud.
@@ -109,30 +110,32 @@ internal fun StatesCard(species: Species, modifier: Modifier = Modifier) {
                     )
                 }
             }
-            N7PagerDots(count = states.size, current = pager.currentPage, modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
+            N7PagerDots(count = states.size, current = pager.currentPage, modifier = Modifier.fillMaxWidth())
         }
     }
 }
 
+/** One state: the live matrix on the left, its name and when it happens on the right. */
 @Composable
 private fun StatePage(cells: List<Cell>?, name: String, whenLine: String, modifier: Modifier) {
-    Column(
+    Row(
         modifier.semantics(mergeDescendants = true) {},
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         if (cells != null) {
             GlyphMatrix(cells = cells, modifier = Modifier.size(PREVIEW_SIZE))
         } else {
             Spacer(Modifier.size(PREVIEW_SIZE))
         }
-        Spacer(Modifier.size(2.dp))
-        Text(name, style = N7Type.Title, color = N7Colors.Ink, textAlign = TextAlign.Center)
-        Text(whenLine, style = N7Type.BodyS, color = N7Colors.InkMuted, textAlign = TextAlign.Center)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(name, style = N7Type.Title, color = N7Colors.Ink)
+            Text(whenLine, style = N7Type.BodyS, color = N7Colors.InkMuted)
+        }
     }
 }
 
-private val PREVIEW_SIZE = 120.dp
+private val PREVIEW_SIZE = 84.dp
 
 /** The page title of a state; the trick is named after the species' own habit when it has a name. */
 @StringRes
