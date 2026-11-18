@@ -574,7 +574,8 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
             SectionLabel(stringResource(R.string.collection_title, found, SpeciesCatalog.all.size), Modifier.weight(1f))
             SectionLabel(stringResource(R.string.collection_forms, forms, SpeciesForms.all.size))
         }
-        SpeciesCatalog.all.chunked(3).forEach { row ->
+        // Grouped by status, common first, mythic last; catalogue order within a status.
+        SpeciesCatalog.all.sortedBy { it.rarity.ordinal }.chunked(3).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { s ->
                     val count = nursery.collection[s.id] ?: 0
