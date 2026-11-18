@@ -83,7 +83,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         override fun run() {
             if (!running) return
             renderLive()
-            main.postDelayed(this, FRAME_MS)
+            main.postDelayed(this, if (lab?.running == true) n7.glyphpet.lab.LabToy.FRAME_MS else FRAME_MS)
         }
     }
 
@@ -125,6 +125,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
 
     /** Holding the button cracks the egg on the matrix, otherwise feeds (a sleeper only opens one eye). */
     private fun onLongPress() {
+        if (labPress()) return
         // The button was pressed: someone has the phone in hand. Light up now, hide again later if it is put away.
         burstUntil = 0
         hideGate.reset()
@@ -155,6 +156,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
 
     /** The calm Always-on frame, or darkness if nobody can see the matrix right now. */
     private fun drawStill() {
+        if (labStill()) return
         if (!hideUnseen) { send(engine.still(scene())); return }
         motion.readPose { pose ->
             if (running) return@readPose
@@ -167,7 +169,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
      * life for [BURST_MS], then the calm frame is back. Ignored while the matrix is dark because nobody can see it.
      */
     private fun onNotification() {
-        if (!connected) return
+        if (!connected || labOn()) return
         if (running) {
             if (!dark) engine.alert()
             return
@@ -192,12 +194,14 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         running = false
         main.removeCallbacks(frameLoop)
         if (::motion.isInitialized) motion.stop()
+        lab?.stop()
     }
 
     private fun renderLive() {
         val now = SystemClock.uptimeMillis()
         val dt = (now - lastFrameAt).coerceIn(0, 250)
         lastFrameAt = now
+        if (renderLab(dt)) return
         if (burstUntil > 0 && now >= burstUntil) {
             burstUntil = 0
             stopLive()
@@ -301,5 +305,49 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         } catch (e: Exception) {
             Log.e(TAG, "Frame failed", e)
         }
+    }
+
+    // ---- Lab (debug builds only, n7.glyphpet.lab): depth experiments instead of the pet; never touches the save. ----
+
+    private var lab: n7.glyphpet.lab.LabToy? = null
+
+    private fun labOn(): Boolean = n7.glyphpet.lab.LabPrefs.on(this)
+
+    private fun labToy(): n7.glyphpet.lab.LabToy = lab ?: n7.glyphpet.lab.LabToy(this).also { lab = it }
+
+    /** While the Lab is on: draws its frame instead of the pet, with its own sensor; the pet's sensors rest. */
+    private fun renderLab(dtMs: Long): Boolean {
+        if (!labOn()) {
+            val l = lab
+            if (l != null && l.running) {
+                l.stop()
+                motion.start()
+                // Nothing that happened in the Lab reaches the pet.
+                motion.consumeShake(); motion.consumeDrop(); motion.consumeRock()
+            }
+            return false
+        }
+        val l = labToy()
+        if (!l.running) {
+            motion.stop()
+            l.start()
+        }
+        send(l.frame(dtMs))
+        return true
+    }
+
+    /** The Glyph button in the Lab: the next experiment. */
+    private fun labPress(): Boolean {
+        if (!labOn()) return false
+        labToy().next()
+        if (!running) startLive()
+        return true
+    }
+
+    /** Always-on in the Lab: a still frame of the current experiment. */
+    private fun labStill(): Boolean {
+        if (!labOn()) return false
+        send(labToy().still())
+        return true
     }
 }

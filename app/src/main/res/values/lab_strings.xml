@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds only: the depth Lab on the Glyph toy. -->
+<resources>
+    <string name="lab_title">Lab</string>
+    <string name="lab_text">The Glyph toy shows depth experiments with the hedgehog instead of the pet. Hold the Glyph button for the next one.</string>
+    <string name="lab_current">%1$d/%2$d · %3$s</string>
+    <string name="lab_ball">Ball</string>
+    <string name="lab_ball_hint">Tilt the phone: the curled-up hedgehog rolls and bounces off the edge; shake to throw it.</string>
+    <string name="lab_voxel">3D turn</string>
+    <string name="lab_voxel_hint">A voxel hedgehog turns left and right; tilting adds to the turn. Nearer is brighter.</string>
+    <string name="lab_window">Window into the phone</string>
+    <string name="lab_window_hint">Tilt slowly: stars and trees far away shift most, the hedgehog less, drops on the glass stay.</string>
+    <string name="lab_snow">Snow with depth</string>
+    <string name="lab_snow_hint">Three layers of snow fall along gravity and settle on its back; a shake brushes it off.</string>
+    <string name="lab_hop">Hop with a shadow</string>
+    <string name="lab_hop_hint">It hops every two seconds; the shadow shrinks and fades with height. Tilt to steer the hops.</string>
+    <string name="lab_lenticular">Lenticular</string>
+    <string name="lab_lenticular_hint">Tilt left for the baby, right for the adult, upright for the teen.</string>
+    <string name="lab_distance">Into the distance</string>
+    <string name="lab_distance_hint">It walks off to the horizon and back: adult near, teen, baby far and dim.</string>
+</resources>

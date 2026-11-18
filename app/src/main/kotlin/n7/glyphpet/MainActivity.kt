@@ -425,6 +425,8 @@ private fun PetScreen(
             if (BuildConfig.DEBUG) {
                 // Debug builds only: one button that opens every hero and every form.
                 N7Button("Unlock all", { store.unlockAll(); refresh() }, Modifier.fillMaxWidth(), N7ButtonVariant.Secondary)
+                // Debug builds only: depth experiments on the Glyph toy (n7.glyphpet.lab).
+                n7.glyphpet.lab.LabPanel()
             }
 
             MoreFromN7(Modifier.fillMaxWidth())

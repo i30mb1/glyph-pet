@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="lab_title">Лаборатория</string>
+    <string name="lab_text">Glyph-игрушка показывает опыты с глубиной на ёжике вместо питомца. Удерживай кнопку Glyph — следующий опыт.</string>
+    <string name="lab_current">%1$d/%2$d · %3$s</string>
+    <string name="lab_ball">Клубок</string>
+    <string name="lab_ball_hint">Наклоняй телефон: ёжик-клубок катится и отскакивает от края; встряхни — подбросишь.</string>
+    <string name="lab_voxel">3D-поворот</string>
+    <string name="lab_voxel_hint">Объёмный ёжик поворачивается влево-вправо, наклон добавляет поворот. Что ближе — то ярче.</string>
+    <string name="lab_window">Окно в телефон</string>
+    <string name="lab_window_hint">Наклоняй медленно: звёзды и деревья вдали сдвигаются сильнее, ёжик меньше, капли на стекле стоят.</string>
+    <string name="lab_snow">Снег с глубиной</string>
+    <string name="lab_snow_hint">Три слоя снега падают по гравитации и оседают на спине; встряхни — стряхнёшь.</string>
+    <string name="lab_hop">Прыжок с тенью</string>
+    <string name="lab_hop_hint">Прыгает каждые две секунды, тень уменьшается и тускнеет с высотой. Наклон направляет прыжки.</string>
+    <string name="lab_lenticular">Лентикулярка</string>
+    <string name="lab_lenticular_hint">Наклон влево — малыш, вправо — взрослый, прямо — подросток.</string>
+    <string name="lab_distance">Вглубь</string>
+    <string name="lab_distance_hint">Уходит к горизонту и возвращается: взрослый рядом, подросток, малыш вдали и тусклее.</string>
+</resources>
