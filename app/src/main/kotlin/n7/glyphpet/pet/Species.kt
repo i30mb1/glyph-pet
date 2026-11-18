@@ -296,11 +296,12 @@ object SpeciesCatalog {
                 ".....#####.....", "....#######....", "...#########...", "...#########...", "..###########..",
                 ".#############.", "#o#o#o#o#o#o#o#", ".#############.", "...##.....##...",
             ),
-            ox = 5, oy = 5, eyes = listOf(4 to 2, 9 to 2), mouth = 6 to 4,
+            // Centred on the matrix: rows 8..16, the beam it eats through fits under it.
+            ox = 5, oy = 8, eyes = listOf(4 to 2, 9 to 2), mouth = 6 to 4,
             extras = mapOf(
                 Face.EAT to listOf(
-                    Overlay(listOf("...###...", "..#####..", ".#######.", "#########", "#########", "#########"), 8, 14, level = 0.2f),
-                    Overlay(listOf("oooo.", "ooooo", "o..o."), 10, 16),
+                    Overlay(listOf("...###...", "..#####..", ".#######.", "#########", "#########", "#########"), 8, 17, level = 0.2f),
+                    Overlay(listOf("oooo.", "ooooo", "o..o."), 10, 19),
                 ),
             ),
             replaces = setOf(Face.EAT),

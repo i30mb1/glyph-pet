@@ -105,7 +105,7 @@ object ChargeRenderer {
     private class BeamShape(val hull: Int, val lights: List<Int>, val coneX: Int, val coneY: Int)
 
     /** The beam starts right under the hull's feet: 9 rows below the teen's home row, 13 below the mothership's. */
-    private val BEAM_TEEN = BeamShape(hull = 6, lights = List(7) { 1 + it * 2 }, coneX = 12, coneY = 14)
+    private val BEAM_TEEN = BeamShape(hull = 6, lights = List(7) { 1 + it * 2 }, coneX = 12, coneY = 17)
     private val BEAM_ADULT = BeamShape(hull = 8, lights = List(9) { 1 + it * 2 }, coneX = 12, coneY = 18)
 
     private fun adult(s: Species): Boolean = s.stage == Stage.ADULT
