@@ -157,6 +157,7 @@ object SpeciesRenderer {
         lift: Int = 0,
         habit: HabitFrame? = null,
         clipped: MutableCollection<Pair<Int, Int>>? = null,
+        hurt: Boolean = false,
     ): IntArray {
         val look = LOOKS.getValue(face)
         val grid = carve(
@@ -178,6 +179,12 @@ object SpeciesRenderer {
                     'o' -> put(frame, ox + x, oy + y, bright)
                 }
             }
+        }
+
+        // On the body, under the tear, stars and hearts. A habit that redraws the silhouette may leave the spot:
+        // the plaster goes only where the pet still has body.
+        if (hurt && habit?.rows == null) plasterSpot(species)?.let { (px, py) ->
+            overlay(frame, Overlay(PLASTER, px, py), ox, oy, body, null)
         }
 
         // A sleeper's opened eye is the one thing at full brightness on its dimmed body, so the peek reads at a glance.
@@ -217,6 +224,67 @@ object SpeciesRenderer {
         species.extras[face]?.forEach { o -> glyph(frame, o.rows, o.x + dx, o.y, (BODY * o.level).toInt(), BRIGHT) }
         habit?.over?.forEach { o -> overlay(frame, o, species.ox + dx, species.oy - lift, body, clipped) }
         return frame
+    }
+
+    /**
+     * A plaster after a drop, on the body: dark corners cut out, a bright pad in the middle. Cut out, so it shows in
+     * the app too, which draws body and bright parts alike in white.
+     */
+    val PLASTER = listOf("x#x", "#o#", "x#x")
+
+    private val plasterCache = java.util.concurrent.ConcurrentHashMap<String, Pair<Int, Int>>()
+
+    /**
+     * Where the plaster goes on [species], in sprite coordinates (its top left cell): on plain body, off the eye and
+     * mouth slots, its dark corners not right beside them (they would run into one long hole), as near as possible to
+     * the top right of the head (above the second eye). The Bot, all screen and frame, wears it over the top right
+     * corner of its frame. Null for a species with no such spot.
+     */
+    fun plasterSpot(species: Species): Pair<Int, Int>? = plasterCache.getOrPut(species.id) {
+        if (species.inverted) {
+            // Over the corner of the frame, sticking out above it, clear of the lit eyes.
+            val top = species.rows.indexOfFirst { row -> row.all { it == '#' } }
+            return@getOrPut if (top >= 1) species.width - 3 to top - 1 else -99 to -99
+        }
+        val face = buildSet {
+            species.eyes.forEach { (ex, ey) -> for (a in 0..1) for (b in 0..1) add(ex + a to ey + b) }
+            species.mouth?.let { (mx, my) -> for (a in 0..2) for (b in 0..1) add(mx + a to my + b) }
+        }
+        fun besideFace(x: Int, y: Int) = listOf(x - 1 to y, x + 1 to y, x to y - 1, x to y + 1).any { it in face }
+        val (tx, ty) = species.eyes.lastOrNull()?.let { (ex, ey) -> ex + 2 to ey - 3 } ?: (species.width - 4 to 1)
+        // Every spot on plain body, scored: first by how many dark corners touch the face (a cramped head like the
+        // Cat's has no spot where none do), then by the distance from the top right of the head.
+        val scored = (0..species.height - 3).flatMap { y -> (0..species.width - 3).map { x -> x to y } }.mapNotNull { (x, y) ->
+            var touching = 0
+            for (a in 0..2) for (b in 0..2) {
+                val cx = x + a
+                val cy = y + b
+                if (species.rows[cy][cx] != '#' || (cx to cy) in face) return@mapNotNull null
+                if (!GlyphMatrixSpec.isVisible(species.ox + cx, species.oy + cy)) return@mapNotNull null
+                if (PLASTER[b][a] == 'x' && besideFace(cx, cy)) touching++
+            }
+            Triple(x, y, touching * 1000 + (x - tx) * (x - tx) + (y - ty) * (y - ty))
+        }
+        scored.minByOrNull { it.third }?.let { it.first to it.second } ?: (-99 to -99)
+    }.takeIf { it.first != -99 }
+
+    /**
+     * A missed call: a little handset at the top of the matrix, over everything. Blinks once a second unless [still]
+     * (Always-on draws one frame a minute).
+     */
+    val HANDSET = listOf(".ooooo.", "oo...oo", "o.....o")
+    const val HANDSET_X = 9
+    const val HANDSET_Y = 1
+
+    fun missedCall(frame: IntArray, timeMs: Long, still: Boolean) {
+        if (!still && (timeMs / 500) % 2 == 1L) return
+        HANDSET.forEachIndexed { dy, row ->
+            row.forEachIndexed { dx, c ->
+                val x = HANDSET_X + dx
+                val y = HANDSET_Y + dy
+                if (GlyphMatrixSpec.isVisible(x, y)) frame[y * SIZE + x] = if (c == 'o') BRIGHT else 0
+            }
+        }
     }
 
     /**
@@ -304,6 +372,10 @@ object SpeciesRenderer {
     fun put(frame: IntArray, x: Int, y: Int, value: Int) {
         if (GlyphMatrixSpec.isVisible(x, y)) frame[y * SIZE + x] = maxOf(frame[y * SIZE + x], value)
     }
+
+    /** Every matrix cell inside the species' sprite rectangle at its home spot. */
+    fun silhouetteBox(species: Species): Set<Pair<Int, Int>> =
+        (0 until species.height).flatMap { y -> (0 until species.width).map { x -> species.ox + x to species.oy + y } }.toSet()
 
     /** Clears the cells a species draws, so its eye and mouth holes stay dark over anything drawn before. */
     fun silhouette(species: Species): List<Pair<Int, Int>> = buildList {

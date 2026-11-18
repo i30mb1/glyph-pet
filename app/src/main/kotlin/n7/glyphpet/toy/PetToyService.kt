@@ -12,6 +12,7 @@ import android.util.Log
 import com.nothing.ketchum.Glyph
 import com.nothing.ketchum.GlyphMatrixManager
 import com.nothing.ketchum.GlyphToy
+import n7.glyphpet.alerts.PetAlerts
 import n7.glyphpet.pet.ButtonAction
 import n7.glyphpet.pet.ButtonRules
 import n7.glyphpet.pet.Mood
@@ -27,7 +28,9 @@ import n7.glyphpet.pet.Scene
  * The pet as a Glyph Toy. Live: animates at ~12 fps; the long-press does what is needed most
  * (crack the egg in the hands, feed a hungry pet, otherwise stroke); shake and tilt play.
  * On the charger the pet shows the battery level and the charging speed in its own way.
- * Always-on: one calm frame per EVENT_AOD (once a minute), no animation.
+ * Always-on: one calm frame per EVENT_AOD (once a minute); a notification wakes the pet for a moment.
+ * Nobody sees the matrix while the phone lies screen up or is in a pocket: then it stays dark (a setting, on by default).
+ * A drop hurts: "ouch!" and a plaster until tomorrow.
  */
 class PetToyService : Service(), GlyphMatrixManager.Callback {
 
@@ -35,6 +38,9 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         const val TAG = "PetToy"
         const val FRAME_MS = 80L
         const val SYNC_MS = 2000L
+
+        /** A notification in Always-on wakes the pet for this long, then the calm frame comes back. */
+        const val BURST_MS = 2600L
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -51,6 +57,13 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
     private var mood = Mood.CONTENT
     private var power = Power.NONE
     private var celebratedId: String? = null
+    private var hurt = false
+    private var hideUnseen = true
+    private val hideGate = HideGate()
+    private var dark = false
+
+    /** While > 0: the live loop was started by a notification in Always-on and ends at this uptime. */
+    private var burstUntil = 0L
 
     private val toyHandler = Handler(Looper.getMainLooper()) { msg ->
         if (msg.what != GlyphToy.MSG_GLYPH_TOY) return@Handler false
@@ -74,10 +87,12 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         motion = MotionSensor(this)
         glyph = GlyphMatrixManager.getInstance(this)
         glyph.init(this)
+        PetAlerts.onNotification = ::onNotification
         return Messenger(toyHandler).binder
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
+        PetAlerts.onNotification = null
         stopLive()
         store.nursery()
         if (connected) {
@@ -105,6 +120,9 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
 
     /** One button, the most useful thing: crack the egg, feed when hungry, otherwise stroke. */
     private fun onLongPress() {
+        // The button was pressed: someone has the phone in hand. Light up now, hide again later if it is put away.
+        burstUntil = 0
+        hideGate.reset()
         if (!running) startLive()
         val n = nursery ?: store.nursery()
         when (ButtonRules.decide(hasPet = n.active != null, mood = mood, eggWaiting = n.egg != null, satiety = n.stats.satiety)) {
@@ -122,14 +140,42 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
     }
 
     private fun onAod() {
+        burstUntil = 0
         stopLive()
         sync(force = true)
-        send(engine.still(scene()))
+        drawStill()
+    }
+
+    /** The calm Always-on frame, or darkness if nobody can see the matrix right now. */
+    private fun drawStill() {
+        if (!hideUnseen) { send(engine.still(scene())); return }
+        motion.readPose { pose ->
+            if (running) return@readPose
+            if (pose != null && Sight.unseen(pose)) sendDark() else send(engine.still(scene()))
+        }
+    }
+
+    /**
+     * A notification that would alert the owner: the pet looks up (a sleeper opens one eye). In Always-on it comes to
+     * life for [BURST_MS], then the calm frame is back. Ignored while the matrix is dark because nobody can see it.
+     */
+    private fun onNotification() {
+        if (!connected) return
+        if (running) {
+            if (!dark) engine.alert()
+            return
+        }
+        sync(force = true)
+        burstUntil = SystemClock.uptimeMillis() + BURST_MS
+        startLive()
+        engine.alert()
     }
 
     private fun startLive() {
         if (running || !connected) return
         running = true
+        dark = false
+        hideGate.reset()
         motion.start()
         lastFrameAt = SystemClock.uptimeMillis()
         main.post(frameLoop)
@@ -145,6 +191,24 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         val now = SystemClock.uptimeMillis()
         val dt = (now - lastFrameAt).coerceIn(0, 250)
         lastFrameAt = now
+        if (burstUntil > 0 && now >= burstUntil) {
+            burstUntil = 0
+            stopLive()
+            drawStill()
+            return
+        }
+        if (motion.consumeDrop() && nursery?.active != null) {
+            // The hit of a drop also reads as a shake: it is the drop that counts.
+            motion.consumeShake()
+            store.drop()
+            engine.drop()
+            sync(force = true)
+        }
+        if (hideUnseen && hidden(now)) {
+            sendDark()
+            return
+        }
+        dark = false
         if (motion.consumeShake() && nursery?.active != null) {
             // A sleeper only opens one eye: shaking it gives no joy.
             if (mood != Mood.SLEEPING) store.update { PetRules.shake(it) }
@@ -152,6 +216,26 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         }
         sync(force = false)
         send(engine.tick(dt, scene(tilt = motion.tilt)))
+    }
+
+    /**
+     * Whether nobody can see the matrix. Live, it goes dark only after the phone has been put away for a moment
+     * ([HideGate]); a notification in Always-on has no time for that and trusts the first reading.
+     */
+    private fun hidden(now: Long): Boolean {
+        val pose = motion.pose ?: return false
+        val unseen = Sight.unseen(pose)
+        if (burstUntil > 0) {
+            if (unseen) burstUntil = now
+            return unseen
+        }
+        return hideGate.update(unseen, now)
+    }
+
+    private fun sendDark() {
+        if (dark) return
+        dark = true
+        send(IntArray(PetEngine.SIZE * PetEngine.SIZE))
     }
 
     private fun scene(tilt: Float = 0f): Scene {
@@ -164,6 +248,8 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             egg = n.eggView,
             watts = power.watts,
             battery = power.level,
+            hurt = hurt,
+            missedCall = PetAlerts.missedCalls > 0,
         )
     }
 
@@ -175,6 +261,8 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         nursery = n
         mood = PetRules.mood(n.stats, store.asleep(n.stats))
         power = store.power()
+        hurt = store.hurt()
+        hideUnseen = store.hideWhenUnseen
         val hatched = n.justHatched
         if (hatched != null && hatched.id != celebratedId) {
             celebratedId = hatched.id
@@ -184,6 +272,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
 
     private fun send(frame: IntArray) {
         if (!connected) return
+        if (frame.any { it > 0 }) dark = false
         try {
             glyph.setMatrixFrame(frame)
         } catch (e: Exception) {

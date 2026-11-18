@@ -84,6 +84,30 @@ object PetRules {
 
     fun shake(stats: PetStats): PetStats = stats.copy(joy = (stats.joy + SHAKE_JOY).clamp())
 
+    /** A drop hurts: some joy is gone, and the pet wears a plaster until [hurtUntil]. */
+    const val DROP_JOY = 10f
+    const val WAKE_HOUR = 7
+
+    fun drop(stats: PetStats): PetStats = stats.copy(joy = (stats.joy - DROP_JOY).clamp())
+
+    /**
+     * The plaster stays until tomorrow: until the morning ([WAKE_HOUR]) after the next night. A drop in the small hours
+     * heals that same morning, as long as at least [MIN_HURT_MS] is left; otherwise it heals the morning after.
+     */
+    fun hurtUntil(nowMs: Long): Long {
+        val c = Calendar.getInstance().apply {
+            timeInMillis = nowMs
+            set(Calendar.HOUR_OF_DAY, WAKE_HOUR)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        while (c.timeInMillis - nowMs < MIN_HURT_MS) c.add(Calendar.DAY_OF_MONTH, 1)
+        return c.timeInMillis
+    }
+
+    const val MIN_HURT_MS = 4 * 60 * 60 * 1000L
+
     fun mood(stats: PetStats, asleep: Boolean): Mood = when {
         asleep -> Mood.SLEEPING
         stats.satiety < SICK_SATIETY && stats.joy < SICK_JOY -> Mood.SICK

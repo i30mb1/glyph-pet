@@ -26,7 +26,7 @@
     <string name="supporter_title">Supporter</string>
     <string name="supporter_thanks">Thank you for supporting n7!</string>
     <string name="supporter_perk_all">Every pet you do not have yet, as an egg right away</string>
-    <string name="supporter_perk_golden">Golden eggs that glow on the matrix</string>
+    <string name="supporter_perk_golden">Shining eggs: drawn brighter on the matrix</string>
     <string name="supporter_buy">Become a supporter · %1$s</string>
     <string name="supporter_unavailable">Coming soon on Google Play</string>
 
@@ -124,4 +124,11 @@
     <string name="habit_look_around">Look around</string>
     <string name="habit_pop_up">Pop-up</string>
     <string name="habit_light_show">Light show</string>
+    <string name="matrix_title">On the matrix</string>
+    <string name="matrix_hide_title">Dark when nobody sees it</string>
+    <string name="matrix_hide_text">The matrix goes out while the phone lies screen up or is in a pocket, and lights up again when you pick it up.</string>
+    <string name="matrix_notify_title">Wakes for notifications</string>
+    <string name="matrix_notify_text">The pet looks up when a notification comes and shows a phone while a call is missed. Glyph Pet sees only the kind of a notification, never its text.</string>
+    <string name="matrix_drop_text">Dropped the phone? The pet says ouch and wears a plaster until tomorrow.</string>
+    <string name="matrix_drop_hurt">The phone was dropped: the pet wears a plaster until tomorrow morning.</string>
 </resources>

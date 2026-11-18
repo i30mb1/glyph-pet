@@ -20,6 +20,10 @@ data class Scene(
     /** While [charging]: how fast, and how full the battery is (0..1). */
     val watts: Float = 0f,
     val battery: Float = 1f,
+    /** The phone was dropped: the pet wears a plaster until tomorrow. */
+    val hurt: Boolean = false,
+    /** A missed call waits: a handset blinks at the top. */
+    val missedCall: Boolean = false,
 )
 
 /**
@@ -57,6 +61,10 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         /** Rows a happy pet is off the ground, frame by frame (80 ms each). */
         private val HOP = intArrayOf(1, 2, 2, 1)
         const val HOP_MS = 320L
+
+        const val HURT_MS = 2200L
+        const val OUCH_MS = 700L
+        const val ALERT_MS = 1400L
 
         /** How long the egg wobbles after a press. */
         const val CRACK_WOBBLE_MS = 600L
@@ -106,7 +114,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         }
     }
 
-    private enum class Action { NONE, EATING, REFUSING, LOVED, DIZZY, CELEBRATING, PEEK }
+    private enum class Action { NONE, EATING, REFUSING, LOVED, DIZZY, CELEBRATING, PEEK, HURT, ALERT }
 
     private var time = 0L
     private var x = 0f
@@ -158,6 +166,14 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
     /** A new pet just hatched. */
     fun celebrate() = start(Action.CELEBRATING, 3000)
 
+    /** The phone was dropped: "ouch!" (wide eyes, "!", a shudder), then dizzy stars. A sleeper only opens one eye. */
+    fun drop() = start(Action.HURT, HURT_MS)
+
+    /** A notification came: the pet looks up with a "!". A sleeper only opens one eye. */
+    fun alert() {
+        if (action == Action.NONE || action == Action.PEEK) start(Action.ALERT, ALERT_MS)
+    }
+
     /** The egg was pressed: it wobbles (the small one rocks) at once, whatever the pet is doing. */
     fun crack() {
         wobbleLeftMs = CRACK_WOBBLE_MS
@@ -191,10 +207,11 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         if (scene.charging) {
             ChargeRenderer.render(species, chargeState(scene, still = true), frame = frame)
         } else {
-            SpeciesRenderer.render(species, face, frame = frame)
+            SpeciesRenderer.render(species, face, frame = frame, hurt = scene.hurt)
         }
         petLayer = frame.copyOf()
         scene.egg?.let { EggRenderer.mini(frame, it, EggLayout.spot(scene.charging)) }
+        if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = true)
         return frame
     }
 
@@ -224,6 +241,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
             ChargeRenderer.render(species, chargeState(scene, still = asleep), plugMs.takeIf { it >= 0 }, frame)
             petLayer = frame.copyOf()
             scene.egg?.let { EggRenderer.mini(frame, it, EggLayout.CHARGER, tipped = wobble() > 0) }
+            if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
             shown = Shown(null, charging = true)
             return frame
         }
@@ -239,12 +257,16 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         val habit = if (habitMs >= 0) species.habit.frameAt(habitMs) else null
         val face = habit?.face ?: face(scene.mood, asleep, sliding)
         val lift = if (hopMs >= 0) HOP.getOrElse((hopMs / 80).toInt()) { 0 } else 0
-        val jitter = if (action == Action.REFUSING) (if ((time / 120) % 2 == 0L) -1 else 1) else 0
+        val shudder = action == Action.REFUSING || (action == Action.HURT && ouch())
+        val jitter = if (shudder) (if ((time / 120) % 2 == 0L) -1 else 1) else 0
         val dx = x.roundToInt() + jitter
-        SpeciesRenderer.render(species, face, blink = blinkLeftMs > 0, dx = dx, frame = frame, timeMs = time, lift = lift, habit = habit)
+        SpeciesRenderer.render(
+            species, face, blink = blinkLeftMs > 0, dx = dx, frame = frame, timeMs = time, lift = lift, habit = habit, hurt = scene.hurt,
+        )
         foodY?.let { fy -> SpeciesRenderer.glyph(frame, listOf("oo", "oo"), species.ox + dx + species.width / 2 - 1, fy.toInt()) }
         petLayer = frame.copyOf()
         scene.egg?.let { EggRenderer.mini(frame, it, EggLayout.EDGE, tipped = wobble() > 0) }
+        if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
         shown = Shown(face, habit = habit != null, lift = lift, step = habit, dx = dx)
         return frame
     }
@@ -365,7 +387,12 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         Action.LOVED -> Face.LOVE
         Action.REFUSING -> Face.ANGRY
         Action.PEEK -> Face.PEEK
+        Action.HURT -> if (ouch()) Face.SCARED else Face.DIZZY
+        Action.ALERT -> Face.SCARED
     }
+
+    /** The first moment of a drop: the "ouch!". */
+    private fun ouch(): Boolean = action == Action.HURT && actionLeftMs > HURT_MS - OUCH_MS
 
     private fun start(next: Action, durationMs: Long) {
         action = next

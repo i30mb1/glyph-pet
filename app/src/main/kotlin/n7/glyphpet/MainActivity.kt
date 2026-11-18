@@ -32,6 +32,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -69,6 +71,7 @@ import n7.glyph.ui.matrix.Cell
 import n7.glyph.ui.theme.N7Colors
 import n7.glyph.ui.theme.N7GlyphTheme
 import n7.glyph.ui.theme.N7Type
+import n7.glyphpet.alerts.PetAlerts
 import n7.glyphpet.billing.SupporterBilling
 import n7.glyphpet.pet.ButtonAction
 import n7.glyphpet.pet.ButtonRules
@@ -239,12 +242,17 @@ private fun PetScreen(
     var frame by remember { mutableStateOf<List<Cell>>(emptyList()) }
     var celebratedId by remember { mutableStateOf<String?>(null) }
     var toyOpened by remember { mutableStateOf(ui.getBoolean(KEY_TOY_OPENED, false)) }
+    var hurt by remember { mutableStateOf(store.hurt()) }
+    var hideUnseen by remember { mutableStateOf(store.hideWhenUnseen) }
+    var notifications by remember { mutableStateOf(PetAlerts.hasAccess(context)) }
 
     fun refresh() {
         nursery = store.nursery()
         power = store.power()
         now = GameClock.now()
         toyOpened = ui.getBoolean(KEY_TOY_OPENED, false)
+        hurt = store.hurt()
+        notifications = PetAlerts.hasAccess(context)
         val hatched = nursery.justHatched
         if (hatched != null && hatched.id != celebratedId) engine.celebrate()
         celebratedId = hatched?.id
@@ -268,6 +276,8 @@ private fun PetScreen(
                     egg = nursery.eggView,
                     watts = power.watts,
                     battery = power.level,
+                    hurt = hurt,
+                    missedCall = notifications && PetAlerts.missedCalls > 0,
                 )
                 frame = PetEngine.toCells(engine.tick(80, scene))
                 delay(80)
@@ -351,6 +361,14 @@ private fun PetScreen(
             }
 
             Collection(nursery = nursery, onPick = { store.setActive(it.id); refresh() }, onEgg = { pressEgg(it.id) })
+
+            MatrixCard(
+                hideUnseen = hideUnseen,
+                onHideUnseen = { store.hideWhenUnseen = it; hideUnseen = it },
+                notifications = notifications,
+                onNotifications = { context.startActivity(PetAlerts.settingsIntent(context)) },
+                hurt = hurt,
+            )
 
             SupporterCard(owned = supporterOwned || nursery.supporter, price = supporterPrice, onBuy = onBuySupporter)
 
@@ -499,6 +517,70 @@ private fun Collection(nursery: Nursery, onPick: (Species) -> Unit, onEgg: (Spec
                 repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
+    }
+}
+
+/** How the pet behaves on the back of the phone: dark when nobody sees it, notifications, the plaster after a drop. */
+@Composable
+private fun MatrixCard(
+    hideUnseen: Boolean,
+    onHideUnseen: (Boolean) -> Unit,
+    notifications: Boolean,
+    onNotifications: () -> Unit,
+    hurt: Boolean,
+) {
+    N7Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            SectionLabel(stringResource(R.string.matrix_title))
+            ToggleRow(
+                title = stringResource(R.string.matrix_hide_title),
+                text = stringResource(R.string.matrix_hide_text),
+                checked = hideUnseen,
+                onChange = onHideUnseen,
+            )
+            N7Divider()
+            // Access to notifications is a system setting: the switch opens it and shows what was chosen there.
+            ToggleRow(
+                title = stringResource(R.string.matrix_notify_title),
+                text = stringResource(R.string.matrix_notify_text),
+                checked = notifications,
+                onChange = { onNotifications() },
+            )
+            N7Divider()
+            Text(
+                stringResource(if (hurt) R.string.matrix_drop_hurt else R.string.matrix_drop_text),
+                style = N7Type.BodyS,
+                color = if (hurt) N7Colors.Ink else N7Colors.InkMuted,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ToggleRow(title: String, text: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Switch) { onChange(!checked) }
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(title, style = N7Type.Body, color = N7Colors.Ink)
+            Text(text, style = N7Type.BodyS, color = N7Colors.InkMuted)
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = null,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = N7Colors.OnPrimary,
+                checkedTrackColor = N7Colors.Primary,
+                uncheckedThumbColor = N7Colors.InkSubtle,
+                uncheckedTrackColor = N7Colors.Surface,
+                uncheckedBorderColor = N7Colors.ControlBorder,
+            ),
+        )
     }
 }
 

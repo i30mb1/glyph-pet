@@ -24,7 +24,7 @@
     <string name="supporter_title">Supporter</string>
     <string name="supporter_thanks">Спасибо, что поддерживаешь n7!</string>
     <string name="supporter_perk_all">Все питомцы, которых у тебя нет, сразу в яйцах</string>
-    <string name="supporter_perk_golden">Золотые яйца, которые светятся на матрице</string>
+    <string name="supporter_perk_golden">Сияющие яйца: на матрице они ярче обычных</string>
     <string name="supporter_buy">Стать Supporter · %1$s</string>
     <string name="supporter_unavailable">Скоро в Google Play</string>
 
@@ -122,4 +122,11 @@
     <string name="habit_look_around">Озирается</string>
     <string name="habit_pop_up">Выпрыгивает</string>
     <string name="habit_light_show">Мигает огнями</string>
+    <string name="matrix_title">На матрице</string>
+    <string name="matrix_hide_title">Гаснуть, когда никто не видит</string>
+    <string name="matrix_hide_text">Матрица гаснет, пока телефон лежит экраном вверх или в кармане, и загорается, когда берёшь его в руки.</string>
+    <string name="matrix_notify_title">Просыпаться на уведомления</string>
+    <string name="matrix_notify_text">Питомец поднимает голову на уведомление и показывает трубку, пока висит пропущенный звонок. Glyph Pet видит только тип уведомления, текст не читает.</string>
+    <string name="matrix_drop_text">Уронил телефон? Питомец скажет «ай» и до завтра будет с пластырем.</string>
+    <string name="matrix_drop_hurt">Телефон уронили: питомец с пластырем до завтрашнего утра.</string>
 </resources>

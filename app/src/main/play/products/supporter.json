@@ -1,0 +1,20 @@
+{
+  "sku": "supporter",
+  "status": "active",
+  "purchaseType": "managedUser",
+  "defaultPrice": {
+    "priceMicros": "2990000",
+    "currency": "USD"
+  },
+  "defaultLanguage": "en-US",
+  "listings": {
+    "en-US": {
+      "title": "Supporter",
+      "description": "Every pet you do not have yet, as an egg right away, and shining eggs."
+    },
+    "ru-RU": {
+      "title": "Supporter",
+      "description": "Все питомцы, которых у тебя нет, сразу в яйцах, и сияющие яйца."
+    }
+  }
+}

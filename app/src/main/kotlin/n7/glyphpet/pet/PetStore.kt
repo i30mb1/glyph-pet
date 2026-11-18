@@ -137,6 +137,21 @@ class PetStore(context: Context) {
         saveState(NurseryRules.setActive(loadState(nowMs), speciesId))
     }
 
+    /** The phone was dropped: the pet loses some joy and wears a plaster until tomorrow morning. */
+    @Synchronized
+    fun drop(nowMs: Long = GameClock.now()) {
+        update(nowMs) { PetRules.drop(it) }
+        prefs.edit().putLong(KEY_HURT_UNTIL, PetRules.hurtUntil(nowMs)).apply()
+    }
+
+    /** Whether the pet still wears the plaster from a drop. */
+    fun hurt(nowMs: Long = GameClock.now()): Boolean = nowMs < prefs.getLong(KEY_HURT_UNTIL, 0)
+
+    /** Setting: the matrix goes dark while the phone lies screen up or is in a pocket. On by default. */
+    var hideWhenUnseen: Boolean
+        get() = prefs.getBoolean(KEY_HIDE_UNSEEN, true)
+        set(value) = prefs.edit().putBoolean(KEY_HIDE_UNSEEN, value).apply()
+
     @Synchronized
     fun setSupporter(value: Boolean, nowMs: Long = GameClock.now()) {
         saveState(loadState(nowMs).copy(supporter = value))
@@ -237,6 +252,8 @@ class PetStore(context: Context) {
         const val KEY_PRESSES = "egg_presses"
         const val KEY_SELECTED = "egg_selected"
         const val KEY_GRANT_DAY = "grant_day"
+        const val KEY_HURT_UNTIL = "hurt_until"
+        const val KEY_HIDE_UNSEEN = "hide_unseen"
 
         // 1.1's timed egg: read once by the migration, then removed.
         const val KEY_OLD_EGG_SPECIES = "egg_species"
