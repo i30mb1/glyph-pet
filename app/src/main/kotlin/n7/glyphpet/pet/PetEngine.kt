@@ -211,6 +211,9 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
     private var momentMs = 0L
     private val ball = Ball(random)
 
+    /** The hedgehog has no ball: it curls into one itself for the ball's life. */
+    private val curl = n7.glyphpet.pet.signature.HedgehogCurl()
+
     /** The pet's own depth effect ([Signatures]), if its kind has one; [signatureMs] >= 0 while it plays. */
     private var signature: Signature? = null
     private var signatureKind: String? = null
@@ -425,6 +428,10 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
             ballAsked = false
             if (ball.active) ball.kick(scene.tilt, scene.tiltY)
             else ball.spawn(centerX, species.oy - 2.5f, scene.tilt, scene.tiltY)
+            if (species.kind == n7.glyphpet.pet.signature.HedgehogCurl.KIND) {
+                if (curl.active) curl.kick(scene.tilt, scene.tiltY)
+                else curl.spawn(centerX, species.oy + species.height / 2f, scene.tilt, scene.tiltY)
+            }
         }
         ball.update(dtMs, scene.tilt, scene.tiltY)
         val sliding = !asleep && action == Action.NONE && abs(scene.tilt) > 0.3f
@@ -443,6 +450,19 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
             shown = Shown(face, dx = x.roundToInt())
             return frame
         }
+
+        if (ball.active && species.kind == n7.glyphpet.pet.signature.HedgehogCurl.KIND) {
+            // The hedgehog curled up into the ball itself: it rolls with the lean, then uncurls at home.
+            val home = species.oy + species.height / 2f
+            if (!curl.active) curl.spawn(centerX, home, scene.tilt, scene.tiltY)
+            curl.update(dtMs, scene.tilt, scene.tiltY, species, centerX, home)
+            val face = face(scene.mood, asleep, sliding)
+            curl.draw(frame, species, face, blinkLeftMs > 0, x.roundToInt(), scene.tilt, scene.tiltY)
+            if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
+            shown = Shown(face, dx = x.roundToInt())
+            return frame
+        }
+        curl.clear()
 
         val own = if (habitMs >= 0) species.habit.frameAt(habitMs) else null
         // A big pet, with little room to slide, also leans with the phone while it is rocked or tilted.
