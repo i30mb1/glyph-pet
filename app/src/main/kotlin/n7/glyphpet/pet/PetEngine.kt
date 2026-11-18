@@ -210,6 +210,43 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
     private var moment: Moment? = null
     private var momentMs = 0L
     private val ball = Ball(random)
+
+    /** The pet's own depth effect ([Signatures]), if its kind has one; [signatureMs] >= 0 while it plays. */
+    private var signature: Signature? = null
+    private var signatureKind: String? = null
+    private var signatureMs = -1L
+    private var signatureInMs = 0L
+
+    /** Plays the pet's signature effect on the next free tick (debug and the app's preview). */
+    fun signatureNow() {
+        signatureInMs = 0
+    }
+
+    private fun nextSignatureIn(): Long =
+        if (n7.glyphpet.BuildConfig.DEBUG) random.nextLong(5_000, 8_000) else random.nextLong(10_000, 20_000)
+
+    /**
+     * Whether the signature effect is on the matrix this tick. It starts every 10-20 s (5-8 s in debug builds) while the
+     * pet is calm or happy and nothing else is going on, and stops early if something else starts (food, a reaction,
+     * the ball, a slide, sleep).
+     */
+    private fun updateSignature(dtMs: Long, sig: Signature, scene: Scene, asleep: Boolean, sliding: Boolean): Boolean {
+        val free = !asleep && !sliding && action == Action.NONE && habitMs < 0 && foodY == null && !ball.active &&
+            (scene.mood == Mood.CONTENT || scene.mood == Mood.HAPPY)
+        if (signatureMs >= 0) {
+            signatureMs += dtMs
+            if (free && signatureMs < sig.durationMs) return true
+            signatureMs = -1
+            signatureInMs = nextSignatureIn()
+            return false
+        }
+        if (!free) return false
+        signatureInMs -= dtMs
+        if (signatureInMs > 0) return false
+        signatureMs = 0
+        sig.start()
+        return true
+    }
     private var ballAsked = false
     private val weather = Weather(random)
 
@@ -376,6 +413,12 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
             return frame
         }
 
+        if (species.kind != signatureKind) {
+            signatureKind = species.kind
+            signature = Signatures.of(species.kind)
+            signatureMs = -1
+            signatureInMs = nextSignatureIn()
+        }
         val range = walkRange(species)
         val centerX = species.ox + x.roundToInt() + (species.width - 1) / 2f
         if (ballAsked) {
@@ -390,6 +433,16 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         updateHop(dtMs, scene.mood, sliding)
         updateMovement(dtMs, scene, range, slideRange(species), asleep, sliding)
         updateYawn(dtMs, scene.mood)
+
+        val sig = signature
+        if (sig != null && updateSignature(dtMs, sig, scene, asleep, sliding)) {
+            // The pet's own depth effect has the whole matrix for a moment.
+            val face = face(scene.mood, asleep, sliding)
+            sig.draw(frame, SignatureInput(species, signatureMs, dtMs, scene.tilt, scene.tiltY, blinkLeftMs > 0, face, x.roundToInt()))
+            if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
+            shown = Shown(face, dx = x.roundToInt())
+            return frame
+        }
 
         val own = if (habitMs >= 0) species.habit.frameAt(habitMs) else null
         // A big pet, with little room to slide, also leans with the phone while it is rocked or tilted.
