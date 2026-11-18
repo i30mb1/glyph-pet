@@ -26,9 +26,11 @@
     <string name="supporter_title">Supporter</string>
     <string name="supporter_thanks">Спасибо, что поддерживаешь n7!</string>
     <string name="supporter_perk_all">Все питомцы, которых у тебя нет, сразу в яйцах</string>
-    <string name="supporter_perk_golden">Сияющие яйца: на матрице они ярче обычных</string>
     <string name="supporter_buy">Стать Supporter · %1$s</string>
     <string name="supporter_unavailable">Скоро в Google Play</string>
+    <string name="supporter_pitch">Поддержи n7 и получи всех питомцев сразу</string>
+    <string name="supporter_rest_free">Разовая покупка. Всё остальное в игре бесплатно.</string>
+    <string name="supporter_close">Закрыть</string>
 
     <string name="step_activate">Включи Glyph Pet в Glyph-игрушках</string>
     <string name="step_play">Зажми кнопку Glyph, чтобы покормить, покачай телефон, чтобы поиграть, потряси, чтобы подрос готовый питомец</string>
@@ -155,6 +157,7 @@
     <string name="stage_adult">Взрослый</string>
     <string name="form_on_matrix">На матрице</string>
     <string name="form_ready">Готов</string>
+    <string name="form_shake">потряси телефон 3 раза</string>
     <string name="form_tomorrow">завтра утром</string>
     <string name="form_care_dots">дни заботы</string>
     <plurals name="form_care_days">

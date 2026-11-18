@@ -28,9 +28,11 @@
     <string name="supporter_title">Supporter</string>
     <string name="supporter_thanks">Thank you for supporting n7!</string>
     <string name="supporter_perk_all">Every pet you do not have yet, as an egg right away</string>
-    <string name="supporter_perk_golden">Shining eggs: drawn brighter on the matrix</string>
     <string name="supporter_buy">Become a supporter · %1$s</string>
     <string name="supporter_unavailable">Coming soon on Google Play</string>
+    <string name="supporter_pitch">Support n7 and get every pet now</string>
+    <string name="supporter_rest_free">One-time purchase. Everything else in the game is free.</string>
+    <string name="supporter_close">Close</string>
 
     <string name="step_activate">Activate Glyph Pet in Glyph Toys</string>
     <string name="step_play">Hold the Glyph button to feed, rock the phone gently to play, shake it to grow a pet that is ready</string>
@@ -157,6 +159,7 @@
     <string name="stage_adult">Adult</string>
     <string name="form_on_matrix">On the matrix</string>
     <string name="form_ready">Ready</string>
+    <string name="form_shake">shake the phone 3 times</string>
     <string name="form_tomorrow">tomorrow morning</string>
     <string name="form_care_dots">care days</string>
     <plurals name="form_care_days">

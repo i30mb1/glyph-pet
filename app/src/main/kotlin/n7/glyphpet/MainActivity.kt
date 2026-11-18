@@ -9,6 +9,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -61,6 +69,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -321,15 +330,28 @@ private fun PetScreen(
                 .padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // The name and, right under it, one line that says what the app is.
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                DotHeadline(lines = listOf("GLYPH", "PET"), fontSize = 32.sp)
-                Text(
-                    stringResource(R.string.tagline),
-                    style = N7Type.BodyS,
-                    color = N7Colors.InkMuted,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+            // The name and, right under it, one line that says what the app is; the supporter button in the corner.
+            var supporterOpen by rememberSaveable { mutableStateOf(false) }
+            val supporter = supporterOwned || nursery.supporter
+            Row(verticalAlignment = Alignment.Top) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    DotHeadline(lines = listOf("GLYPH", "PET"), fontSize = 32.sp)
+                    Text(
+                        stringResource(R.string.tagline),
+                        style = N7Type.BodyS,
+                        color = N7Colors.InkMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                SupporterButton(owned = supporter, onClick = { supporterOpen = true })
+            }
+            if (supporterOpen) {
+                SupporterDialog(
+                    owned = supporter,
+                    price = supporterPrice,
+                    onBuy = { supporterOpen = false; onBuySupporter() },
+                    onDismiss = { supporterOpen = false },
                 )
             }
 
@@ -389,9 +411,6 @@ private fun PetScreen(
                 notifications = notifications,
                 onNotifications = { context.startActivity(PetAlerts.settingsIntent(context)) },
                 hurt = hurt,
-                supporterOwned = supporterOwned || nursery.supporter,
-                supporterPrice = supporterPrice,
-                onBuySupporter = onBuySupporter,
             )
 
             if (toyOpened) {
@@ -525,8 +544,9 @@ private fun EggOnMatrixAction(nursery: Nursery, onPutOnMatrix: (String?) -> Unit
 }
 
 /**
- * The heroes, three to a row. A tap on a collected hero opens its three forms under its row ([FormsPanel]); a tap on
- * an egg puts it on the matrix. [onShow] puts a reached form of a hero on the matrix.
+ * The heroes, three to a row. A collected hero's tile pages through its three forms ([HeroTile]): swipe it, three dots
+ * under it, a lock on a form not reached yet; a tap puts the form on the page on the matrix ([onShow]). A tap on an
+ * egg puts it on the matrix.
  */
 @Composable
 private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) -> Unit, onEgg: (Species) -> Unit) {
@@ -534,7 +554,6 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
     // A hero's reached stage counts its earlier forms too.
     val forms = nursery.growth.values.sumOf { it.reached.ordinal + 1 }
     val eggIds = nursery.eggs.map { it.id }.toSet()
-    var open by rememberSaveable { mutableStateOf(nursery.active?.id) }
     // An egg tile shows the big egg as far as it is cracked; supporters' eggs are golden.
     val eggCells = remember { HashMap<EggView, List<Cell>>() }
     fun eggPicture(view: EggView) = eggCells.getOrPut(view) {
@@ -559,16 +578,27 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { s ->
                     val count = nursery.collection[s.id] ?: 0
-                    val egg = count == 0 && s.id in eggIds
-                    val presses = nursery.pressesOf(s.id)
                     val growth = nursery.growth[s.id]
-                    // Framed: what is on the matrix, the egg or the pet. A tap on an egg puts it there.
-                    val onMatrix = nursery.eggOnMatrix
-                    val framed = if (egg) onMatrix?.id == s.id else onMatrix == null && nursery.active?.id == s.id
-                    val opened = count > 0 && open == s.id
+                    if (count > 0 && growth != null) {
+                        HeroTile(
+                            hero = s,
+                            growth = growth,
+                            count = count,
+                            active = nursery.active?.id == s.id,
+                            live = nursery.eggOnMatrix == null && nursery.active?.id == s.id,
+                            cells = cells,
+                            shadows = shadows,
+                            onShow = { onShow(s.id, it) },
+                            modifier = Modifier.weight(1f),
+                        )
+                        return@forEach
+                    }
+                    val egg = s.id in eggIds
+                    val presses = nursery.pressesOf(s.id)
+                    // Framed: the egg on the matrix. A tap on an egg puts it there.
+                    val framed = egg && nursery.eggOnMatrix?.id == s.id
                     val eggLabel = stringResource(R.string.egg_label)
                     val label = when {
-                        count > 0 -> s.name
                         egg && presses > 0 -> "$eggLabel $presses/${EggRules.PRESSES_TO_HATCH}"
                         egg -> eggLabel
                         else -> "???"
@@ -578,134 +608,138 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
                         Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(20.dp))
-                            .background(if (opened) N7Colors.Hairline else N7Colors.SurfaceRaised)
+                            .background(N7Colors.SurfaceRaised)
                             .then(if (framed) Modifier.border(1.dp, N7Colors.ControlBorder, RoundedCornerShape(20.dp)) else Modifier)
-                            .clickable(enabled = count > 0 || egg, role = Role.Button) {
-                                if (egg) onEgg(s) else open = if (opened) null else s.id
-                            }
+                            .clickable(enabled = egg, role = Role.Button) { onEgg(s) }
                             .padding(vertical = 10.dp)
                             .semantics(mergeDescendants = true) { contentDescription = description },
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        val picture = when {
-                            count > 0 -> cells.getValue(SpeciesForms.id(s.id, growth?.shown ?: Stage.TEEN))
-                            egg -> eggPicture(EggView(EggRules.stage(presses), nursery.supporter))
-                            else -> shadows.getValue(s.id)
-                        }
+                        val picture = if (egg) eggPicture(EggView(EggRules.stage(presses), nursery.supporter)) else shadows.getValue(s.id)
                         GlyphMatrix(cells = picture, glow = false, modifier = Modifier.size(60.dp))
-                        Text(label.uppercase(), style = N7Type.Label, color = if (count > 0 || egg) N7Colors.Ink else N7Colors.InkSubtle, textAlign = TextAlign.Center)
-                        Text(
-                            if (count > 1) "${stringResource(rarityName(s.rarity))} ×$count" else stringResource(rarityName(s.rarity)),
-                            style = N7Type.Caption,
-                            color = N7Colors.InkSubtle,
-                        )
-                        // How far it has grown: one dot per form reached.
-                        if (growth != null) Dots(lit = growth.reached.ordinal + 1, count = Stage.entries.size, dot = 4.dp, gap = 3.dp)
+                        Text(label.uppercase(), style = N7Type.Label, color = if (egg) N7Colors.Ink else N7Colors.InkSubtle, textAlign = TextAlign.Center)
+                        Text(stringResource(rarityName(s.rarity)), style = N7Type.Caption, color = N7Colors.InkSubtle)
+                        // Same height as a hero tile with its three page dots.
+                        Spacer(Modifier.height(4.dp))
                     }
                 }
                 repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
-            }
-            val opened = row.firstOrNull { it.id == open }
-            val growth = opened?.let { nursery.growth[it.id] }
-            if (opened != null && growth != null) {
-                FormsPanel(
-                    kind = opened.id,
-                    growth = growth,
-                    active = nursery.active?.id == opened.id,
-                    live = nursery.eggOnMatrix == null && nursery.active?.id == opened.id,
-                    cells = cells,
-                    shadows = shadows,
-                    onShow = { onShow(opened.id, it) },
-                )
             }
         }
     }
 }
 
 /**
- * The baby, teen and adult of hero [kind]. A reached form is tapped to live on the matrix ([onShow]); the one there
- * now is framed when [live] (the hero is the active pet and no egg is on the matrix). A form not reached yet is a dim
- * silhouette with how far it is: tomorrow morning for the teen, care days for the adult (as dots for the [active]
- * hero, the only one that counts them).
+ * A collected hero: its three forms on pages, swiped inside the tile, three dots under it for the page. It opens on the
+ * form shown on the matrix. A form not reached yet is a dim silhouette with a lock. A tap puts the form on the page on
+ * the matrix; the one there now is framed when [live] (the hero is the active pet and no egg is on the matrix).
  */
 @Composable
-private fun FormsPanel(
-    kind: String,
+private fun HeroTile(
+    hero: Species,
     growth: Growth,
+    count: Int,
     active: Boolean,
     live: Boolean,
     cells: Map<String, List<Cell>>,
     shadows: Map<String, List<Cell>>,
     onShow: (Stage) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
+    val forms = SpeciesForms.all(hero.id)
+    val pager = rememberPagerState(initialPage = growth.shown.ordinal) { forms.size }
+    val stage = forms[pager.currentPage].stage
+    val reached = stage <= growth.reached
+    val framed = live && stage == growth.shown
     val ready = growth.ready && growth.reached.next != null
+    val stageName = stringResource(stageName(stage))
+    val status = when {
+        framed -> stringResource(R.string.form_on_matrix)
+        !reached && ready && stage == growth.reached.next -> stringResource(R.string.form_ready)
+        !reached && stage == Stage.TEEN -> stringResource(R.string.form_tomorrow)
+        !reached -> {
+            val left = GrowthRules.TEEN_CARE_DAYS - if (growth.reached == Stage.TEEN) growth.careDays else 0
+            pluralStringResource(R.plurals.form_care_days, left, left)
+        }
+        else -> stringResource(rarityName(hero.rarity))
+    }
     Column(
-        Modifier
-            .fillMaxWidth()
+        modifier
             .clip(RoundedCornerShape(20.dp))
             .background(N7Colors.SurfaceRaised)
-            .padding(8.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+            .then(if (framed) Modifier.border(1.dp, N7Colors.ControlBorder, RoundedCornerShape(20.dp)) else Modifier)
+            .clickable(enabled = reached && !framed, role = Role.Button) { onShow(stage) }
+            .padding(vertical = 10.dp)
+            .semantics(mergeDescendants = true) { contentDescription = "${hero.name}, $stageName: $status" },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            SpeciesForms.all(kind).forEach { form ->
-                val stage = form.stage
-                val reached = stage <= growth.reached
-                val framed = live && stage == growth.shown
-                val careDots = !reached && !ready && active && stage == Stage.ADULT && growth.reached == Stage.TEEN
-                val careLeft = GrowthRules.TEEN_CARE_DAYS - if (growth.reached == Stage.TEEN) growth.careDays else 0
-                val stageName = stringResource(stageName(stage))
-                val caption = when {
-                    framed -> stringResource(R.string.form_on_matrix)
-                    reached -> ""
-                    ready && stage == growth.reached.next -> stringResource(R.string.form_ready)
-                    stage == Stage.TEEN -> stringResource(R.string.form_tomorrow)
-                    careDots -> stringResource(R.string.form_care_dots)
-                    else -> pluralStringResource(R.plurals.form_care_days, careLeft, careLeft)
-                }
-                Column(
-                    Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(16.dp))
-                        .then(if (framed) Modifier.border(1.dp, N7Colors.ControlBorder, RoundedCornerShape(16.dp)) else Modifier)
-                        .clickable(enabled = reached && !framed, role = Role.Button) { onShow(stage) }
-                        .padding(vertical = 8.dp, horizontal = 4.dp)
-                        .semantics(mergeDescendants = true) {
-                            contentDescription = if (caption.isEmpty()) stageName else "$stageName: $caption"
-                        },
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    GlyphMatrix(
-                        cells = (if (reached) cells else shadows).getValue(form.id),
-                        glow = false,
-                        modifier = Modifier.size(64.dp),
-                    )
-                    Text(stageName.uppercase(), style = N7Type.Label, color = if (reached) N7Colors.Ink else N7Colors.InkSubtle)
-                    if (careDots) Dots(lit = growth.careDays, count = GrowthRules.TEEN_CARE_DAYS, dot = 6.dp, gap = 3.dp)
-                    if (caption.isNotEmpty()) {
-                        Text(caption, style = N7Type.Caption, color = N7Colors.InkSubtle, textAlign = TextAlign.Center)
-                    }
-                }
+        HorizontalPager(state = pager, modifier = Modifier.fillMaxWidth()) { page ->
+            val form = forms[page]
+            val open = form.stage <= growth.reached
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                GlyphMatrix(cells = (if (open) cells else shadows).getValue(form.id), glow = false, modifier = Modifier.size(60.dp))
+                if (!open) Lock(Modifier.size(18.dp))
             }
         }
-        if (ready) {
-            // Only the pet on the matrix feels the shakes.
-            Text(
-                stringResource(if (active) R.string.grow_ready else R.string.grow_ready_pick),
-                style = N7Type.BodyS,
-                color = N7Colors.Ink,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-            )
+        Text(
+            (if (count > 1) "${hero.name} ×$count" else hero.name).uppercase(),
+            style = N7Type.Label,
+            color = N7Colors.Ink,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+        )
+        Text(status, style = N7Type.Caption, color = if (ready && !reached) N7Colors.Ink else N7Colors.InkSubtle, maxLines = 1)
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            forms.indices.forEach { i ->
+                Box(
+                    Modifier
+                        .size(5.dp)
+                        .background(if (i == pager.currentPage) N7Colors.LedOn else N7Colors.LedOff, CircleShape),
+                )
+            }
         }
+        if (ready && active && pager.currentPage == growth.reached.ordinal + 1) {
+            // Only the pet on the matrix feels the shakes; the line says how.
+            Text(stringResource(R.string.form_shake), style = N7Type.Caption, color = N7Colors.Ink, textAlign = TextAlign.Center)
+        }
+    }
+}
+
+/** A small padlock: a form not reached yet. */
+@Composable
+private fun Lock(modifier: Modifier = Modifier) {
+    val color = N7Colors.Ink
+    Canvas(modifier) {
+        val w = size.width
+        val h = size.height
+        val stroke = w * 0.14f
+        // Shackle: an arch over the body.
+        drawArc(
+            color = color,
+            startAngle = 180f,
+            sweepAngle = 180f,
+            useCenter = false,
+            topLeft = Offset(w * 0.24f, h * 0.06f),
+            size = Size(w * 0.52f, h * 0.56f),
+            style = Stroke(width = stroke),
+        )
+        drawLine(color, Offset(w * 0.24f, h * 0.34f), Offset(w * 0.24f, h * 0.5f), strokeWidth = stroke)
+        drawLine(color, Offset(w * 0.76f, h * 0.34f), Offset(w * 0.76f, h * 0.5f), strokeWidth = stroke)
+        // Body.
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(w * 0.1f, h * 0.46f),
+            size = Size(w * 0.8f, h * 0.5f),
+            cornerRadius = CornerRadius(w * 0.12f),
+        )
     }
 }
 
 /**
  * One folded section: how the pet behaves on the back of the phone (dark when nobody sees it, notifications, the
- * plaster after a drop) and the supporter offer. Folded by default; the header row opens it.
+ * plaster after a drop). Folded by default; the header row opens it.
  */
 @Composable
 private fun SettingsCard(
@@ -714,9 +748,6 @@ private fun SettingsCard(
     notifications: Boolean,
     onNotifications: () -> Unit,
     hurt: Boolean,
-    supporterOwned: Boolean,
-    supporterPrice: String?,
-    onBuySupporter: () -> Unit,
 ) {
     var open by rememberSaveable { mutableStateOf(false) }
     N7Card(Modifier.fillMaxWidth()) {
@@ -744,20 +775,55 @@ private fun SettingsCard(
                     style = N7Type.BodyS,
                     color = if (hurt) N7Colors.Ink else N7Colors.InkMuted,
                 )
-                N7Divider()
-                SectionLabel(stringResource(R.string.supporter_title), Modifier.padding(top = 4.dp))
-                if (supporterOwned) Text(stringResource(R.string.supporter_thanks), style = N7Type.Title, color = N7Colors.Ink)
+            }
+        }
+    }
+}
+
+/** The supporter button in the top-right corner: a dollar in a ring, filled once the player supports n7. */
+@Composable
+private fun SupporterButton(owned: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .background(if (owned) N7Colors.Ink else N7Colors.SurfaceRaised)
+            .border(1.dp, N7Colors.ControlBorder, CircleShape)
+            .clickable(onClickLabel = stringResource(R.string.supporter_title), role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text("$", style = N7Type.Title, color = if (owned) N7Colors.SurfaceRaised else N7Colors.Ink)
+    }
+}
+
+/** What the supporter purchase gives, and the button to buy it; a thank-you once it is owned. */
+@Composable
+private fun SupporterDialog(owned: Boolean, price: String?, onBuy: () -> Unit, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        N7Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                SectionLabel(stringResource(R.string.supporter_title))
+                Text(
+                    stringResource(if (owned) R.string.supporter_thanks else R.string.supporter_pitch),
+                    style = N7Type.Title,
+                    color = N7Colors.Ink,
+                )
                 Step("18", stringResource(R.string.supporter_perk_all))
-                Step("✦", stringResource(R.string.supporter_perk_golden))
-                if (!supporterOwned) {
+                Text(stringResource(R.string.supporter_rest_free), style = N7Type.BodyS, color = N7Colors.InkMuted)
+                if (!owned) {
                     N7Button(
-                        text = if (supporterPrice != null) stringResource(R.string.supporter_buy, supporterPrice) else stringResource(R.string.supporter_unavailable),
-                        variant = N7ButtonVariant.Secondary,
-                        enabled = supporterPrice != null,
+                        text = if (price != null) stringResource(R.string.supporter_buy, price) else stringResource(R.string.supporter_unavailable),
+                        enabled = price != null,
                         modifier = Modifier.fillMaxWidth(),
-                        onClick = onBuySupporter,
+                        onClick = onBuy,
                     )
                 }
+                N7Button(
+                    text = stringResource(R.string.supporter_close),
+                    variant = N7ButtonVariant.Secondary,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onDismiss,
+                )
             }
         }
     }
