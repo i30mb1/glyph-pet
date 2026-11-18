@@ -1,6 +1,8 @@
 package n7.glyphpet.pet
 
 import n7.glyph.ui.matrix.GlyphMatrixSpec
+import kotlin.math.abs
+import kotlin.math.floor
 
 /** Draws a species with a face on the 25x25 matrix: brightness per LED, row by row. */
 object SpeciesRenderer {
@@ -146,6 +148,10 @@ object SpeciesRenderer {
      * @param timeMs engine time, for the faces that move (the falling tear).
      * @param lift raises the pet this many rows (a hop).
      * @param habit a frame of the species' habit playing now, drawn over the face.
+     * @param eyeDx shifts the eyes sideways (a glance), unless the habit frame shifts them itself.
+     * @param shadow a pet off the ground (a hop, a jump for joy, a habit that rises) casts a dim shadow on the ground.
+     * @param cover if given, gets [COVER_BODY] for every visible cell of the silhouette (the carved eye and mouth holes
+     *   included) and [COVER_FACE] for the eye and mouth slots with a cell of margin around them.
      */
     fun render(
         species: Species,
@@ -158,17 +164,23 @@ object SpeciesRenderer {
         habit: HabitFrame? = null,
         clipped: MutableCollection<Pair<Int, Int>>? = null,
         hurt: Boolean = false,
+        eyeDx: Int = 0,
+        shadow: Boolean = false,
+        cover: ByteArray? = null,
     ): IntArray {
         val look = LOOKS.getValue(face)
+        val eyesDx = habit?.eyeDx?.takeIf { it != 0 } ?: eyeDx
+        val rows = habit?.rows ?: species.rows
         val grid = carve(
             species, face,
             blink = blink || habit?.blink == true,
-            eyeDx = habit?.eyeDx ?: 0,
-            rows = habit?.rows ?: species.rows,
+            eyeDx = eyesDx,
+            rows = rows,
         )
 
         val ox = species.ox + dx + (habit?.dx ?: 0)
         val oy = species.oy - look.jump - lift + (habit?.dy ?: 0)
+        if (cover != null) cover(cover, species, rows, ox, oy, eyesDx)
         val body = (BODY * look.body * (habit?.body ?: 1f)).toInt()
         val bright = if (face in ASLEEP) BRIGHT / 2 else BRIGHT
         grid.forEachIndexed { y, row ->
@@ -189,7 +201,7 @@ object SpeciesRenderer {
 
         // A sleeper's opened eye is the one thing at full brightness on its dimmed body, so the peek reads at a glance.
         if (face == Face.PEEK) species.eyes.firstOrNull()?.let { (ex, ey) ->
-            val x = ox + ex + (habit?.eyeDx ?: 0)
+            val x = ox + ex + eyesDx
             val y = oy + ey
             if (species.inverted) {
                 for ((ddx, ddy) in EYES.getValue(Eyes.OPEN)) put(frame, x + ddx, y + ddy, BRIGHT)
@@ -223,7 +235,101 @@ object SpeciesRenderer {
         }
         species.extras[face]?.forEach { o -> glyph(frame, o.rows, o.x + dx, o.y, (BODY * o.level).toInt(), BRIGHT) }
         habit?.over?.forEach { o -> overlay(frame, o, species.ox + dx, species.oy - lift, body, clipped) }
+        if (shadow) {
+            val height = look.jump + lift - minOf(0, habit?.dy ?: 0)
+            if (height > 0) shadow(frame, species, rows, ox, height)
+        }
         return frame
+    }
+
+    /** Values of [render]'s cover map: nothing there, the pet's silhouette, its face. */
+    const val COVER_NONE: Byte = 0
+    const val COVER_BODY: Byte = 1
+    const val COVER_FACE: Byte = 2
+
+    private fun cover(cover: ByteArray, species: Species, rows: List<String>, ox: Int, oy: Int, eyeDx: Int) {
+        rows.forEachIndexed { y, row ->
+            row.forEachIndexed { x, c ->
+                val mx = ox + x
+                val my = oy + y
+                if (c != '.' && GlyphMatrixSpec.isVisible(mx, my)) cover[my * SIZE + mx] = COVER_BODY
+            }
+        }
+        fun face(left: Int, top: Int, w: Int, h: Int) {
+            for (y in top - 1..top + h) for (x in left - 1..left + w) {
+                if (GlyphMatrixSpec.isVisible(x, y)) cover[y * SIZE + x] = COVER_FACE
+            }
+        }
+        species.eyes.forEach { (ex, ey) -> face(ox + ex + eyeDx, oy + ey, 2, 2) }
+        species.mouth?.let { (mx, my) -> face(ox + mx, oy + my, 3, 2) }
+    }
+
+    /** The shadow of a pet on the ground: a quarter of [BODY] under a small hop, dimmer high up. */
+    const val SHADOW = BODY / 4
+
+    private val feetCache = java.util.concurrent.ConcurrentHashMap<List<String>, Triple<Int, Float, Float>>()
+
+    /** The lowest lit row of [rows], the middle of its lit span and half its width (at least 1.5 cells). */
+    private fun feet(rows: List<String>): Triple<Int, Float, Float> = feetCache.getOrPut(rows) {
+        val y = rows.indexOfLast { row -> row.any { it != '.' } }.coerceAtLeast(0)
+        val row = rows.getOrNull(y).orEmpty()
+        val first = row.indexOfFirst { it != '.' }.coerceAtLeast(0)
+        val last = row.indexOfLast { it != '.' }.coerceAtLeast(first)
+        Triple(y, (first + last) / 2f, maxOf(1.5f, (last - first + 1) / 2f + 0.5f))
+    }
+
+    /**
+     * A dim ellipse on the ground under a pet [height] rows up: on the row right under where its feet stand (on the
+     * feet row itself where that row is off the matrix), narrower and dimmer the higher the jump, with soft ends. Only
+     * on dark cells, so it never touches the lit body.
+     */
+    private fun shadow(frame: IntArray, species: Species, rows: List<String>, ox: Int, height: Int) {
+        val (feetY, mid, half) = feet(rows)
+        val cx = ox + mid
+        val k = (1f - SHADOW_FADE * (height - 1)).coerceIn(0.4f, 1f)
+        val hw = (half * (1.05f - SHADOW_SHRINK * height)).coerceAtLeast(1.2f)
+        var y = species.oy + feetY + 1
+        val x0 = floor(cx - hw).toInt()
+        val x1 = floor(cx + hw).toInt() + 1
+        if ((x0..x1).none { GlyphMatrixSpec.isVisible(it, y) }) y--
+        for (x in x0..x1) {
+            if (!GlyphMatrixSpec.isVisible(x, y)) continue
+            val i = y * SIZE + x
+            if (frame[i] > 0) continue
+            // Darker in the middle, with a soft edge half a cell wide at the ends.
+            val d = abs(x - cx) / hw
+            val a = ((1f - d) * hw + 0.5f).coerceIn(0f, 1f) * (1f - 0.35f * d * d)
+            val v = (SHADOW * k * a).toInt()
+            if (v > 0) frame[i] = v.coerceAtMost(BRIGHT)
+        }
+    }
+
+    /** Per row of height: how much dimmer and narrower the shadow gets. */
+    private const val SHADOW_FADE = 0.16f
+    private const val SHADOW_SHRINK = 0.17f
+
+    /**
+     * A point between LEDs: [value] spread bilinearly over the four LEDs around ([x], [y]) (max-blended), so it moves
+     * smoothly instead of jumping a whole LED. Only visible LEDs; cells where [skip] is true are left alone.
+     */
+    fun splat(frame: IntArray, x: Float, y: Float, value: Int, skip: BooleanArray? = null) {
+        if (value <= 0 || !(x > -1f && y > -1f && x < SIZE.toFloat() && y < SIZE.toFloat())) return
+        val x0 = floor(x).toInt()
+        val y0 = floor(y).toInt()
+        val fx = x - x0
+        val fy = y - y0
+        splatOne(frame, x0, y0, value * (1 - fx) * (1 - fy), skip)
+        splatOne(frame, x0 + 1, y0, value * fx * (1 - fy), skip)
+        splatOne(frame, x0, y0 + 1, value * (1 - fx) * fy, skip)
+        splatOne(frame, x0 + 1, y0 + 1, value * fx * fy, skip)
+    }
+
+    private fun splatOne(frame: IntArray, x: Int, y: Int, v: Float, skip: BooleanArray?) {
+        if (!GlyphMatrixSpec.isVisible(x, y)) return
+        val i = y * SIZE + x
+        if (skip != null && skip[i]) return
+        val value = v.toInt().coerceIn(0, BRIGHT)
+        if (value > frame[i]) frame[i] = value
     }
 
     /**

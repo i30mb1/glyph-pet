@@ -11,8 +11,10 @@ import kotlin.math.sqrt
 
 /**
  * Reads the accelerometer: [tilt] is the sideways lean (-1..1, positive = the pet slides to the right
- * of the matrix as seen from the back), [consumeShake] reports a shake once, [consumeDrop] a drop once,
- * [consumeRock] a gentle rock from side to side once ([RockDetector]).
+ * of the matrix as seen from the back), [tiltY] the forward/back lean (-1..1, positive = the phone stands upright, so
+ * down on the matrix is down), [consumeShake] reports a shake once, [consumeDrop] a drop once,
+ * [consumeRock] a gentle rock from side to side once ([RockDetector]). Together, ([tilt], [tiltY]) is the way "down"
+ * points on the matrix as seen from the back: where things fall and roll.
  * With the proximity and light sensors it also tells how the phone lies ([pose]): screen up, in a pocket.
  */
 class MotionSensor(context: Context) : SensorEventListener {
@@ -29,6 +31,10 @@ class MotionSensor(context: Context) : SensorEventListener {
     private val main = Handler(Looper.getMainLooper())
 
     @Volatile var tilt: Float = 0f
+        private set
+
+    /** Smoothed like [tilt]: 1 upright, 0 lying flat, -1 upside down. Upright until the accelerometer says otherwise. */
+    @Volatile var tiltY: Float = 1f
         private set
 
     @Volatile private var gravityZ = 0f
@@ -60,6 +66,7 @@ class MotionSensor(context: Context) : SensorEventListener {
         running = false
         sensors?.unregisterListener(this)
         tilt = 0f
+        tiltY = 1f
         near = null
         lux = null
         readings = 0
@@ -105,6 +112,9 @@ class MotionSensor(context: Context) : SensorEventListener {
         // Seen from the back, the device's +x edge is on the viewer's left: lifting it tips the pet right.
         val lean = (ax / SensorManager.GRAVITY_EARTH).coerceIn(-1f, 1f)
         tilt = tilt * 0.8f + lean * 0.2f
+        // The device's +y edge is the top of the matrix from either side: upright, gravity pulls toward the bottom row.
+        val upright = (ay / SensorManager.GRAVITY_EARTH).coerceIn(-1f, 1f)
+        tiltY = tiltY * 0.8f + upright * 0.2f
         gravityZ = if (readings == 0) az else gravityZ * 0.85f + az * 0.15f
         readings++
 

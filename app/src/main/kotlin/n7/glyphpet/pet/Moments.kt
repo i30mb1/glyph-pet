@@ -97,7 +97,7 @@ object Moments {
             t < BURST_END -> SpeciesRenderer.render(baby, Face.SCARED, frame = frame)
             else -> {
                 val lift = HOP[(((t - BURST_END) / 80) % HOP.size).toInt()]
-                SpeciesRenderer.render(baby, Face.HAPPY, frame = frame, lift = lift)
+                SpeciesRenderer.render(baby, Face.HAPPY, frame = frame, lift = lift, shadow = true)
             }
         }
         val r = maxOf(baby.width, baby.height) / 2f + 2f
@@ -154,7 +154,7 @@ object Moments {
             else -> {
                 val since = t - WHITE_END
                 val lift = HOP[((since / 80) % HOP.size).toInt()]
-                SpeciesRenderer.render(to, Face.HAPPY, frame = frame, lift = lift)
+                SpeciesRenderer.render(to, Face.HAPPY, frame = frame, lift = lift, shadow = true)
                 val p = since.toFloat() / (EVOLVE_MS - WHITE_END)
                 val r0 = maxOf(to.width, to.height) / 2f + 1f
                 ring(frame, to, t, radius = r0 + (13f - r0) * p.coerceIn(0f, 1f), spin = t * 0.002, fade = 1f - 0.7f * p)

@@ -228,10 +228,10 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         }
         if (motion.consumeRock() && ButtonRules.rockPlays(hasPet = nursery?.active != null, mood = mood, eggOnMatrix = nursery?.eggOnMatrix != null)) {
             store.update { PetRules.play(it) }
-            engine.pet()
+            engine.play()
         }
         sync(force = false)
-        send(engine.tick(dt, scene(tilt = motion.tilt)))
+        send(engine.tick(dt, scene(tilt = motion.tilt, tiltY = motion.tiltY)))
     }
 
     /**
@@ -254,12 +254,13 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         send(IntArray(PetEngine.SIZE * PetEngine.SIZE))
     }
 
-    private fun scene(tilt: Float = 0f): Scene {
+    private fun scene(tilt: Float = 0f, tiltY: Float = 1f): Scene {
         val n = nursery ?: return Scene(null, Mood.CONTENT)
         return Scene(
             species = n.activeForm,
             mood = mood,
             tilt = tilt,
+            tiltY = tiltY,
             charging = power.plugged,
             egg = n.eggView,
             watts = power.watts,

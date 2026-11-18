@@ -15,6 +15,11 @@ data class Scene(
     val species: Species?,
     val mood: Mood,
     val tilt: Float = 0f,
+    /**
+     * The forward/back lean (-1..1): with [tilt] the way "down" points on the matrix, where rain falls and the ball
+     * rolls. 1, straight down, for the app's preview and Always-on.
+     */
+    val tiltY: Float = 1f,
     val charging: Boolean = false,
     val egg: EggView? = null,
     /** While [charging]: how fast, and how full the battery is (0..1). */
@@ -46,8 +51,8 @@ data class Shown(
 
 /**
  * Animates the pet or the egg on the matrix: wandering, blinking, hopping, habits, eating, reactions, the wobbling egg,
- * and the big moments ([Moments]): the hatch and the evolution. [tick] returns one 25x25 frame of LED brightness, row by
- * row.
+ * and the big moments ([Moments]): the hatch and the evolution. Around the pet: a shadow under its jumps, the [Ball] it
+ * plays with, and [Weather] for its mood. [tick] returns one 25x25 frame of LED brightness, row by row.
  * @param autoHabits plays the species' habit by itself every 6-12 s; without it only [trick] starts one.
  */
 class PetEngine(private val random: Random = Random.Default, private val autoHabits: Boolean = true) {
@@ -204,6 +209,12 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
     private var trickAsked = false
     private var moment: Moment? = null
     private var momentMs = 0L
+    private val ball = Ball(random)
+    private var ballAsked = false
+    private val weather = Weather(random)
+
+    /** Where the last pet drawn covers the matrix (see [SpeciesRenderer.render]): the ball and the weather go round it. */
+    private val cover = ByteArray(SIZE * SIZE)
 
     /** A habit is due but does not fit where the pet stands: it walks here first. */
     private var habitSpot: Int? = null
@@ -220,14 +231,24 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
     /** Stroked: heart eyes and a heart. A sleeper only opens one eye. */
     fun pet() = start(Action.LOVED, 1600)
 
+    /**
+     * Played with (the phone rocked): stroked as by [pet], and a ball appears above the pet and rolls around the matrix
+     * under gravity for [Ball.LIFE_MS]. The pet follows it with its eyes and stays happy while it is out. A rock while
+     * the ball is out kicks it instead of bringing a second one. A sleeper only opens one eye, and gets no ball.
+     */
+    fun play() {
+        pet()
+        ballAsked = true
+    }
+
     /** Dizzy stars; a sleeper only opens one eye. */
     fun shake() = start(Action.DIZZY, 2500)
 
     /** The egg just hatched into [baby] (a supporter's egg is [golden]): [Moments.hatch] plays. */
-    fun hatch(baby: Species, golden: Boolean) = play(Hatch(baby, golden))
+    fun hatch(baby: Species, golden: Boolean) = startMoment(Hatch(baby, golden))
 
     /** The pet just grew from [from] into [to]: [Moments.evolve] plays. */
-    fun evolve(from: Species, to: Species) = play(Evolve(from, to))
+    fun evolve(from: Species, to: Species) = startMoment(Evolve(from, to))
 
     /** The egg of [hero] (any form of it) just hatched: its baby pops out. */
     fun hatchOf(hero: Species, golden: Boolean) = hatch(SpeciesForms.of(hero.kind, Stage.BABY), golden)
@@ -241,13 +262,15 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
     /** Whether a hatch or an evolution is playing. */
     val playingMoment: Boolean get() = moment != null
 
-    private fun play(m: Moment) {
+    private fun startMoment(m: Moment) {
         moment = m
         momentMs = 0
         action = Action.NONE
         foodY = null
         habitMs = -1
         hopMs = -1
+        ball.clear()
+        ballAsked = false
     }
 
     /** A shake toward growing, not the last one: the pet flashes bright for a moment and trembles. */
@@ -296,7 +319,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         if (scene.charging) {
             ChargeRenderer.render(species, chargeState(scene, still = true), frame = frame)
         } else {
-            SpeciesRenderer.render(species, face, frame = frame, hurt = scene.hurt)
+            SpeciesRenderer.render(species, face, frame = frame, hurt = scene.hurt, shadow = true)
         }
         if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = true)
         return frame
@@ -323,6 +346,8 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         val egg = scene.egg
         if (egg != null || species == null) {
             // The egg on the matrix, alone: the pet is away until it hatches.
+            ball.clear()
+            ballAsked = false
             shown = Shown(null)
             if (egg != null) {
                 EggRenderer.big(frame, egg, wobble())
@@ -332,6 +357,10 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         }
 
         val asleep = scene.mood == Mood.SLEEPING
+        if (asleep || scene.charging) {
+            ball.clear()
+            ballAsked = false
+        }
         stir(asleep)
         updateCharge(dtMs, scene, asleep)
         updateBlink(dtMs, asleep)
@@ -348,6 +377,13 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         }
 
         val range = walkRange(species)
+        val centerX = species.ox + x.roundToInt() + (species.width - 1) / 2f
+        if (ballAsked) {
+            ballAsked = false
+            if (ball.active) ball.kick(scene.tilt, scene.tiltY)
+            else ball.spawn(centerX, species.oy - 2.5f, scene.tilt, scene.tiltY)
+        }
+        ball.update(dtMs, scene.tilt, scene.tiltY)
         val sliding = !asleep && action == Action.NONE && abs(scene.tilt) > 0.3f
         updateFood(dtMs, species)
         updateHabit(dtMs, species, scene, sliding)
@@ -365,12 +401,22 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         val shudder = action == Action.REFUSING || action == Action.SURGE || (action == Action.HURT && ouch())
         val jitter = if (shudder) (if ((time / 120) % 2 == 0L) -1 else 1) else 0
         val dx = x.roundToInt() + jitter
+        cover.fill(SpeciesRenderer.COVER_NONE)
         SpeciesRenderer.render(
             species, face, blink = blinkLeftMs > 0, dx = dx, frame = frame, timeMs = time, lift = lift, habit = habit, hurt = scene.hurt,
+            eyeDx = ball.side(centerX), shadow = true, cover = cover,
         )
         foodY?.let { fy -> SpeciesRenderer.glyph(frame, listOf("oo", "oo"), species.ox + dx + species.width / 2 - 1, fy.toInt()) }
         if (action == Action.SURGE) surgeGlow(frame)
         if (scene.ready && action != Action.SURGE) readySparkle(frame, species, dx, lift)
+        ball.draw(frame, scene.tilt, scene.tiltY, cover)
+        // Rain for a sad pet, a calm snow for a sleeper; drawn behind everything lit so far.
+        val sky = when (scene.mood) {
+            Mood.SAD -> Weather.Kind.RAIN
+            Mood.SLEEPING -> Weather.Kind.SNOW
+            else -> Weather.Kind.NONE
+        }
+        weather.draw(frame, dtMs, sky, scene.tilt, scene.tiltY, cover)
         if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
         shown = Shown(face, habit = own != null, lift = lift, step = own, dx = dx)
         return frame
@@ -422,7 +468,8 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
      */
     private fun updateHabit(dtMs: Long, species: Species, scene: Scene, sliding: Boolean) {
         val mood = scene.mood
-        val free = (mood == Mood.CONTENT || mood == Mood.HAPPY) && action == Action.NONE && !sliding && foodY == null
+        val free = (mood == Mood.CONTENT || mood == Mood.HAPPY) && action == Action.NONE && !sliding && foodY == null &&
+            !ball.active
         if (!free) {
             habitMs = -1
             trickAsked = false
@@ -453,9 +500,9 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         }
     }
 
-    /** A happy pet hops every 2-4 s. */
+    /** A happy pet hops every 2-4 s; one playing with the ball every second or so. */
     private fun updateHop(dtMs: Long, mood: Mood, sliding: Boolean) {
-        if (mood != Mood.HAPPY || action != Action.NONE || sliding || habitMs >= 0) {
+        if ((mood != Mood.HAPPY && !ball.active) || action != Action.NONE || sliding || habitMs >= 0) {
             hopMs = -1
             return
         }
@@ -467,7 +514,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         hopInMs -= dtMs
         if (hopInMs <= 0) {
             hopMs = 0
-            hopInMs = random.nextLong(2000, 4001)
+            hopInMs = if (ball.active) random.nextLong(700, 1501) else random.nextLong(2000, 4001)
         }
     }
 
@@ -623,6 +670,8 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
     private fun face(mood: Mood, asleep: Boolean, sliding: Boolean): Face = when {
         asleep -> if (action == Action.PEEK) Face.PEEK else Face.SLEEP
         action != Action.NONE -> reaction() ?: Face.IDLE
+        // Playing with the ball: happy, even while the phone is tilted to roll it.
+        ball.active -> Face.CONTENT
         sliding -> Face.SCARED
         yawnLeftMs > 0 -> Face.YAWN
         else -> moodFace(mood)
