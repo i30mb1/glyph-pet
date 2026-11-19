@@ -104,7 +104,7 @@
     <string name="state_sick">Sick</string>
     <string name="state_sick_when">When Food and Joy are almost empty. Feeding cures it.</string>
     <string name="state_asleep">Asleep</string>
-    <string name="state_asleep_when">At night from 23:00 to 7:00, or when Sleep is almost empty</string>
+    <string name="state_asleep_when">At night from 0:00 to 6:00, or when Sleep is almost empty</string>
     <string name="state_eating">Eating</string>
     <string name="state_eating_when">When you hold the Glyph button</string>
     <string name="state_loved">Loved</string>

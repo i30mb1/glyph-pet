@@ -499,6 +499,14 @@ private fun PetScreen(
             if (BuildConfig.DEBUG) {
                 // Debug builds only: one button that opens every hero and every form.
                 N7Button("Unlock all", { store.unlockAll(); refresh() }, Modifier.fillMaxWidth(), N7ButtonVariant.Secondary)
+                // Debug builds only: no night sleep, to try the pet's behaviour at any hour.
+                var nightOff by remember { mutableStateOf(store.nightOff) }
+                N7Button(
+                    if (nightOff) "Night sleep: off" else "Night sleep: on (0-6)",
+                    { store.nightOff = !nightOff; nightOff = store.nightOff; refresh() },
+                    Modifier.fillMaxWidth(),
+                    N7ButtonVariant.Secondary,
+                )
                 // Debug builds only: every need full or empty at once, to try the moods, weather and tricks.
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     N7Button(

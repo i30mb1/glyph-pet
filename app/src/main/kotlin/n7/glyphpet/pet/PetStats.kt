@@ -66,7 +66,11 @@ object PetRules {
 
     val localHour: (Long) -> Int = { ms -> Calendar.getInstance().apply { timeInMillis = ms }.get(Calendar.HOUR_OF_DAY) }
 
-    fun isNight(hour: Int): Boolean = hour >= 23 || hour < 7
+    /** Debug builds only: no night at all, so the pet stays awake to try its behaviour (PetStore keeps it). */
+    @Volatile var nightOff: Boolean = false
+
+    /** Night sleep: from midnight to 6:00. */
+    fun isNight(hour: Int): Boolean = !nightOff && hour < 6
 
     /** A pet on the charger stays awake during the day: it works out, see [ChargeRenderer]. */
     fun isAsleep(stats: PetStats, hour: Int): Boolean =
@@ -117,7 +121,7 @@ object PetRules {
 
     /** A drop hurts: some joy is gone, and the pet wears a plaster until [hurtUntil]. */
     const val DROP_JOY = 10f
-    const val WAKE_HOUR = 7
+    const val WAKE_HOUR = 6
 
     fun drop(stats: PetStats): PetStats = stats.copy(joy = (stats.joy - DROP_JOY).clamp())
 

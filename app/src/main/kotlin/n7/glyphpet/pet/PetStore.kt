@@ -78,6 +78,18 @@ class PetStore(context: Context) {
     private val prefs: SharedPreferences = app.getSharedPreferences("pet", Context.MODE_PRIVATE)
     private val battery = app.getSystemService(BatteryManager::class.java)
 
+    init {
+        PetRules.nightOff = n7.glyphpet.BuildConfig.DEBUG && prefs.getBoolean(KEY_NIGHT_OFF, false)
+    }
+
+    /** Debug builds only: the pet does not sleep at night. */
+    var nightOff: Boolean
+        get() = PetRules.nightOff
+        set(value) {
+            PetRules.nightOff = value
+            prefs.edit().putBoolean(KEY_NIGHT_OFF, value).apply()
+        }
+
     fun isCharging(): Boolean = battery?.isCharging == true
 
     /** Cable state, charging speed and battery level right now. Costs a system call: read it every second or two, not every frame. */
@@ -410,6 +422,7 @@ class PetStore(context: Context) {
         const val KEY_ACTIVE = "active_species"
         const val KEY_SEEN = "seen_"
         const val KEY_SUPPORTER = "supporter"
+        const val KEY_NIGHT_OFF = "debug_night_off"
         const val KEY_HATCHED_AT = "hatched_at"
         const val KEY_HATCHED_ID = "hatched_id"
         const val KEY_EGGS = "eggs"

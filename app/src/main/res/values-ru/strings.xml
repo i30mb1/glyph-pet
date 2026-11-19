@@ -102,7 +102,7 @@
     <string name="state_sick">Болеет</string>
     <string name="state_sick_when">Когда Еда и Радость почти на нуле. Покорми, и пройдёт.</string>
     <string name="state_asleep">Спит</string>
-    <string name="state_asleep_when">Ночью с 23:00 до 7:00 или когда Сон почти на нуле</string>
+    <string name="state_asleep_when">Ночью с 0:00 до 6:00 или когда Сон почти на нуле</string>
     <string name="state_eating">Ест</string>
     <string name="state_eating_when">Когда зажимаешь кнопку Glyph</string>
     <string name="state_loved">Его гладят</string>
