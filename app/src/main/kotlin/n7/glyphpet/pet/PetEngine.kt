@@ -38,6 +38,11 @@ data class Scene(
     val desk: Boolean = false,
     /** How fast the phone is turned round on the desk, -1..1 (positive clockwise as seen on the matrix). */
     val spin: Float = 0f,
+    /**
+     * In the hand, the phone tipped toward the viewer (positive, the pet comes closer: wide happy eyes and a hop) or
+     * away (negative, it shrinks back: a dimmer body), -1..1 from how it is usually held.
+     */
+    val toward: Float = 0f,
 )
 
 /**
@@ -120,8 +125,16 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         /** Turning the phone on the desk faster than this ([Scene.spin]) turns the pet's eyes and head with it. */
         const val SPIN_LOOK = 0.12f
 
-        /** How far the phone leans sideways (about 11 degrees) before the pet slides or crawls that way. */
-        const val SLIDE_TILT = 0.2f
+        /**
+         * How far the phone leans sideways (about 20 degrees) before the pet slides or crawls that way ("wheee");
+         * a smaller lean ([LEAN_TILT] and more) only makes it look and lean that way.
+         */
+        const val SLIDE_TILT = 0.35f
+        const val LEAN_TILT = 0.12f
+
+        /** [Scene.toward] past this: the pet comes closer, or shrinks back to [BACK_DIM] of its brightness. */
+        const val TOWARD = 0.45f
+        const val BACK_DIM = 0.8f
 
         /** Kinds that crawl down a slope slowly and calmly instead of sliding off it. */
         private val CRAWLERS = setOf("snail")
@@ -244,6 +257,9 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
 
     /** Hops asked for by a reaction (a knock, a greeting), played one after another whatever the mood. */
     private var hopsLeft = 0
+
+    /** The phone was tipped toward the viewer in the last tick ([Scene.toward]): the pet came closer. */
+    private var closer = false
     private var habitInMs = 8000L
     private var habitMs = -1L
     private var trickAsked = false
@@ -637,6 +653,10 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         }
         val sliding = !asleep && action == Action.NONE && habitMs < 0 && signatureMs < 0 && trickMs < 0 && abs(scene.tilt) > SLIDE_TILT
         slidingNow = sliding
+        // Tipped toward the viewer: the pet comes closer with a little hop toward them.
+        val wasCloser = closer
+        closer = !asleep && scene.toward > TOWARD
+        if (closer && !wasCloser && action == Action.NONE && habitMs < 0 && hopsLeft == 0) hopsLeft = 1
         updateFood(dtMs, species)
         updateHabit(dtMs, species, scene, sliding)
         updateHop(dtMs, scene.mood, sliding)
@@ -667,12 +687,14 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         curl.clear()
 
         val own = if (habitMs >= 0) species.habit.frameAt(habitMs) else null
-        // A big pet, with little room to slide, also leans with the phone while it is rocked or tilted.
-        // On the desk it turns its head with the phone turned round instead.
+        // The pet leans its head with the phone tilted a little (a big pet, with little room to slide, also when
+        // tilted more); on the desk it turns its head with the phone turned round instead.
         val leanBy = if (abs(scene.spin) > SPIN_LOOK) scene.spin else scene.tilt
-        val leaning = own == null && !asleep && range.last <= 1 && abs(leanBy) > 0.15f &&
+        val big = range.last <= 1
+        val leaning = own == null && !asleep && abs(leanBy) > LEAN_TILT && (big || !sliding) &&
             (action == Action.NONE || action == Action.LOVED)
-        val habit = own ?: if (leaning) leanFrame(species, (leanBy * 2.2f).roundToInt().coerceIn(-2, 2)) else null
+        val leanCells = if (big) (leanBy * 2.2f).roundToInt().coerceIn(-2, 2) else (if (leanBy > 0) 1 else -1)
+        val habit = own ?: if (leaning && leanCells != 0) leanFrame(species, leanCells) else null
         val face = own?.face ?: face(scene.mood, asleep, sliding)
         val lift = if (hopMs >= 0) HOP.getOrElse((hopMs / 80).toInt()) { 0 } else 0
         val shudder = action == Action.REFUSING || action == Action.SURGE || action == Action.TICKLE || (action == Action.HURT && ouch())
@@ -697,6 +719,8 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
             habit = if (painter != null) living.habitFor(species, own, habit) else habit, hurt = scene.hurt,
             eyeDx = look(centerX, scene, asleep), shadow = true, cover = cover, painter = painter,
         )
+        // Tipped away from the viewer: the pet shrinks back, a little dimmer.
+        if (!asleep && scene.toward < -TOWARD) for (i in frame.indices) frame[i] = (frame[i] * BACK_DIM).toInt()
         foodY?.let { fy -> SpeciesRenderer.glyph(frame, listOf("oo", "oo"), species.ox + dx + species.width / 2 - 1, fy.toInt()) }
         if (action == Action.SURGE) surgeGlow(frame)
         if (scene.ready && action != Action.SURGE) readySparkle(frame, species, dx, lift)
@@ -731,6 +755,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         action == Action.NOTICE -> 0
         ball.active -> ball.side(centerX)
         !asleep && abs(scene.spin) > SPIN_LOOK -> (scene.spin * 2.5f).roundToInt().coerceIn(-2, 2)
+        !asleep && abs(scene.tilt) > LEAN_TILT -> if (scene.tilt > 0) 1 else -1
         else -> 0
     }
 
@@ -1027,8 +1052,10 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         action != Action.NONE -> reaction() ?: Face.IDLE
         // Playing with the ball: happy, even while the phone is tilted to roll it.
         ball.active -> Face.CONTENT
-        // A crawler takes a slope calmly; the others slide off it in a fright.
-        sliding -> if (kindNow in CRAWLERS) Face.CONTENT else Face.SCARED
+        // A crawler takes a slope calmly; the others slide down it for fun, "wheee".
+        sliding -> if (kindNow in CRAWLERS) Face.CONTENT else Face.HAPPY
+        // Brought closer to the viewer: wide happy eyes.
+        closer -> Face.HAPPY
         yawnLeftMs > 0 -> Face.YAWN
         else -> moodFace(mood)
     }

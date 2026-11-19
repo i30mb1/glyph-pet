@@ -58,6 +58,10 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         /** A double knock cheers the pet up by [TICKLE_JOY] at most this often. */
         const val TICKLE_JOY_MS = 3000L
         const val TICKLE_JOY = 1f
+
+        /** Tipping the phone this far (radians, about 25 degrees) from how it is held is [Scene.toward] 1. */
+        const val TOWARD_FULL = 0.45f
+        const val HELD_TAU_S = 4f
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -94,6 +98,10 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
     private var screenOn = true
     private var unlocked = false
     private var screenCheckedAt = Long.MIN_VALUE / 2
+
+    /** In the hand: the forward/back angle the phone is usually held at (radians, adapting over seconds). */
+    private var heldPitch = Float.NaN
+    private var toward = 0f
     private var dark = false
 
     /** While > 0: the live loop was started by a notification in Always-on and ends at this uptime. */
@@ -337,8 +345,8 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
                     if (store.growShake() == GrowResult.SHOOK) { engine.surge(); feel(HapticKind.GROW_SHAKE) }
                     sync(force = true)
                 }
-                // Shaking is no game: dizzy stars, no joy. A sleeper only opens one eye.
-                ShakeAction.DIZZY -> engine.shake()
+                // Shaking is no game, and it only grows a pet that is ready: dizzy stars come from twirling the phone.
+                ShakeAction.DIZZY -> Unit
                 ShakeAction.NOTHING -> Unit
             }
         }
@@ -361,7 +369,8 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         if (knock > 0 && (posture == Posture.DESK || posture == Posture.HAND)) onKnock(knock, now)
         sync(force = false)
         val desk = posture == Posture.DESK
-        send(engine.tick(dt, if (using) scene() else scene(tilt = motion.tilt, tiltY = motion.tiltY, desk = desk, spin = if (desk) motion.spin else 0f)))
+        updateToward(dt)
+        send(engine.tick(dt, if (using) scene() else scene(tilt = motion.tilt, tiltY = motion.tiltY, desk = desk, spin = if (desk) motion.spin else 0f, toward = toward)))
         if (n7.glyphpet.BuildConfig.DEBUG && now - lastDebugLogAt >= 1000) {
             lastDebugLogAt = now
             val sh = engine.shown
@@ -369,7 +378,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             val st = n?.stats
             val g = n?.activeGrowth
             val pose = motion.pose
-            Log.d(TAG, "tick posture=$posture jitter=%.3f spin=%.2f tilt=%.2f tiltY=%.2f | form=${n?.activeForm?.id} mood=$mood face=${sh.face} dx=${sh.dx} habitFrame=${sh.habit} lift=${sh.lift}".format(motion.jitter, motion.spin, motion.tilt, motion.tiltY))
+            Log.d(TAG, "tick posture=$posture jitter=%.3f spin=%.2f toward=%.2f tilt=%.2f tiltY=%.2f | form=${n?.activeForm?.id} mood=$mood face=${sh.face} dx=${sh.dx} habitFrame=${sh.habit} lift=${sh.lift}".format(motion.jitter, motion.spin, toward, motion.tilt, motion.tiltY))
             Log.d(TAG, "  engine ${engine.debug(n?.activeForm)}")
             Log.d(
                 TAG,
@@ -410,6 +419,26 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         }
     }
 
+    /**
+     * In the hand: how far the phone is tipped toward the viewer (positive) or away from how it is usually held, -1..1
+     * at [TOWARD_FULL]. The usual angle follows slowly ([HELD_TAU_S]), so holding it any way is calm after a moment.
+     * Tipping the top toward the viewer turns the screen up: gravity on the device's z grows.
+     */
+    private fun updateToward(dtMs: Long) {
+        val pose = motion.pose
+        if (posture != Posture.HAND || pose == null) {
+            heldPitch = Float.NaN
+            toward = 0f
+            return
+        }
+        val pitch = kotlin.math.atan2(pose.gravityZ, motion.tiltY * android.hardware.SensorManager.GRAVITY_EARTH)
+        if (heldPitch.isNaN()) heldPitch = pitch
+        var d = pitch - heldPitch
+        if (d > Math.PI) d -= (2 * Math.PI).toFloat() else if (d < -Math.PI) d += (2 * Math.PI).toFloat()
+        heldPitch += d * (1f - kotlin.math.exp(-dtMs / 1000f / HELD_TAU_S))
+        toward = (d / TOWARD_FULL).coerceIn(-1f, 1f)
+    }
+
     /** Reads the screen state twice a second and tells the [Posture] for this frame. */
     private fun updatePosture(now: Long) {
         if (now - screenCheckedAt >= 500) {
@@ -440,7 +469,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         send(IntArray(PetEngine.SIZE * PetEngine.SIZE))
     }
 
-    private fun scene(tilt: Float = 0f, tiltY: Float = 1f, desk: Boolean = false, spin: Float = 0f): Scene {
+    private fun scene(tilt: Float = 0f, tiltY: Float = 1f, desk: Boolean = false, spin: Float = 0f, toward: Float = 0f): Scene {
         val n = nursery ?: return Scene(null, Mood.CONTENT)
         return Scene(
             species = n.activeForm,
@@ -456,6 +485,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             ready = n.ready,
             desk = desk,
             spin = spin,
+            toward = toward,
         )
     }
 
