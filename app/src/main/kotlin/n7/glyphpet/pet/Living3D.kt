@@ -56,6 +56,13 @@ internal class Living3D {
     var habit = -1f
         private set
 
+    /**
+     * Extra turn a trick gives the mythic bodies (radians, 0 for the pet's own look): the gem's turn and the planet's
+     * surface ([spin]), and the adult planet's moon along its orbit ([moonTurn]).
+     */
+    var spin = 0f
+    var moonTurn = 0f
+
     /** The Always-on frame: no motion, a fixed slightly-turned view. */
     var still = false
         private set

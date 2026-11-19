@@ -249,7 +249,7 @@ internal class Mythic3D(private val view: Living3D) : BodyPainter {
         val scaleX = shape.w / 2f * 0.98f
         val scaleY = if (baby) shape.h / 2f else shape.h / BRILLIANT_H
         val habit = view.habit
-        val turn = (if (view.still) 0.6f else t * GEM_SPIN) + if (habit >= 0f) GEM_HABIT_TURN * ease(habit) else 0f
+        val turn = (if (view.still) 0.6f else t * GEM_SPIN) + (if (habit >= 0f) GEM_HABIT_TURN * ease(habit) else 0f) + view.spin
         val ay = turn + yaw
         val ax = GEM_TIP + pitch
         val cay = cos(ay); val say = sin(ay)
@@ -349,7 +349,7 @@ internal class Mythic3D(private val view: Living3D) : BodyPainter {
         val ca = cos(a); val sa = sin(a)
         val cb = cos(b); val sb = sin(b)
         val time = if (view.still) 0f else t
-        val spin = time * PLANET_SPIN
+        val spin = time * PLANET_SPIN + view.spin
         val cs = cos(spin); val ss = sin(spin)
 
         // The ring's plane in the planet's own frame: tipped toward us, rocked sideways by the habit.
@@ -370,7 +370,7 @@ internal class Mythic3D(private val view: Living3D) : BodyPainter {
         var my = 0f
         var mz = 0f
         if (moon) {
-            val ma = (if (view.still) 0.9f else MOON_START + time * MOON_SPEED) + if (habit >= 0f) 2f * PI.toFloat() * ease(habit) else 0f
+            val ma = (if (view.still) 0.9f else MOON_START + time * MOON_SPEED) + (if (habit >= 0f) 2f * PI.toFloat() * ease(habit) else 0f) + view.moonTurn
             val m0x = cos(ma) * MOON_ORBIT
             val m0z = sin(ma) * MOON_ORBIT
             val m1y = -sin(0.9f) * m0z
