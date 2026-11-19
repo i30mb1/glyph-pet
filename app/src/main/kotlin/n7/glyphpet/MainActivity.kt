@@ -23,6 +23,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -64,6 +65,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -107,6 +109,7 @@ import n7.glyphpet.pet.PetStats
 import n7.glyphpet.pet.PetStore
 import n7.glyphpet.pet.Rarity
 import n7.glyphpet.pet.Scene
+import n7.glyphpet.pet.Signatures
 import n7.glyphpet.pet.Species
 import n7.glyphpet.pet.SpeciesCatalog
 import n7.glyphpet.pet.SpeciesForms
@@ -657,6 +660,9 @@ private fun HeroTile(
     // Only the pet on the matrix feels the shakes: its next form says how to grow it.
     val readyLine = stringResource(if (active) R.string.form_shake else R.string.form_ready)
     val rarity = stringResource(rarityName(hero.rarity))
+    // A reached form also names the kind's signature effect, after the rarity when both fit.
+    val signature = SignatureNames.name(hero.kind)?.takeIf { Signatures.has(hero.kind) }?.let { stringResource(it) }
+    val reachedLines = if (signature != null) listOf("$rarity · $signature", signature) else listOf(rarity)
     val careLeft = GrowthRules.TEEN_CARE_DAYS - if (growth.reached == Stage.TEEN) growth.careDays else 0
     val careLine = pluralStringResource(R.plurals.form_care_days, careLeft, careLeft)
     fun status(stage: Stage): String = when {
@@ -679,7 +685,9 @@ private fun HeroTile(
             .statusFrame(hero.rarity, 20.dp)
             .then(if (framed) Modifier.border(1.dp, N7Colors.ControlBorder, RoundedCornerShape(20.dp)) else Modifier)
             .clickable(enabled = reached && !framed, role = Role.Button) { onShow(stage) }
-            .semantics(mergeDescendants = true) { contentDescription = "${hero.name}, $stageName: ${status(stage)}" },
+            .semantics(mergeDescendants = true) {
+                contentDescription = "${hero.name}, $stageName: ${if (reached && !framed) reachedLines.first() else status(stage)}"
+            },
     ) {
         HorizontalPager(state = pager, modifier = Modifier.fillMaxWidth()) { page ->
             val form = forms[page]
@@ -700,7 +708,9 @@ private fun HeroTile(
                     textAlign = TextAlign.Center,
                     maxLines = 1,
                 )
-                Text(
+                if (open && !(live && form.stage == growth.shown)) {
+                    FitCaption(reachedLines, Modifier.fillMaxWidth().padding(horizontal = 6.dp))
+                } else Text(
                     status(form.stage),
                     style = N7Type.Caption,
                     color = if (ready && form.stage == growth.reached.next) N7Colors.Ink else N7Colors.InkSubtle,
@@ -722,6 +732,27 @@ private fun HeroTile(
                 )
             }
         }
+    }
+}
+
+/**
+ * The first of [lines] that fits on one line of the tile in the caption style (the last one, cut short, if none
+ * does), so a tile is never taller for a long name.
+ */
+@Composable
+private fun FitCaption(lines: List<String>, modifier: Modifier = Modifier) {
+    val measurer = rememberTextMeasurer()
+    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+        val width = constraints.maxWidth
+        val line = lines.firstOrNull { measurer.measure(it, N7Type.Caption, maxLines = 1).size.width <= width } ?: lines.last()
+        Text(
+            line,
+            style = N7Type.Caption,
+            color = N7Colors.InkSubtle,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

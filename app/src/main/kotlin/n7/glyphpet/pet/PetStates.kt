@@ -1,9 +1,12 @@
 package n7.glyphpet.pet
 
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 import kotlin.random.Random
 
 /** What the preview does to the pet on its own, again and again, to keep a short reaction on screen. */
-enum class Cue { FEED, PET, SHAKE, TRICK }
+enum class Cue { FEED, PET, SHAKE, TRICK, SIGNATURE }
 
 /**
  * How a state is staged for the preview: the scene the real [PetEngine] is given, and the [cue] repeated every
@@ -33,6 +36,12 @@ class Staging(
 enum class PetState(val id: String, val stage: Staging) {
     /** Nothing urgent: Food, Joy and Sleep are fine. */
     CALM("calm", Staging(Mood.CONTENT, Face.IDLE)),
+
+    /**
+     * Every 10-20 s while calm or happy: the kind's own depth effect ([Signatures]). Only for kinds that have one; the
+     * preview sways the phone gently while it plays, so effects that follow the lean show it.
+     */
+    SIGNATURE("signature", Staging(Mood.CONTENT, Face.IDLE, Cue.SIGNATURE, cueFirstMs = 500)),
 
     /** Joy above 70% and Food above half: smiles and hops. */
     HAPPY("happy", Staging(Mood.HAPPY, Face.CONTENT)),
@@ -74,6 +83,8 @@ enum class PetState(val id: String, val stage: Staging) {
     /** Whether the frame described by [shown] shows this state (a sleeper's peek still counts as asleep). */
     fun isShownBy(shown: Shown): Boolean = when (this) {
         TRICK -> shown.habit
+        // The engine does not report it; the preview stages it on its own clock.
+        SIGNATURE -> true
         CHARGING -> shown.charging
         ASLEEP -> shown.face == Face.SLEEP || shown.face == Face.PEEK
         else -> shown.face == stage.face
@@ -88,9 +99,17 @@ enum class PetState(val id: String, val stage: Staging) {
  */
 class StatePreview(val species: Species, val state: PetState) {
 
+    /** How long the kind's signature effect plays (0 without one). */
+    private val signatureMs: Long =
+        if (state == PetState.SIGNATURE) Signatures.of(species.kind)?.durationMs ?: 0L else 0L
+
+    /** When the signature last started, for the sway (-1: not yet). */
+    private var cueMs = -1L
+
     /** How often the staged action repeats; states without one loop by themselves. */
     val loopMs: Long = when (state) {
         PetState.TRICK -> maxOf(state.stage.cueEveryMs, species.habit.durationMs + 1600)
+        PetState.SIGNATURE -> signatureMs + SIGNATURE_PAUSE_MS
         else -> state.stage.cueEveryMs
     }
 
@@ -109,6 +128,7 @@ class StatePreview(val species: Species, val state: PetState) {
     fun reset() {
         engine = PetEngine(Random(31 * state.ordinal + species.id.hashCode()), autoHabits = false)
         timeMs = 0
+        cueMs = -1
         nextCueMs = state.stage.cueFirstMs
     }
 
@@ -122,14 +142,24 @@ class StatePreview(val species: Species, val state: PetState) {
                 Cue.PET -> engine.pet()
                 Cue.SHAKE -> engine.shake()
                 Cue.TRICK -> engine.trick()
+                Cue.SIGNATURE -> engine.signatureNow()
             }
+            cueMs = timeMs
             nextCueMs += loopMs
         }
-        val tilt = if (stage.tiltEveryMs > 0) (if ((timeMs / stage.tiltEveryMs) % 2 == 0L) 1f else -1f) else 0f
+        var tilt = if (stage.tiltEveryMs > 0) (if ((timeMs / stage.tiltEveryMs) % 2 == 0L) 1f else -1f) else 0f
+        var tiltY = 1f
+        if (state == PetState.SIGNATURE && cueMs >= 0 && timeMs - cueMs < signatureMs) {
+            // A slow sway from upright while the effect plays (level between, so the pet does not slide off).
+            val a = (2 * PI * (timeMs - cueMs) / SWAY_MS).toFloat()
+            tilt = SWAY * sin(a)
+            tiltY = 1f - SWAY_Y * (1f - cos(a * 0.5f)) / 2f
+        }
         val scene = Scene(
             species = species,
             mood = stage.mood,
             tilt = tilt,
+            tiltY = tiltY,
             charging = stage.charging,
             watts = if (stage.charging) Staging.WATTS else 0f,
             battery = Staging.BATTERY,
@@ -147,6 +177,16 @@ class StatePreview(val species: Species, val state: PetState) {
      */
     fun still(): IntArray {
         val copy = StatePreview(species, state)
+        if (state == PetState.SIGNATURE) {
+            // The engine does not tell when the effect is on: a frame well into it.
+            var frame = copy.tick(FRAME_MS)
+            var t = FRAME_MS
+            while (t < state.stage.cueFirstMs + signatureMs * 2 / 5) {
+                frame = copy.tick(FRAME_MS)
+                t += FRAME_MS
+            }
+            return frame
+        }
         val limit = maxOf(loopMs, STILL_SEARCH_MS)
         var before = copy.tick(FRAME_MS)
         var frame = before
@@ -203,5 +243,13 @@ class StatePreview(val species: Species, val state: PetState) {
         const val FRAME_MS = 80L
         private const val STILL_SEARCH_MS = 4000L
         private const val STILL_HOLD_MS = 480L
+
+        /** The level pause between two plays of the signature. */
+        private const val SIGNATURE_PAUSE_MS = 1400L
+
+        /** The sway while the signature plays: how far, how long one swing there and back, and a little forward lean. */
+        private const val SWAY = 0.42f
+        private const val SWAY_MS = 3200.0
+        private const val SWAY_Y = 0.15f
     }
 }

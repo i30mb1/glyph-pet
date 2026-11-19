@@ -42,6 +42,7 @@ import n7.glyph.ui.theme.N7Colors
 import n7.glyph.ui.theme.N7Type
 import n7.glyphpet.pet.PetEngine
 import n7.glyphpet.pet.PetState
+import n7.glyphpet.pet.Signatures
 import n7.glyphpet.pet.Species
 import n7.glyphpet.pet.StatePreview
 
@@ -52,11 +53,13 @@ private class LiveFrame(val speciesId: String, val page: Int, val cells: List<Ce
  * "States": every state of the active pet, one page at a time, swiped sideways with dots under it. Each page plays
  * its state on its own [StatePreview], which never touches the saved pet. Only the settled page animates, and only
  * while the screen is resumed and the card is on screen and open; any other page shows a still of its state. Folded
- * to one row ("All states") by default.
+ * to one row ("All states") by default. The "Signature" page, right after Calm, is there only for kinds that have one.
  */
 @Composable
 internal fun StatesCard(species: Species, modifier: Modifier = Modifier) {
-    val states = PetState.entries
+    val states = remember(species.kind) {
+        PetState.entries.filter { it != PetState.SIGNATURE || Signatures.has(species.kind) }
+    }
     val pager = rememberPagerState(pageCount = { states.size })
     val lifecycleOwner = LocalLifecycleOwner.current
     var onScreen by remember { mutableStateOf(false) }
@@ -71,7 +74,7 @@ internal fun StatesCard(species: Species, modifier: Modifier = Modifier) {
         if (!onScreen || !open) return@LaunchedEffect
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             // From the start each time the page comes back on screen.
-            val preview = StatePreview(species, states[playing])
+            val preview = StatePreview(species, states.getOrNull(playing) ?: return@repeatOnLifecycle)
             while (true) {
                 live = LiveFrame(species.id, playing, PetEngine.toCells(preview.tick(StatePreview.FRAME_MS)))
                 delay(StatePreview.FRAME_MS)
@@ -94,7 +97,7 @@ internal fun StatesCard(species: Species, modifier: Modifier = Modifier) {
                     StatePage(
                         cells = null,
                         name = stringResource(stateName(state, species)),
-                        whenLine = stringResource(stateWhen(state)),
+                        whenLine = stateWhenText(state, species),
                         modifier = Modifier.fillMaxWidth().alpha(0f).clearAndSetSemantics {},
                     )
                 }
@@ -105,7 +108,7 @@ internal fun StatesCard(species: Species, modifier: Modifier = Modifier) {
                     StatePage(
                         cells = frame,
                         name = stringResource(stateName(state, species)),
-                        whenLine = stringResource(stateWhen(state)),
+                        whenLine = stateWhenText(state, species),
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
@@ -141,6 +144,7 @@ private val PREVIEW_SIZE = 84.dp
 @StringRes
 internal fun stateName(state: PetState, species: Species): Int = when (state) {
     PetState.CALM -> R.string.state_calm
+    PetState.SIGNATURE -> SignatureNames.name(species.kind) ?: R.string.state_signature
     PetState.HAPPY -> R.string.state_happy
     PetState.HUNGRY -> R.string.state_hungry
     PetState.SAD -> R.string.state_sad
@@ -155,10 +159,19 @@ internal fun stateName(state: PetState, species: Species): Int = when (state) {
     PetState.CHARGING -> R.string.state_charging
 }
 
+/** When the toy shows a state; the signature's line also says what the effect is. */
+@Composable
+private fun stateWhenText(state: PetState, species: Species): String {
+    if (state != PetState.SIGNATURE) return stringResource(stateWhen(state))
+    val about = SignatureNames.about(species.kind) ?: return stringResource(R.string.state_signature_when, "").removePrefix(". ")
+    return stringResource(R.string.state_signature_when, stringResource(about))
+}
+
 /** When the toy shows a state, in the words the app uses (Food, Joy, Sleep). */
 @StringRes
 internal fun stateWhen(state: PetState): Int = when (state) {
     PetState.CALM -> R.string.state_calm_when
+    PetState.SIGNATURE -> R.string.state_signature_when
     PetState.HAPPY -> R.string.state_happy_when
     PetState.HUNGRY -> R.string.state_hungry_when
     PetState.SAD -> R.string.state_sad_when
