@@ -37,25 +37,17 @@ object Moments {
         Rarity.MYTHIC -> MYTHIC_HATCH_MS
     }
 
-    // The evolution: the old form fills with light, old and new silhouettes take turns faster and faster, the whole
-    // matrix flashes, and the new form is there among sparkles running outward.
-    private const val GLOW_END = 1200L
-    private const val SWAP_END = 3300L
-    private const val WHITE_END = 3650L
+    // The evolution: the old form turns once around its vertical axis in pseudo-3D, faster and faster, filling with
+    // light; the whole matrix flashes; the new form turns its last quarter to face the viewer and hops among sparkles
+    // running outward.
+    private const val TURN_END = 2800L
+    private const val WHITE_END = 3150L
     private const val WHITE_HOLD_MS = 120L
-    const val EVOLVE_MS = 4600L
+    private const val ARRIVE_END = 3850L
+    const val EVOLVE_MS = 5000L
 
-    /** How long each silhouette stays during the swap: from 420 ms down to 50 ms, then 50 ms until the flash. */
-    private val SWAPS: List<Long> = buildList {
-        var d = 420.0
-        var sum = 0L
-        while (sum < SWAP_END - GLOW_END) {
-            val ms = d.roundToInt().toLong().coerceAtLeast(50)
-            add(ms)
-            sum += ms
-            d *= 0.78
-        }
-    }
+    /** At both ends of a 3D turn the flat pet and the voxel one cross-fade over this long. */
+    private const val BLEND_MS = 250L
 
     /** Rows a happy pet is off the ground in its hop, 80 ms each: two hops and a rest. */
     private val HOP = intArrayOf(1, 2, 2, 1, 0, 1, 2, 2, 1, 0, 0, 0)
@@ -168,43 +160,62 @@ object Moments {
      */
     fun evolve(frame: IntArray, t: Long, from: Species, to: Species) {
         when {
-            t < GLOW_END -> {
-                // Light fills the old form until it is one bright silhouette and its eyes are gone.
-                val p = t.toFloat() / GLOW_END
-                val face = SpeciesRenderer.render(from, Face.IDLE)
-                for ((x, y) in cells(from, lift = 0)) {
-                    val i = y * SIZE + x
-                    frame[i] = maxOf(frame[i], (face[i] + (BRIGHT - face[i]) * p).toInt().coerceIn(0, BRIGHT))
+            t < TURN_END -> {
+                // One turn, slow at first and faster and faster, while light floods the old form until its eyes are gone.
+                val p = t.toFloat() / TURN_END
+                val angle = (2 * PI * (0.25f * p + 0.75f * p * p)).toFloat()
+                val light = Math.pow(p.toDouble(), 1.6).toFloat()
+                val flat = (1f - t.toFloat() / BLEND_MS).coerceIn(0f, 1f)
+                blend(frame, flat, { SpeciesRenderer.render(from, Face.IDLE, frame = it) }) {
+                    Turn3D.draw(it, from, Face.IDLE, angle, light)
                 }
             }
-            t < SWAP_END -> silhouette(frame, if (swapIndex(t - GLOW_END) % 2 == 0) from else to, BRIGHT)
             t < WHITE_END -> {
-                // A flash over the whole matrix, fading into the new form.
-                val since = t - SWAP_END
-                val q = if (since < WHITE_HOLD_MS) 0f else (since - WHITE_HOLD_MS).toFloat() / (WHITE_END - SWAP_END - WHITE_HOLD_MS)
-                SpeciesRenderer.render(to, Face.HAPPY, frame = frame)
+                // A flash over the whole matrix; as it fades the new form is there edge-on, a thin bright sliver.
+                val since = t - TURN_END
+                val q = if (since < WHITE_HOLD_MS) 0f else (since - WHITE_HOLD_MS).toFloat() / (WHITE_END - TURN_END - WHITE_HOLD_MS)
+                Turn3D.draw(frame, to, Face.HAPPY, (-PI / 2).toFloat(), light = 1f)
                 val white = (BRIGHT * (1f - q)).toInt().coerceIn(0, BRIGHT)
                 if (white > 0) for (y in 0 until SIZE) for (x in 0 until SIZE) SpeciesRenderer.put(frame, x, y, white)
             }
+            t < ARRIVE_END -> {
+                // The last quarter of the turn, slowing down, to face the viewer; the light drains off into its colours.
+                val q = (t - WHITE_END).toFloat() / (ARRIVE_END - WHITE_END)
+                val angle = (-PI / 2 * (1f - q) * (1f - q)).toFloat()
+                val light = (1f - q * 1.7f).coerceIn(0f, 1f)
+                val flat = (1f - (ARRIVE_END - t).toFloat() / BLEND_MS).coerceIn(0f, 1f)
+                blend(frame, flat, { SpeciesRenderer.render(to, Face.HAPPY, frame = it) }) {
+                    Turn3D.draw(it, to, Face.HAPPY, angle, light)
+                }
+            }
             else -> {
-                val since = t - WHITE_END
+                val since = t - ARRIVE_END
                 val lift = HOP[((since / 80) % HOP.size).toInt()]
                 SpeciesRenderer.render(to, Face.HAPPY, frame = frame, lift = lift, shadow = true)
-                val p = since.toFloat() / (EVOLVE_MS - WHITE_END)
+                val p = since.toFloat() / (EVOLVE_MS - ARRIVE_END)
                 val r0 = maxOf(to.width, to.height) / 2f + 1f
                 ring(frame, to, t, radius = r0 + (13f - r0) * p.coerceIn(0f, 1f), spin = t * 0.002, fade = 1f - 0.7f * p)
             }
         }
     }
 
-    /** Which silhouette of the swap is up [t] ms into it: even the old form, odd the new one. */
-    private fun swapIndex(t: Long): Int {
-        var left = t
-        SWAPS.forEachIndexed { i, ms ->
-            if (left < ms) return i
-            left -= ms
+    /**
+     * Mixes two drawings into [frame], keeping what is already brighter there: [flat] 0..1 of [flatDraw] and the rest
+     * of [turnDraw]. With [flat] 0 or 1 only one of them is drawn.
+     */
+    private inline fun blend(frame: IntArray, flat: Float, flatDraw: (IntArray) -> Unit, turnDraw: (IntArray) -> Unit) {
+        when {
+            flat <= 0f -> turnDraw(frame)
+            flat >= 1f -> flatDraw(frame)
+            else -> {
+                val a = IntArray(SIZE * SIZE).also(flatDraw)
+                val b = IntArray(SIZE * SIZE).also(turnDraw)
+                for (i in frame.indices) {
+                    val v = (a[i] * flat + b[i] * (1f - flat)).toInt().coerceIn(0, BRIGHT)
+                    if (v > frame[i]) frame[i] = v
+                }
+            }
         }
-        return SWAPS.size
     }
 
     /** The visible cells [s] covers at its home spot, raised [lift] rows. */

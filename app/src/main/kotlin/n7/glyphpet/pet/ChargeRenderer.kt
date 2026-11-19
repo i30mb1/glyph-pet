@@ -36,7 +36,8 @@ data class ChargeState(
 
 /**
  * How each species shows charging. One rule for all of them: the bright part is the battery level,
- * the motion is the charging speed.
+ * the motion is the charging speed. The heroes of the second batch have their own ways, picked by kind
+ * ([KindCharge]) for the teen and the adult; their babies fill up like every baby.
  */
 object ChargeRenderer {
     private const val SIZE = SpeciesRenderer.SIZE
@@ -55,7 +56,7 @@ object ChargeRenderer {
 
     private val HEART = SpeciesRenderer.HEART
     private val Z = SpeciesRenderer.Z
-    private val STAR = listOf(".o.", "ooo", ".o.")
+    internal val STAR = listOf(".o.", "ooo", ".o.")
     private val BOLT = listOf("..o", ".oo", "ooo", "oo.", "o..")
     private val LIGHTNING = listOf("...o", "..oo", ".oo.", "oooo", "..oo", ".oo.", ".o..", "o...")
     private val CONE = listOf("...###...", "..#####..", ".#######.", "#########", "#########", "#########")
@@ -133,6 +134,11 @@ object ChargeRenderer {
         // After the flash the indicator fills up from empty to the real level.
         val grow = if (plugMs != null && !st.still) ((plugMs - PLUG_FLASH_MS).toFloat() / (PLUG_MS - PLUG_FLASH_MS)).coerceIn(0f, 1f) else 1f
         val s = if (grow < 1f) st.copy(level = st.level * grow) else st
+        val own = KindCharge.way(species)
+        if (own != null) {
+            KindCharge.draw(own, frame, species, s)
+            return frame
+        }
         when (species.charge) {
             ChargeWay.WHEEL -> wheel(frame, species, s)
             ChargeWay.FILL -> fill(frame, species, s)
@@ -277,7 +283,7 @@ object ChargeRenderer {
     }
 
     /** A reaction wins (a sleeper's peek too), then sleep, then a needy pet says so; otherwise the indicator's own face. */
-    private fun face(st: ChargeState, own: () -> Face): Face = when {
+    internal fun face(st: ChargeState, own: () -> Face): Face = when {
         st.reaction != null -> st.reaction
         st.still -> Face.SLEEP
         st.needy -> st.need
@@ -308,7 +314,7 @@ object ChargeRenderer {
      * @param still draws the sleeping pet at half brightness.
      * @param body brightness of a body cell by its sprite coordinates.
      */
-    private fun paint(
+    internal fun paint(
         f: IntArray,
         s: Species,
         grid: List<CharArray>,
@@ -341,12 +347,12 @@ object ChargeRenderer {
     }
 
     private fun standDy(s: Species, st: ChargeState): Int =
-        if (s.charge == ChargeWay.WHEEL) 22 - (s.oy + s.height - 1) else 0
+        if (KindCharge.way(s) == null && s.charge == ChargeWay.WHEEL) 22 - (s.oy + s.height - 1) else 0
 
-    private fun zzz(f: IntArray, s: Species, dy: Int) =
+    internal fun zzz(f: IntArray, s: Species, dy: Int) =
         SpeciesRenderer.glyph(f, Z, s.ox + s.width - 1, max(1, s.oy + dy - 3), brightValue = BRIGHT / 2)
 
-    private fun set(f: IntArray, x: Int, y: Int, value: Int) {
+    internal fun set(f: IntArray, x: Int, y: Int, value: Int) {
         if (GlyphMatrixSpec.isVisible(x, y)) f[y * SIZE + x] = value
     }
 }
