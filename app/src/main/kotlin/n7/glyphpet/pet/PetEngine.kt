@@ -91,6 +91,9 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         /** A double knock tickles: a giggling wiggle. */
         const val TICKLE_MS = 1200L
 
+        /** Picked up: the pet greets the owner, happy, with two hops. */
+        const val GREET_MS = 1000L
+
         /** How long the egg wobbles after a press. */
         const val CRACK_WOBBLE_MS = 600L
 
@@ -226,7 +229,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         }
     }
 
-    private enum class Action { NONE, EATING, REFUSING, LOVED, DIZZY, PEEK, HURT, ALERT, SURGE, NOTICE, TICKLE }
+    private enum class Action { NONE, EATING, REFUSING, LOVED, DIZZY, PEEK, HURT, ALERT, SURGE, NOTICE, TICKLE, GREET }
 
     /** A big moment that takes over the whole matrix for a few seconds. */
     private sealed class Moment(val durationMs: Long)
@@ -460,6 +463,14 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         if (action == Action.NONE || action == Action.PEEK || action == Action.NOTICE) {
             start(Action.TICKLE, TICKLE_MS)
             hopsLeft = 0
+        }
+    }
+
+    /** The owner picked the phone up: a happy face and two hops. A sleeper only opens one eye. */
+    fun greet() = react {
+        if (action == Action.NONE || action == Action.PEEK) {
+            start(Action.GREET, GREET_MS)
+            hopsLeft = 2
         }
     }
 
@@ -752,7 +763,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
      * the phone turned round on the desk.
      */
     private fun look(centerX: Float, scene: Scene, asleep: Boolean): Int = when {
-        action == Action.NOTICE -> 0
+        action == Action.NOTICE || action == Action.GREET -> 0
         ball.active -> ball.side(centerX)
         !asleep && abs(scene.spin) > SPIN_LOOK -> (scene.spin * 2.5f).roundToInt().coerceIn(-2, 2)
         !asleep && abs(scene.tilt) > LEAN_TILT -> if (scene.tilt > 0) 1 else -1
@@ -941,6 +952,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         Action.SURGE -> Face.IDLE
         Action.NOTICE -> Face.CONTENT
         Action.TICKLE -> Face.HAPPY
+        Action.GREET -> Face.HAPPY
     }
 
     /** The first moment of a drop: the "ouch!". */

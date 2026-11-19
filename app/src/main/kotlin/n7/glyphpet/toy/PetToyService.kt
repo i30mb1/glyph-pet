@@ -62,6 +62,12 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         /** Tipping the phone this far (radians, about 25 degrees) from how it is held is [Scene.toward] 1. */
         const val TOWARD_FULL = 0.45f
         const val HELD_TAU_S = 4f
+
+        /** The pet greets the owner who picks the phone up at most this often. */
+        const val GREET_EVERY_MS = 120_000L
+
+        /** A pose must have lasted this long before leaving it for the hand counts as being picked up. */
+        const val GREET_AFTER_MS = 3000L
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -100,6 +106,11 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
     private var screenCheckedAt = Long.MIN_VALUE / 2
 
     /** In the hand: the forward/back angle the phone is usually held at (radians, adapting over seconds). */
+    private var greetedAt = Long.MIN_VALUE / 2
+    private var postureSince = 0L
+    private var greetCheckAt = 0L
+    private var greetWanted = false
+
     private var heldPitch = Float.NaN
     private var toward = 0f
     private var dark = false
@@ -365,6 +376,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             engine.play()
             feel(HapticKind.PLAY)
         }
+        if (greetWanted) greet(now)
         val knock = motion.consumeKnock()
         if (knock > 0 && (posture == Posture.DESK || posture == Posture.HAND)) onKnock(knock, now)
         sync(force = false)
@@ -441,12 +453,36 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
 
     /** Reads the screen state twice a second and tells the [Posture] for this frame. */
     private fun updatePosture(now: Long) {
+        val wasOn = screenOn
         if (now - screenCheckedAt >= 500) {
             screenCheckedAt = now
             screenOn = getSystemService(PowerManager::class.java)?.isInteractive ?: true
             unlocked = getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == false
         }
+        val before = posture
         posture = postures.update(motion.pose, motion.jitter, screenOn, unlocked, n7.glyphpet.MainActivity.inFront, now)
+        // Picked up from the desk or out of the pocket, or the screen turned off with the phone still in hand: greet.
+        if (wasOn && !screenOn) greetCheckAt = now + 800
+        if (posture != before) {
+            if (posture == Posture.HAND && (before == Posture.DESK || before == Posture.AWAY) && now - postureSince >= GREET_AFTER_MS) greetWanted = true
+            postureSince = now
+        }
+        if (greetCheckAt > 0 && now >= greetCheckAt) {
+            greetCheckAt = 0
+            if (posture == Posture.HAND) greetWanted = true
+        }
+    }
+
+    /** The owner has the phone in hand again: the pet greets once (a happy hop and a soft tick), at most every two minutes. */
+    private fun greet(now: Long) {
+        greetWanted = false
+        val n = nursery
+        if (n?.active == null || n.eggOnMatrix != null || mood == Mood.SLEEPING) return
+        if (now - greetedAt < GREET_EVERY_MS) return
+        greetedAt = now
+        Log.d(TAG, "event greet posture=$posture")
+        engine.greet()
+        feel(HapticKind.GREET)
     }
 
     /**
