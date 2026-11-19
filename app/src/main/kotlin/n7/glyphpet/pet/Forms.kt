@@ -132,7 +132,8 @@ object SpeciesForms {
                 "....#....", "...###...", "..#####..", ".#######.", "#########", "#########", "#########", "#########",
                 ".#..#..#.",
             ),
-            ox = 8, oy = 10, eyes = listOf(1 to 4, 6 to 4), mouth = 3 to 6,
+            // Centred on the matrix: rows 8..16.
+            ox = 8, oy = 8, eyes = listOf(1 to 4, 6 to 4), mouth = 3 to 6,
         ),
         // eye: little eye
         "eye" to Sprite(

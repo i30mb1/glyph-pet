@@ -126,7 +126,8 @@ object SpeciesCatalog {
                 "...#####...", ".#########.", "###########", "###########", "###########", "###########",
                 "###########", "###########", "###########", "###########", "###.###.###", ".#...#...#.",
             ),
-            ox = 7, oy = 5, eyes = listOf(2 to 4, 7 to 4), mouth = 4 to 7,
+            // Centred on the matrix: rows 6..17.
+            ox = 7, oy = 6, eyes = listOf(2 to 4, 7 to 4), mouth = 4 to 7,
             charge = ChargeWay.FILL,
             habit = Habits::ghost,
         ),
@@ -148,8 +149,9 @@ object SpeciesCatalog {
                 ".###.....###.", "#####...#####", "#############", "#############", "#############",
                 "#############", "#############", ".###########.", "##.##...##.##",
             ),
-            ox = 6, oy = 10, eyes = listOf(1 to 0, 10 to 0), mouth = 5 to 5,
-            extras = mapOf(Face.EAT to listOf(Overlay(listOf("....o.o", ".....o.", "ooooo.."), 17, 13))),
+            // Centred on the matrix: rows 8..16; the fly it eats sits by its mouth (matrix row 13).
+            ox = 6, oy = 8, eyes = listOf(1 to 0, 10 to 0), mouth = 5 to 5,
+            extras = mapOf(Face.EAT to listOf(Overlay(listOf("....o.o", ".....o.", "ooooo.."), 17, 11))),
             replaces = setOf(Face.EAT),
             habit = Habits::frog,
         ),
@@ -260,7 +262,8 @@ object SpeciesCatalog {
                 ".....###.....", "...#######...", "..#########..", ".###########.", "#############",
                 "#############", "#############", "#############", ".#.##..###.#.", "....#....#...",
             ),
-            ox = 6, oy = 10, eyes = listOf(3 to 3, 8 to 3), mouth = 5 to 6,
+            // Centred on the matrix: rows 8..17.
+            ox = 6, oy = 8, eyes = listOf(3 to 3, 8 to 3), mouth = 5 to 6,
             charge = ChargeWay.FILL,
             habit = Habits::slime,
         ),

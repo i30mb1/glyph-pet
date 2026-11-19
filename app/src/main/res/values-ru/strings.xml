@@ -222,7 +222,7 @@
     <string name="sig_crab">Пузыри из песка</string>
     <string name="sig_crab_about">Из песка поднимаются пузыри</string>
     <string name="sig_hedgehog">Клубок</string>
-    <string name="sig_hedgehog_about">Сворачивается и катается, если покачать телефон</string>
+    <string name="sig_hedgehog_about">Иногда сам сворачивается в клубок и катается, а ещё если покачать телефон</string>
     <string name="sig_cat">Вглубь</string>
     <string name="sig_cat_about">Уходит к горизонту и возвращается</string>
     <string name="sig_ghost">Лентикулярка</string>
