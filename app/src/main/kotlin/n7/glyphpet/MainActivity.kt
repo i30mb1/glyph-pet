@@ -735,9 +735,9 @@ private fun HeroTile(
     // Only the pet on the matrix feels the shakes: its next form says how to grow it.
     val readyLine = stringResource(if (active) R.string.form_shake else R.string.form_ready)
     val rarity = stringResource(rarityName(hero.rarity))
-    // A reached form also names the kind's signature effect, after the rarity when both fit.
+    // A reached form names the kind's signature effect; the status is the group the tile sits in ([RarityHeader]).
     val signature = SignatureNames.name(hero.kind)?.takeIf { Signatures.has(hero.kind) }?.let { stringResource(it) }
-    val reachedLines = if (signature != null) listOf("$rarity · $signature", signature) else listOf(rarity)
+    val reachedLines = if (signature != null) listOf(signature) else listOf(rarity)
     val careLeft = GrowthRules.TEEN_CARE_DAYS - if (growth.reached == Stage.TEEN) growth.careDays else 0
     val careLine = pluralStringResource(R.plurals.form_care_days, careLeft, careLeft)
     fun status(stage: Stage): String = when {
