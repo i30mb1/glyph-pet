@@ -183,7 +183,9 @@ object SpeciesRenderer {
         val ox = species.ox + dx + (habit?.dx ?: 0)
         val oy = species.oy - look.jump - lift + (habit?.dy ?: 0)
         if (cover != null) cover(cover, species, rows, ox, oy, eyesDx)
-        val body = (BODY * look.body * (habit?.body ?: 1f)).toInt()
+        val soft = species.kind in SOFT_KINDS && !species.inverted
+        val body = ((if (soft) SOFT_BODY else BODY) * look.body * (habit?.body ?: 1f)).toInt()
+        val sockets = if (soft) sockets(species, eyesDx) else null
         val bright = if (face in ASLEEP) BRIGHT / 2 else BRIGHT
         // The top tiers' 3D body ([Living3D]); anything going wrong there draws the flat body for this frame.
         val painted = painter != null && try {
@@ -195,7 +197,7 @@ object SpeciesRenderer {
             row.forEachIndexed { x, c ->
                 if (c != '.' && clipped != null && !GlyphMatrixSpec.isVisible(ox + x, oy + y)) clipped += ox + x to oy + y
                 if (!painted) when (c) {
-                    '#' -> put(frame, ox + x, oy + y, body)
+                    '#' -> put(frame, ox + x, oy + y, if (sockets != null && (x to y) in sockets) (body * SOCKET).toInt() else body)
                     'o' -> put(frame, ox + x, oy + y, bright)
                 }
             }
@@ -248,6 +250,21 @@ object SpeciesRenderer {
             if (height > 0) shadow(frame, species, rows, ox, height)
         }
         return frame
+    }
+
+    /**
+     * Kinds drawn with the softer look (a trial, on the snail first): a dimmer body ([SOFT_BODY]) so the bright
+     * details and the face's badges stand out, and the cells of the eye and mouth slots the face leaves lit drawn at
+     * [SOCKET] of the body, so a closed, happy or sad eye and a smile still read on a solid head.
+     */
+    val SOFT_KINDS = setOf("snail")
+    const val SOFT_BODY = 800
+    const val SOCKET = 0.45f
+
+    /** The eye slots (moved by [eyeDx]) and the mouth slot of [species], in sprite cells. */
+    private fun sockets(species: Species, eyeDx: Int): Set<Pair<Int, Int>> = buildSet {
+        species.eyes.forEach { (ex, ey) -> for (a in 0..1) for (b in 0..1) add(ex + eyeDx + a to ey + b) }
+        species.mouth?.let { (mx, my) -> for (a in 0..2) for (b in 0..1) add(mx + a to my + b) }
     }
 
     /** Values of [render]'s cover map: nothing there, the pet's silhouette, its face. */
