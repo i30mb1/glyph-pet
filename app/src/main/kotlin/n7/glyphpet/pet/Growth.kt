@@ -4,7 +4,7 @@ package n7.glyphpet.pet
  * How far one hero has grown; one per collected hero in [NurseryState.growth].
  * @param reached the furthest stage it has grown to.
  * @param shown the form that lives on the matrix: any stage up to [reached], the player's pick.
- * @param careDays care days counted toward the next stage (only a teen counts them, see [GrowthRules]).
+ * @param xp experience gathered toward the next stage ([XpRules.threshold]); 0 for an adult.
  * @param ready it may grow into the next stage now: [GrowthRules.EVOLVE_SHAKES] shakes make it.
  * @param sinceDay the game day ([EggRules.dayKey]) it hatched or last grew.
  * @param evolvePresses shakes so far toward growing, while [ready].
@@ -12,43 +12,95 @@ package n7.glyphpet.pet
 data class Growth(
     val reached: Stage,
     val shown: Stage,
-    val careDays: Int,
+    val xp: Int,
     val ready: Boolean,
     val sinceDay: Int,
     val evolvePresses: Int = 0,
-)
+) {
+    /** The experience its next stage needs, or null for an adult. */
+    val threshold: Int? get() = XpRules.threshold(reached)
+}
+
+/** Where experience came from: for the toy's debug log. */
+enum class XpSource { TIME, FEED, BALL, TRICK, SIGNATURE, DEBUG }
 
 /**
- * The care the active pet got on the current game day [day] ([EggRules.dayKey]; 0 before the first one): whether it
- * was [fed] and whether it got [sick]. At the next game day it is counted (or not) and starts over.
+ * Growing by experience: all the numbers in one place. Only the active pet gains, and only while it is awake and
+ * neither hungry nor sick; while all three needs are full (5 of 5 dots) every gain counts [FULL_MULTIPLIER] times.
  */
-data class CareDay(val day: Int = 0, val fed: Boolean = false, val sick: Boolean = false)
+object XpRules {
+    const val BABY_TO_TEEN = 100
+    const val TEEN_TO_ADULT = 300
+
+    /** A minute together: the pet on the matrix (live or Always-on), awake. */
+    const val PER_MINUTE = 1
+    /** A meal eaten while food showed [FEED_MAX_DOTS] dots or fewer. */
+    const val FEED = 10
+    const val FEED_MAX_DOTS = 3
+    /** A new ball game, at most once per [BALL_COOLDOWN_MS]. */
+    const val BALL = 5
+    const val BALL_COOLDOWN_MS = 30_000L
+    /** A trick: [TRICK_PER] for every [TRICK_EVERY_MS] it played, up to [TRICK_MAX]. */
+    const val TRICK_PER = 1
+    const val TRICK_EVERY_MS = 5_000L
+    const val TRICK_MAX = 12
+    /** The signature effect watched to the end on the live matrix. */
+    const val SIGNATURE = 3
+    const val FULL_MULTIPLIER = 3
+
+    /** Minutes together count only while the toy reports at least this often; a longer gap was time away. */
+    const val MAX_GAP_MS = 3 * 60_000L
+    const val MINUTE_MS = 60_000L
+
+    fun threshold(stage: Stage): Int? = when (stage) {
+        Stage.BABY -> BABY_TO_TEEN
+        Stage.TEEN -> TEEN_TO_ADULT
+        Stage.ADULT -> null
+    }
+
+    fun trick(playedMs: Long): Int = ((playedMs.coerceAtLeast(0) / TRICK_EVERY_MS) * TRICK_PER).toInt().coerceAtMost(TRICK_MAX)
+
+    /** Whether the pet gains at all now: awake, not hungry, not sick. */
+    fun gains(stats: PetStats, asleep: Boolean): Boolean = when (PetRules.mood(stats, asleep)) {
+        Mood.SLEEPING, Mood.SICK, Mood.HUNGRY -> false
+        else -> true
+    }
+
+    /** [base] as it counts now: times [FULL_MULTIPLIER] while every need shows all its dots. */
+    fun multiplied(base: Int, stats: PetStats): Int {
+        val full = NeedDots.of(stats.satiety) == NeedDots.MAX && NeedDots.of(stats.joy) == NeedDots.MAX &&
+            NeedDots.of(stats.energy) == NeedDots.MAX
+        return if (full) base * FULL_MULTIPLIER else base
+    }
+
+    /** A save from before experience: a teen's care days (of 3) become that share of its threshold, a baby starts at 0. */
+    fun fromCareDays(stage: Stage, careDays: Int): Int =
+        if (stage == Stage.TEEN) TEEN_TO_ADULT * careDays.coerceIn(0, 3) / 3 else 0
+}
 
 /** What a shake toward growing did. */
 enum class GrowResult { NONE, SHOOK, EVOLVED }
 
 /**
  * Three growth stages, as pure functions of state and time:
- * - a hero hatches as a [Stage.BABY] and is ready to grow on the first game day (from 6:00) after the hatch day;
- * - a [Stage.TEEN] is ready after [TEEN_CARE_DAYS] care days: game days on which it was the active pet, was fed at
- *   least once and never got sick. A missed day just does not count, nothing is ever lost; only the active pet counts;
+ * - a hero hatches as a [Stage.BABY]; it grows by experience ([XpRules]): at [XpRules.BABY_TO_TEEN] a baby is ready,
+ *   at [XpRules.TEEN_TO_ADULT] a teen is; only the active pet gains;
  * - an [Stage.ADULT] is final;
- * - a ready pet grows when the phone is shaken [EVOLVE_SHAKES] times; it then lives on the matrix in its new form;
+ * - a ready pet grows when the phone is shaken [EVOLVE_SHAKES] times; it then lives on the matrix in its new form and
+ *   starts from 0;
  * - once grown, the player may put any form up to the one reached on the matrix ([setShown]); growth goes on whatever
  *   is shown.
- * The game day rolls over in [advance], which [NurseryRules.advance] runs first.
  */
 object GrowthRules {
 
-    const val TEEN_CARE_DAYS = 3
     const val EVOLVE_SHAKES = 3
     const val JUST_EVOLVED_MS = 8000L
 
     /** A hero that just hatched on game day [today]. */
-    fun hatched(today: Int): Growth = Growth(Stage.BABY, Stage.BABY, careDays = 0, ready = false, sinceDay = today)
+    fun hatched(today: Int): Growth = Growth(Stage.BABY, Stage.BABY, xp = 0, ready = false, sinceDay = today)
 
     /** A hero collected before growth existed: a teen, as it always looked, counting from [today]. */
-    fun grownUp(today: Int): Growth = Growth(Stage.TEEN, Stage.TEEN, careDays = 0, ready = false, sinceDay = today)
+    fun grownUp(today: Int): Growth = Growth(Stage.TEEN, Stage.TEEN, xp = 0, ready = false, sinceDay = today)
 
     private fun has(s: NurseryState, kind: String) = (s.seen[kind] ?: 0) > 0
 
@@ -65,46 +117,34 @@ object GrowthRules {
     fun ready(s: NurseryState): Boolean = s.active?.let { s.growth[it] }?.let { it.ready && it.reached.next != null } == true
 
     /**
-     * Moves growth to [nowMs]. On a new game day the care of the last tracked day is counted for the active pet (a fed,
-     * never sick teen gets a care day) and a fresh day starts; babies hatched on an earlier day become ready. A clock
-     * turned back changes nothing.
+     * The active pet (on the matrix, not away for an egg) gains [amount], already multiplied, toward its next stage;
+     * reaching the threshold makes it [Growth.ready]. A ready pet or an adult gains nothing more. Returns the new state
+     * and what was really gained.
      */
-    fun advance(s: NurseryState, nowMs: Long): NurseryState {
-        val today = EggRules.dayKey(nowMs)
-        var growth = s.growth
-        var care = s.care
-        if (today > care.day) {
-            val active = s.active
-            val g = active?.let { growth[it] }
-            if (care.day != 0 && g != null && care.fed && !care.sick && g.reached == Stage.TEEN && !g.ready) {
-                val days = g.careDays + 1
-                growth = growth + (active to g.copy(careDays = days, ready = days >= TEEN_CARE_DAYS))
-            }
-            care = CareDay(today)
-        }
-        if (growth.values.any { it.reached == Stage.BABY && !it.ready && today > it.sinceDay }) {
-            growth = growth.mapValues { (_, g) -> if (g.reached == Stage.BABY && today > g.sinceDay) g.copy(ready = true) else g }
-        }
-        return if (growth == s.growth && care == s.care) s else s.copy(growth = growth, care = care)
+    fun gain(s: NurseryState, amount: Int): Pair<NurseryState, Int> {
+        if (amount <= 0) return s to 0
+        val kind = s.active ?: return s to 0
+        if (NurseryRules.onMatrix(s) != null) return s to 0
+        val g = of(s, kind) ?: return s to 0
+        val need = g.threshold ?: return s to 0
+        if (g.ready) return s to 0
+        val xp = (g.xp + amount).coerceAtMost(need)
+        return s.copy(growth = s.growth + (kind to g.copy(xp = xp, ready = xp >= need))) to (xp - g.xp)
     }
 
-    /** The active pet accepted a meal today. */
-    fun markFed(s: NurseryState, nowMs: Long): NurseryState = mark(s, nowMs) { it.copy(fed = true) }
-
-    /** The active pet was seen sick today: the day does not count. */
-    fun markSick(s: NurseryState, nowMs: Long): NurseryState = mark(s, nowMs) { it.copy(sick = true) }
-
-    /** Marks today's care, after rolling the day over if a new one began. A clock turned back marks nothing. */
-    private fun mark(s: NurseryState, nowMs: Long, change: (CareDay) -> CareDay): NurseryState {
-        val now = advance(s, nowMs)
-        if (now.active == null || now.care.day != EggRules.dayKey(nowMs)) return now
-        val marked = change(now.care)
-        return if (marked == now.care) now else now.copy(care = marked)
+    /**
+     * Minutes together, moved to [nowMs]: whole minutes since the last count, each worth [perMinute] when [gains]
+     * (the pet on the matrix, awake, fed and well). A gap longer than [XpRules.MAX_GAP_MS], or a clock turned back,
+     * starts counting afresh. Returns the new state and the experience gained.
+     */
+    fun together(s: NurseryState, nowMs: Long, gains: Boolean, perMinute: Int): Pair<NurseryState, Int> {
+        val since = nowMs - s.xpAtMs
+        if (s.xpAtMs <= 0 || since < 0 || since > XpRules.MAX_GAP_MS) return s.copy(xpAtMs = nowMs) to 0
+        val minutes = (since / XpRules.MINUTE_MS).toInt()
+        if (minutes <= 0) return s to 0
+        val moved = s.copy(xpAtMs = s.xpAtMs + minutes * XpRules.MINUTE_MS)
+        return if (gains) gain(moved, minutes * perMinute) else moved to 0
     }
-
-    /** Another pet goes on the matrix: today's care starts over for it. */
-    internal fun switched(s: NurseryState, active: String?): NurseryState =
-        if (active == s.active) s else s.copy(care = CareDay(s.care.day))
 
     /**
      * [kind] grows into its next stage and is shown in it, if it is [Growth.ready]; otherwise nothing changes. Marks
@@ -114,7 +154,7 @@ object GrowthRules {
         val g = s.growth[kind] ?: return s
         val next = g.reached.next ?: return s
         if (!g.ready) return s
-        val grown = Growth(next, next, careDays = 0, ready = false, sinceDay = EggRules.dayKey(nowMs))
+        val grown = Growth(next, next, xp = 0, ready = false, sinceDay = EggRules.dayKey(nowMs))
         return s.copy(growth = s.growth + (kind to grown), evolvedAtMs = nowMs, evolvedId = SpeciesForms.id(kind, next))
     }
 
@@ -138,8 +178,9 @@ object GrowthRules {
     /** Debug builds: [kind] may grow right now. */
     fun makeReady(s: NurseryState, kind: String): NurseryState {
         val g = of(s, kind) ?: return s
-        if (g.reached.next == null || g.ready) return s
-        return s.copy(growth = s.growth + (kind to g.copy(ready = true)))
+        val need = g.threshold ?: return s
+        if (g.ready) return s
+        return s.copy(growth = s.growth + (kind to g.copy(xp = need, ready = true)))
     }
 
     /** The form a pet just grew into, for a few seconds after it did. */

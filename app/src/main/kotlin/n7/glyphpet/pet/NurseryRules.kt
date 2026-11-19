@@ -23,8 +23,8 @@ data class NurseryState(
     val hatchedId: String? = null,
     /** How far each collected hero has grown, by kind; see [GrowthRules]. */
     val growth: Map<String, Growth> = emptyMap(),
-    /** Today's care of the active pet, counted toward growing at the next game day. */
-    val care: CareDay = CareDay(),
+    /** When the minutes together ([GrowthRules.together]) were last counted; 0: not yet. */
+    val xpAtMs: Long = 0,
     /** When a pet last grew, and the id of the form it grew into ([SpeciesForms.id]). */
     val evolvedAtMs: Long = 0,
     val evolvedId: String? = null,
@@ -82,11 +82,11 @@ object NurseryRules {
     fun presses(s: NurseryState, id: String): Int = s.presses[id] ?: 0
 
     /**
-     * Rolls growth over to the current game day ([GrowthRules.advance]) and gives today's hero, once per game day. A
+     * Gives today's hero, once per game day. A
      * clock turned back gives nothing again.
      */
     fun advance(before: NurseryState, nowMs: Long, random: Random): NurseryState {
-        val state = GrowthRules.advance(before, nowMs)
+        val state = before
         val today = EggRules.dayKey(nowMs)
         if (today <= state.grantDay) return state
         val pool = missing(state).filter { it.id !in state.eggs }
@@ -104,7 +104,7 @@ object NurseryRules {
         val egg = onMatrix(s) ?: return null
         val n = presses(s, egg) + 1
         if (n < EggRules.PRESSES_TO_HATCH) return s.copy(presses = s.presses + (egg to n))
-        return GrowthRules.switched(s, egg).copy(
+        return s.copy(
             eggs = s.eggs - egg,
             presses = s.presses - egg,
             onMatrix = null,
@@ -125,7 +125,7 @@ object NurseryRules {
 
     /** Only collected pets can live on the matrix. */
     fun setActive(s: NurseryState, speciesId: String): NurseryState =
-        if (has(s, speciesId)) GrowthRules.switched(s, speciesId).copy(active = speciesId) else s
+        if (has(s, speciesId)) s.copy(active = speciesId) else s
 
     fun justHatched(s: NurseryState, nowMs: Long): Species? =
         if (nowMs - s.hatchedAtMs in 0..JUST_HATCHED_MS) SpeciesCatalog.get(s.hatchedId) else null

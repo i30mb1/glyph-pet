@@ -100,6 +100,10 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         /** Events kept for the toy to feel ([haptics]); more than this between two drains and the newest are dropped. */
         private const val MAX_HAPTICS = 16
 
+        /** The spark of gained experience ([spark]): how long it rises above the pet, and how many rows. */
+        const val SPARK_MS = 600L
+        private const val SPARK_RISE = 3
+
         /** How far the phone leans sideways (about 11 degrees) before the pet slides or crawls that way. */
         const val SLIDE_TILT = 0.2f
 
@@ -232,6 +236,9 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
     private var trick: Signature? = null
     private var trickMs = -1L
 
+    /** How long the trick has really played: [stopTrick] skips [trickMs] ahead, this does not. */
+    private var trickPlayedMs = 0L
+
     /**
      * A full pet was asked to eat: it shows its trick instead, if its kind has one. Returns false (nothing started)
      * for a kind without a trick, so the caller can fall back to the refusal. Waits for an animation that plays.
@@ -241,6 +248,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         react {
             trick = Tricks.of(kind)?.also { it.start() }
             trickMs = 0
+            trickPlayedMs = 0
             ball.clear()
             ballAsked = false
             hopMs = -1
@@ -311,6 +319,8 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
             signatureMs += dtMs
             // Once started it plays to the end: only a drop or falling asleep stops it (tilting is part of most effects).
             if (!asleep && action == Action.NONE && signatureMs < sig.durationMs) return true
+            // Watched to the end: it ran its whole length.
+            if (signatureMs >= sig.durationMs) report(PetEvent(PetEvent.Kind.SIGNATURE, sig.durationMs))
             signatureMs = -1
             signatureInMs = nextSignatureIn()
             return false
@@ -339,6 +349,28 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
     var haptics: MutableList<HapticEvent>? = null
 
     private val feel: (HapticEvent) -> Unit = { e -> haptics?.let { if (it.size < MAX_HAPTICS) it.add(e) } }
+
+    /**
+     * What the pet finished for the toy to count as experience: a signature played to its end, a trick and how long it
+     * played. Null, the default, collects nothing: the app's preview earns nothing.
+     */
+    var events: MutableList<PetEvent>? = null
+
+    private fun report(e: PetEvent) {
+        events?.let { if (it.size < MAX_HAPTICS) it.add(e) }
+    }
+
+    /** A spark is waiting to rise above the pet ([spark]); [sparkMs] >= 0 while it does. */
+    private var sparkAsked = false
+    private var sparkMs = -1L
+
+    /**
+     * The pet gained experience from something the owner did: a small bright spark rises above it for [SPARK_MS].
+     * It waits for a moment or a trick (or a signature) to end and shows in the plain pet frame only.
+     */
+    fun spark() {
+        sparkAsked = true
+    }
 
     /** What the last [tick] showed. */
     var shown: Shown = Shown(null)
@@ -519,6 +551,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         val tr = trick
         if (tr != null && trickMs >= 0) {
             trickMs += dtMs
+            trickPlayedMs += dtMs
             // Only a drop or falling asleep cuts a trick short; the owner is playing along with it.
             if (!asleep && action == Action.NONE && trickMs < tr.durationMs) {
                 val face = face(scene.mood, asleep, false)
@@ -527,6 +560,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
                 shown = Shown(face, dx = x.roundToInt())
                 return frame
             }
+            report(PetEvent(PetEvent.Kind.TRICK, trickPlayedMs))
             trick = null
             trickMs = -1
         }
@@ -625,6 +659,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         foodY?.let { fy -> SpeciesRenderer.glyph(frame, listOf("oo", "oo"), species.ox + dx + species.width / 2 - 1, fy.toInt()) }
         if (action == Action.SURGE) surgeGlow(frame)
         if (scene.ready && action != Action.SURGE) readySparkle(frame, species, dx, lift)
+        xpSpark(frame, dtMs, species, dx, lift)
         ball.draw(frame, scene.tilt, scene.tiltY, cover)
         // Rain for a sad pet, a calm snow for a sleeper (the charger returns earlier, so never there); drawn behind
         // everything lit so far.
@@ -637,6 +672,27 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
         shown = Shown(face, habit = own != null, lift = lift, step = own, dx = dx)
         return frame
+    }
+
+    /** The spark of gained experience: a bright dot with a dim tail rising [SPARK_RISE] rows above the pet's head. */
+    private fun xpSpark(frame: IntArray, dtMs: Long, species: Species, dx: Int, lift: Int) {
+        if (sparkMs < 0) {
+            if (!sparkAsked) return
+            sparkAsked = false
+            sparkMs = 0
+        } else {
+            sparkMs += dtMs
+        }
+        if (sparkMs >= SPARK_MS) { sparkMs = -1; return }
+        val cx = species.ox + dx + (species.width - 1) / 2
+        val y = species.oy - lift - 2 - (SPARK_RISE * sparkMs / SPARK_MS).toInt()
+        fun lit(px: Int, py: Int, v: Int) {
+            if (px in 0 until SIZE && py in 0 until SIZE) frame[py * SIZE + px] = maxOf(frame[py * SIZE + px], v)
+        }
+        lit(cx, y, BRIGHT)
+        lit(cx, y + 1, BRIGHT / 3)
+        // A twinkle in the middle of the rise.
+        if (sparkMs in SPARK_MS / 3..SPARK_MS * 2 / 3) { lit(cx - 1, y, BRIGHT / 2); lit(cx + 1, y, BRIGHT / 2) }
     }
 
     /** A shake toward growing: everything lit flares up to full brightness and fades back over [SURGE_MS]. */

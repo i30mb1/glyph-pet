@@ -20,6 +20,13 @@ data class PetStats(
     }
 }
 
+/** How a need (0..100) shows as LED dots, in the app's needs meters and in the growth rules alike: 0..[MAX]. */
+object NeedDots {
+    const val MAX = 5
+
+    fun of(value: Float): Int = ((value + 10f) / 20f).toInt().coerceIn(0, MAX)
+}
+
 /** How the pet feels, most urgent first: see [PetRules.mood]. Never saved, always worked out from the needs. */
 enum class Mood { SLEEPING, SICK, HUNGRY, TIRED, SAD, HAPPY, CONTENT }
 

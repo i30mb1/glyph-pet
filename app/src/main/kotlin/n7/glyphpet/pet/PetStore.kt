@@ -64,6 +64,9 @@ data class Nursery(
     val eggView: EggView? get() = eggOnMatrix?.let { EggView(EggRules.stage(pressesOf(it.id)), supporter, it.rarity) }
 }
 
+/** What a meal did: whether the pet [ate] it, and the experience it brought. */
+data class FeedResult(val ate: Boolean, val xp: Int)
+
 /**
  * The one save, shared by the app screen and the Glyph Toy service. Every change reads the latest
  * saved state, moves it to now with [PetRules] and [NurseryRules], applies the change and saves,
@@ -104,9 +107,7 @@ class PetStore(context: Context) {
     fun nursery(nowMs: Long = GameClock.now()): Nursery {
         val stats = PetRules.advance(loadStats(nowMs), nowMs, isCharging())
         saveStats(stats)
-        var state = NurseryRules.advance(loadState(nowMs), nowMs, Random(nowMs))
-        // A sick pet is sick asleep too: the day does not count toward growing.
-        if (PetRules.mood(stats, asleep = false) == Mood.SICK) state = GrowthRules.markSick(state, nowMs)
+        val state = NurseryRules.advance(loadState(nowMs), nowMs, Random(nowMs))
         saveState(state)
         return Nursery(
             stats = stats,
@@ -131,14 +132,49 @@ class PetStore(context: Context) {
         return stats
     }
 
-    /** Feeds the active pet; false when it was full and refused. A meal it ate counts toward today's care. */
+    /**
+     * Feeds the active pet; [FeedResult.ate] is false when it was full and refused. A meal eaten while food showed
+     * [XpRules.FEED_MAX_DOTS] dots or fewer is worth [XpRules.FEED] experience (see [gain]).
+     */
     @Synchronized
-    fun feed(nowMs: Long = GameClock.now()): Boolean {
+    fun feed(nowMs: Long = GameClock.now()): FeedResult {
         var ate = false
-        update(nowMs) { stats -> PetRules.feed(stats).also { ate = it.second }.first }
-        if (ate) saveState(GrowthRules.markFed(NurseryRules.advance(loadState(nowMs), nowMs, Random(nowMs)), nowMs))
-        return ate
+        var low = false
+        update(nowMs) { stats ->
+            low = NeedDots.of(stats.satiety) <= XpRules.FEED_MAX_DOTS
+            PetRules.feed(stats).also { ate = it.second }.first
+        }
+        val xp = if (ate && low) gain(XpRules.FEED, nowMs) else 0
+        return FeedResult(ate, xp)
     }
+
+    /**
+     * The active pet earns [base] experience, if it gains now (awake, neither hungry nor sick, see [XpRules.gains]),
+     * times [XpRules.FULL_MULTIPLIER] while all its needs are full. Returns what it really gained; never throws.
+     */
+    @Synchronized
+    fun gain(base: Int, nowMs: Long = GameClock.now()): Int = runCatching {
+        val stats = update(nowMs)
+        if (!XpRules.gains(stats, asleep(stats, nowMs))) return@runCatching 0
+        val (after, gained) = GrowthRules.gain(NurseryRules.advance(loadState(nowMs), nowMs, Random(nowMs)), XpRules.multiplied(base, stats))
+        if (gained > 0) saveState(after)
+        gained
+    }.getOrDefault(0)
+
+    /**
+     * The toy reports that the pet is on the matrix now ([seen]: lit, not away for an egg, nobody turned it dark):
+     * the whole minutes since the last report count as time together ([GrowthRules.together]). Returns the experience
+     * gained; never throws.
+     */
+    @Synchronized
+    fun together(seen: Boolean, nowMs: Long = GameClock.now()): Int = runCatching {
+        val stats = update(nowMs)
+        val gains = seen && XpRules.gains(stats, asleep(stats, nowMs))
+        val before = loadState(nowMs)
+        val (after, gained) = GrowthRules.together(before, nowMs, gains, XpRules.multiplied(XpRules.PER_MINUTE, stats))
+        if (after != before) saveState(after)
+        gained
+    }.getOrDefault(0)
 
     /** A shake while the active pet is ready to grow: counts it, the last one grows the pet (see [GrowthRules.shake]). */
     @Synchronized
@@ -154,12 +190,10 @@ class PetStore(context: Context) {
         saveState(GrowthRules.setShown(loadState(nowMs), kind, stage))
     }
 
-    /** Debug builds: the active pet may grow right now. */
+    /** Debug builds: the active pet gets [amount] experience at once, whatever its needs. */
     @Synchronized
-    fun makeReady(nowMs: Long = GameClock.now()) {
-        val s = loadState(nowMs)
-        val active = s.active ?: return
-        saveState(GrowthRules.makeReady(s, active))
+    fun debugXp(amount: Int, nowMs: Long = GameClock.now()) {
+        saveState(GrowthRules.gain(loadState(nowMs), amount).first)
     }
 
     /**
@@ -171,7 +205,7 @@ class PetStore(context: Context) {
         val s = loadState(nowMs)
         val today = EggRules.dayKey(nowMs)
         val growth = SpeciesCatalog.all.associate { hero ->
-            hero.id to (s.growth[hero.id]?.copy(reached = Stage.ADULT, ready = false, evolvePresses = 0)
+            hero.id to (s.growth[hero.id]?.copy(reached = Stage.ADULT, xp = 0, ready = false, evolvePresses = 0)
                 ?: Growth(Stage.ADULT, Stage.ADULT, 0, false, today))
         }
         val open = s.copy(
@@ -280,12 +314,9 @@ class PetStore(context: Context) {
                 grantDay = prefs.getInt(KEY_GRANT_DAY, 0),
                 hatchedAtMs = prefs.getLong(KEY_HATCHED_AT, 0),
                 hatchedId = prefs.getString(KEY_HATCHED_ID, null),
-                growth = prefs.getString(KEY_GROWTH, null).orEmpty().split(',').mapNotNull(::parseGrowth).toMap(),
-                care = CareDay(
-                    day = prefs.getInt(KEY_CARE_DAY, 0),
-                    fed = prefs.getBoolean(KEY_CARE_FED, false),
-                    sick = prefs.getBoolean(KEY_CARE_SICK, false),
-                ),
+                growth = prefs.getString(KEY_GROWTH, null).orEmpty().split(',')
+                    .mapNotNull { parseGrowth(it, careDays = version < VERSION_XP) }.toMap(),
+                xpAtMs = prefs.getLong(KEY_XP_AT, 0),
                 evolvedAtMs = prefs.getLong(KEY_EVOLVED_AT, 0),
                 evolvedId = prefs.getString(KEY_EVOLVED_ID, null),
             )
@@ -328,27 +359,30 @@ class PetStore(context: Context) {
         if (s.onMatrix != null) e.putString(KEY_ON_MATRIX, s.onMatrix) else e.remove(KEY_ON_MATRIX)
         if (s.hatchedId != null) e.putString(KEY_HATCHED_ID, s.hatchedId)
         e.putString(KEY_GROWTH, s.growth.entries.joinToString(",") { (kind, g) -> formatGrowth(kind, g) })
-            .putInt(KEY_CARE_DAY, s.care.day)
-            .putBoolean(KEY_CARE_FED, s.care.fed)
-            .putBoolean(KEY_CARE_SICK, s.care.sick)
+            .putLong(KEY_XP_AT, s.xpAtMs)
             .putLong(KEY_EVOLVED_AT, s.evolvedAtMs)
         if (s.evolvedId != null) e.putString(KEY_EVOLVED_ID, s.evolvedId)
         e.apply()
     }
 
-    /** One hero's growth as "kind:reached:shown:careDays:ready:sinceDay:evolvePresses", e.g. "cat:TEEN:BABY:2:0:20261118:0". */
+    /** One hero's growth as "kind:reached:shown:xp:ready:sinceDay:evolvePresses", e.g. "cat:TEEN:BABY:180:0:20261118:0". */
     private fun formatGrowth(kind: String, g: Growth): String =
-        listOf(kind, g.reached.name, g.shown.name, g.careDays, if (g.ready) 1 else 0, g.sinceDay, g.evolvePresses).joinToString(":")
+        listOf(kind, g.reached.name, g.shown.name, g.xp, if (g.ready) 1 else 0, g.sinceDay, g.evolvePresses).joinToString(":")
 
-    /** The reverse of [formatGrowth]; null for an entry it cannot read, which then counts as never saved. */
-    private fun parseGrowth(entry: String): Pair<String, Growth>? {
+    /**
+     * The reverse of [formatGrowth]; null for an entry it cannot read, which then counts as never saved. A save from
+     * before experience ([careDays]) holds care days in the fourth field: they become experience ([XpRules.fromCareDays]).
+     */
+    private fun parseGrowth(entry: String, careDays: Boolean): Pair<String, Growth>? {
         val p = entry.split(':').takeIf { it.size == 7 } ?: return null
         val reached = Stage.entries.firstOrNull { it.name == p[1] } ?: return null
         val shown = Stage.entries.firstOrNull { it.name == p[2] }?.takeIf { it <= reached } ?: reached
+        val n = (p[3].toIntOrNull() ?: 0).coerceAtLeast(0)
+        val need = XpRules.threshold(reached) ?: 0
         return p[0] to Growth(
             reached = reached,
             shown = shown,
-            careDays = p[3].toIntOrNull() ?: 0,
+            xp = (if (careDays) XpRules.fromCareDays(reached, n) else n).coerceAtMost(need),
             ready = p[4] == "1",
             sinceDay = p[5].toIntOrNull() ?: 0,
             evolvePresses = p[6].toIntOrNull() ?: 0,
@@ -359,8 +393,12 @@ class PetStore(context: Context) {
         /** 1.2: eggs opened by presses. Saves without this key are from 1.1 (or new). */
         const val VERSION_EGGS = 2
 
-        /** Growth stages ([KEY_GROWTH] and the care of the day). A version 2 save has none: its heroes become teens. */
-        const val VERSION = 3
+        /**
+         * Growth by experience. Version 3 brought growth stages ([KEY_GROWTH]; a version 2 save has none, its heroes
+         * become teens) and holds care days where experience is now.
+         */
+        const val VERSION_XP = 4
+        const val VERSION = VERSION_XP
         const val KEY_VERSION = "save_version"
 
         const val KEY_SATIETY = "satiety"
@@ -383,9 +421,7 @@ class PetStore(context: Context) {
         const val KEY_HIDE_UNSEEN = "hide_unseen"
         const val KEY_VIBRATION = "vibration"
         const val KEY_GROWTH = "growth"
-        const val KEY_CARE_DAY = "care_day"
-        const val KEY_CARE_FED = "care_fed"
-        const val KEY_CARE_SICK = "care_sick"
+        const val KEY_XP_AT = "xp_at"
         const val KEY_EVOLVED_AT = "evolved_at"
         const val KEY_EVOLVED_ID = "evolved_id"
 
@@ -397,6 +433,8 @@ class PetStore(context: Context) {
             KEY_OLD_EGG_DAY, "egg_day_count", "ever_laid", "last_warm_at", "instant_day",
             // Before eggs were put on the matrix: the egg in the hands, which sat in the corner beside the pet.
             "egg_selected",
+            // Before growth by experience: the care of the day.
+            "care_day", "care_fed", "care_sick",
         )
 
         /** Any of these means 1.1 ran and saved its nursery. */

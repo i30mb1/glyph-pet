@@ -185,23 +185,18 @@
     <string name="form_on_matrix">На матрице</string>
     <string name="form_ready">Готов</string>
     <string name="form_shake">потряси телефон 3 раза</string>
-    <string name="form_tomorrow">завтра утром</string>
-    <string name="form_care_dots">дни заботы</string>
-    <plurals name="form_care_days">
-        <item quantity="one">заботься о нём %d день</item>
-        <item quantity="few">заботься о нём %d дня</item>
-        <item quantity="many">заботься о нём %d дней</item>
-        <item quantity="other">заботься о нём %d дня</item>
-    </plurals>
+    <string name="form_xp_left">ещё %1$d XP</string>
+    <string name="xp_progress">%1$s · %2$d/%3$d</string>
+    <string name="xp_max">%1$s · макс.</string>
+    <string name="xp_how_title">Как растить</string>
+    <string name="xp_how_time">Вместе на матрице, не спит: +%1$d в минуту</string>
+    <string name="xp_how_feed">Покорми, когда еды %1$d точки или меньше: +%2$d</string>
+    <string name="xp_how_ball">Новая игра в мяч (покачай телефон): +%1$d, раз в %2$d с</string>
+    <string name="xp_how_trick">Трюк (зажми кнопку, когда сыт): +%1$d за %2$d с, до +%3$d</string>
+    <string name="xp_how_signature">Фишка, досмотренная до конца: +%1$d</string>
+    <string name="xp_how_bonus">Все три шкалы полные: ×%1$d. Голодный, больной или спит: ничего</string>
     <string name="grow_ready">Готов расти: потряси телефон 3 раза</string>
     <string name="grow_ready_pick">Готов расти: положи его на матрицу и потряси телефон 3 раза</string>
-    <string name="grow_tomorrow">Вырастет завтра утром</string>
-    <plurals name="grow_care_days">
-        <item quantity="one">Вырастет через %d день заботы</item>
-        <item quantity="few">Вырастет через %d дня заботы</item>
-        <item quantity="many">Вырастет через %d дней заботы</item>
-        <item quantity="other">Вырастет через %d дня заботы</item>
-    </plurals>
     <!-- Signature effects: the states card's page and the collection tiles. -->
     <string name="state_signature">Фишка</string>
     <string name="state_signature_when">%1$s. Раз в 10–20 секунд, когда питомец спокоен</string>

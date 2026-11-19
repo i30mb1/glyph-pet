@@ -45,5 +45,13 @@ enum class HapticKind {
     PLAY,
 }
 
+/**
+ * Something the pet finished on the matrix that the toy turns into experience ([XpRules]), collected like the haptics:
+ * a [SIGNATURE] played to its end, or a [TRICK] that played for [ms].
+ */
+data class PetEvent(val kind: Kind, val ms: Long = 0) {
+    enum class Kind { SIGNATURE, TRICK }
+}
+
 /** One thing to feel: [kind], and how strong within it (0..1). */
 data class HapticEvent(val kind: HapticKind, val strength: Float = 1f)

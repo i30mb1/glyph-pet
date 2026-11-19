@@ -106,7 +106,8 @@ import n7.glyphpet.pet.EggStage
 import n7.glyphpet.pet.EggView
 import n7.glyphpet.pet.Face
 import n7.glyphpet.pet.Growth
-import n7.glyphpet.pet.GrowthRules
+import n7.glyphpet.pet.NeedDots
+import n7.glyphpet.pet.XpRules
 import n7.glyphpet.pet.Mood
 import n7.glyphpet.pet.Nursery
 import n7.glyphpet.pet.PetEngine
@@ -179,6 +180,7 @@ class MainActivity : ComponentActivity() {
 private const val UI_PREFS = "ui"
 private const val KEY_INTRO_SEEN = "intro_seen"
 private const val KEY_TOY_OPENED = "toy_opened"
+private const val KEY_XP_HOW_OPEN = "xp_how_open"
 
 @Composable
 private fun Root(
@@ -415,7 +417,7 @@ private fun PetScreen(
                                     engine.stopTrick()
                                     return@combinedClickable
                                 }
-                                val accepted = store.feed()
+                                val accepted = store.feed().ate
                                 val kind = nursery.activeForm?.kind
                                 if (!accepted && kind != null && engine.trick(kind)) {
                                     store.update { it.copy(joy = (it.joy + n7.glyphpet.pet.Tricks.JOY).coerceIn(0f, 100f)) }
@@ -499,6 +501,8 @@ private fun PetScreen(
                         N7ButtonVariant.Secondary,
                     )
                 }
+                // Debug builds only: the active pet gets experience at once, to try growing.
+                N7Button("XP +100", { store.debugXp(100); refresh() }, Modifier.fillMaxWidth(), N7ButtonVariant.Secondary)
                 // Debug builds only: depth experiments on the Glyph toy (n7.glyphpet.lab).
                 n7.glyphpet.lab.LabPanel()
             }
@@ -551,23 +555,25 @@ private fun NowCard(nursery: Nursery, mood: Mood, action: ButtonAction, onPutOnM
             }
             Text(headline, style = N7Type.Title, color = N7Colors.Ink)
 
-            // 2. One line: the egg's presses, that shakes grow the pet, or what comes next. Feeding and playing are
-            // explained by the needs card.
-            if (egg != null || growing || pet == null) {
+            // 2. The egg's presses and what the button does; or the pet's experience, that shakes grow it, and how to
+            // grow it. Feeding and playing are explained by the needs card.
+            val growth = nursery.activeGrowth
+            if (egg != null || pet == null || growth == null) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (egg != null) Dots(lit = presses, count = EggRules.PRESSES_TO_HATCH, dot = 6.dp, gap = 3.dp)
                     Text(
-                        if (growing) {
-                            stringResource(R.string.grow_ready)
-                        } else {
-                            stringResource(R.string.button_now, stringResource(buttonLine(action, EggRules.PRESSES_TO_HATCH - presses)))
-                        },
+                        stringResource(R.string.button_now, stringResource(buttonLine(action, EggRules.PRESSES_TO_HATCH - presses))),
                         style = N7Type.Caption,
-                        color = if (growing) N7Colors.Ink else N7Colors.InkMuted,
+                        color = N7Colors.InkMuted,
                     )
                 }
             } else {
-                NextLine(nursery)
+                XpBar(pet.id, growth)
+                when {
+                    growing -> Text(stringResource(R.string.grow_ready), style = N7Type.Caption, color = N7Colors.Ink)
+                    growth.threshold == null -> NextLine(nursery)
+                }
+                if (growth.threshold != null) HowToGrow()
             }
 
             EggOnMatrixAction(nursery, onPutOnMatrix)
@@ -575,27 +581,81 @@ private fun NowCard(nursery: Nursery, mood: Mood, action: ButtonAction, onPutOnM
     }
 }
 
-/** A small line: when the active pet grows (care days as dots for a teen), or, for an adult, when the next egg comes. */
+/** A small line for a grown-up pet: when the next egg comes. */
 @Composable
 private fun NextLine(nursery: Nursery) {
-    val g = nursery.activeGrowth
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        val text = when (g?.reached) {
-            Stage.BABY -> stringResource(R.string.grow_tomorrow)
-            Stage.TEEN -> {
-                Dots(lit = g.careDays, count = GrowthRules.TEEN_CARE_DAYS, dot = 6.dp, gap = 3.dp)
-                val left = (GrowthRules.TEEN_CARE_DAYS - g.careDays).coerceAtLeast(1)
-                pluralStringResource(R.plurals.grow_care_days, left, left)
-            }
-            else -> stringResource(
-                when {
-                    nursery.collection.values.all { it > 0 } -> R.string.next_complete
-                    nursery.supporter -> R.string.next_supporter
-                    else -> R.string.next_egg_tomorrow
-                },
-            )
+    val text = stringResource(
+        when {
+            nursery.collection.values.all { it > 0 } -> R.string.next_complete
+            nursery.supporter -> R.string.next_supporter
+            else -> R.string.next_egg_tomorrow
+        },
+    )
+    Text(text, style = N7Type.Caption, color = N7Colors.InkSubtle)
+}
+
+/**
+ * The experience of [growth] (hero [kind]) as ten LED dots and "Teen · 180/300" ("max" for an adult). When it rises
+ * while the screen is open, a "+N" shows beside it for a moment.
+ */
+@Composable
+private fun XpBar(kind: String, growth: Growth) {
+    val need = growth.threshold
+    val xp = growth.xp
+    var last by remember(kind, growth.reached) { mutableStateOf(xp) }
+    var plus by remember(kind, growth.reached) { mutableStateOf(0) }
+    LaunchedEffect(kind, growth.reached, xp) {
+        val rise = xp - last
+        last = xp
+        if (rise > 0) {
+            plus += rise
+            delay(XP_PLUS_MS)
+            plus = 0
         }
-        Text(text, style = N7Type.Caption, color = N7Colors.InkSubtle)
+    }
+    val stage = stringResource(stageName(growth.reached))
+    val text = if (need != null) stringResource(R.string.xp_progress, stage, xp, need) else stringResource(R.string.xp_max, stage)
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Dots(lit = if (need != null) (xp * 10 / need).coerceIn(0, 10) else 10, count = 10, dot = 6.dp, gap = 3.dp)
+        Text(text, style = N7Type.Caption, color = N7Colors.InkMuted, maxLines = 1)
+        if (plus > 0) Text("+$plus", style = N7Type.Caption, color = N7Colors.Ink, maxLines = 1)
+    }
+}
+
+private const val XP_PLUS_MS = 2000L
+
+/** How to grow a pet, in five short lines and the bonus, with the numbers of [XpRules]; folds away with a tap. */
+@Composable
+private fun HowToGrow() {
+    val context = LocalContext.current
+    val ui = remember { context.getSharedPreferences(UI_PREFS, Context.MODE_PRIVATE) }
+    var open by remember { mutableStateOf(ui.getBoolean(KEY_XP_HOW_OPEN, true)) }
+    val state = stringResource(if (open) R.string.section_open else R.string.section_closed)
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(
+            Modifier
+                .clickable(role = Role.Button) {
+                    open = !open
+                    ui.edit().putBoolean(KEY_XP_HOW_OPEN, open).apply()
+                }
+                .semantics(mergeDescendants = true) { stateDescription = state }
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(stringResource(R.string.xp_how_title).uppercase(), style = N7Type.Label, color = N7Colors.InkSubtle)
+            Text("›", style = N7Type.Caption, color = N7Colors.InkSubtle, modifier = Modifier.rotate(if (open) 90f else 0f))
+        }
+        if (open) {
+            listOf(
+                stringResource(R.string.xp_how_time, XpRules.PER_MINUTE),
+                stringResource(R.string.xp_how_feed, XpRules.FEED_MAX_DOTS, XpRules.FEED),
+                stringResource(R.string.xp_how_ball, XpRules.BALL, XpRules.BALL_COOLDOWN_MS / 1000),
+                stringResource(R.string.xp_how_trick, XpRules.TRICK_PER, XpRules.TRICK_EVERY_MS / 1000, XpRules.TRICK_MAX),
+                stringResource(R.string.xp_how_signature, XpRules.SIGNATURE),
+                stringResource(R.string.xp_how_bonus, XpRules.FULL_MULTIPLIER),
+            ).forEach { Text("· $it", style = N7Type.Caption, color = N7Colors.InkMuted) }
+        }
     }
 }
 
@@ -655,6 +715,8 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
             s.id to PetEngine.toCells(frame)
         }
     }
+    // The hero tapped last: a small strip under its row shows how far it has grown.
+    var selected by rememberSaveable { mutableStateOf<String?>(null) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             SectionLabel(stringResource(R.string.collection_title, found, SpeciesCatalog.all.size), Modifier.weight(1f))
@@ -679,6 +741,8 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
                             cells = cells,
                             shadows = shadows,
                             onShow = { onShow(s.id, it) },
+                            onSelect = { selected = if (selected == s.id) null else s.id },
+                            selected = selected == s.id,
                             modifier = Modifier.weight(1f),
                         )
                         return@forEach
@@ -717,6 +781,9 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
                 }
                 repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
             }
+            row.firstOrNull { it.id == selected }?.let { hero ->
+                nursery.growth[hero.id]?.let { HeroGrowth(hero, it, active = nursery.active?.id == hero.id && nursery.eggOnMatrix == null) }
+            }
           }
         }
     }
@@ -726,6 +793,29 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
  * The header of a status group in the collection: as many LED dots as the status is high (one for common, four for
  * mythic), its name and how many of its heroes are collected.
  */
+/** The strip under a tapped hero: its name, its experience bar and, when it is ready, how to grow it. */
+@Composable
+private fun HeroGrowth(hero: Species, growth: Growth, active: Boolean) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(N7Colors.SurfaceRaised)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(hero.name.uppercase(), style = N7Type.Label, color = N7Colors.Ink, maxLines = 1)
+        XpBar(hero.id, growth)
+        if (growth.ready && growth.reached.next != null) {
+            Text(
+                stringResource(if (active) R.string.grow_ready else R.string.grow_ready_pick),
+                style = N7Type.Caption,
+                color = N7Colors.Ink,
+            )
+        }
+    }
+}
+
 @Composable
 private fun RarityHeader(rarity: Rarity, found: Int, total: Int) {
     Row(
@@ -762,27 +852,29 @@ private fun HeroTile(
     cells: Map<String, List<Cell>>,
     shadows: Map<String, List<Cell>>,
     onShow: (Stage) -> Unit,
+    onSelect: () -> Unit,
+    selected: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val forms = SpeciesForms.all(hero.id)
     val pager = rememberPagerState(initialPage = growth.shown.ordinal) { forms.size }
     val ready = growth.ready && growth.reached.next != null
     val onMatrix = stringResource(R.string.form_on_matrix)
-    val tomorrow = stringResource(R.string.form_tomorrow)
     // Only the pet on the matrix feels the shakes: its next form says how to grow it.
     val readyLine = stringResource(if (active) R.string.form_shake else R.string.form_ready)
     val rarity = stringResource(rarityName(hero.rarity))
     // A reached form names the kind's signature effect; the status is the group the tile sits in ([RarityHeader]).
     val signature = SignatureNames.name(hero.kind)?.takeIf { Signatures.has(hero.kind) }?.let { stringResource(it) }
     val reachedLines = if (signature != null) listOf(signature) else listOf(rarity)
-    val careLeft = GrowthRules.TEEN_CARE_DAYS - if (growth.reached == Stage.TEEN) growth.careDays else 0
-    val careLine = pluralStringResource(R.plurals.form_care_days, careLeft, careLeft)
+    // A form not reached yet: the experience still to gather to reach it, the stages between counted in.
+    fun xpTo(stage: Stage): Int =
+        (Stage.entries.filter { it >= growth.reached && it < stage }.sumOf { XpRules.threshold(it) ?: 0 } - growth.xp).coerceAtLeast(0)
+    val xpLines = Stage.entries.associateWith { stringResource(R.string.form_xp_left, xpTo(it)) }
     fun status(stage: Stage): String = when {
         live && stage == growth.shown -> onMatrix
         stage <= growth.reached -> rarity
         ready && stage == growth.reached.next -> readyLine
-        stage == Stage.TEEN -> tomorrow
-        else -> careLine
+        else -> xpLines.getValue(stage)
     }
     val stage = forms[pager.currentPage].stage
     val reached = stage <= growth.reached
@@ -793,8 +885,22 @@ private fun HeroTile(
         modifier
             .clip(RoundedCornerShape(20.dp))
             .background(N7Colors.SurfaceRaised)
-            .then(if (framed) Modifier.border(1.dp, N7Colors.ControlBorder, RoundedCornerShape(20.dp)) else Modifier)
-            .clickable(enabled = reached && !framed, role = Role.Button) { onShow(stage) }
+            .then(
+                when {
+                    framed -> Modifier.border(1.dp, N7Colors.ControlBorder, RoundedCornerShape(20.dp))
+                    selected -> Modifier.border(1.dp, N7Colors.LedOff, RoundedCornerShape(20.dp))
+                    else -> Modifier
+                },
+            )
+            .clickable(role = Role.Button) {
+                // A tap shows how far it has grown; on a form it has reached it also puts that form on the matrix.
+                if (reached && !framed) {
+                    onShow(stage)
+                    if (!selected) onSelect()
+                } else {
+                    onSelect()
+                }
+            }
             .semantics(mergeDescendants = true) {
                 contentDescription = "${hero.name}, $stageName: ${if (reached && !framed) reachedLines.first() else status(stage)}"
             },
@@ -1078,7 +1184,7 @@ private fun NeedMeter(label: String, value: Float, how: String, modifier: Modifi
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text(label.uppercase(), style = N7Type.Label, color = N7Colors.InkSubtle, maxLines = 1)
-        Dots(lit = ((value + 10f) / 20f).toInt().coerceIn(0, 5), count = 5, dot = 8.dp, gap = 4.dp)
+        Dots(lit = NeedDots.of(value), count = NeedDots.MAX, dot = 8.dp, gap = 4.dp)
         Text(how, style = N7Type.Caption, color = N7Colors.InkMuted, textAlign = TextAlign.Center)
     }
 }

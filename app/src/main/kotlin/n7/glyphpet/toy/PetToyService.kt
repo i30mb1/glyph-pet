@@ -21,12 +21,15 @@ import n7.glyphpet.pet.HapticKind
 import n7.glyphpet.pet.Mood
 import n7.glyphpet.pet.Nursery
 import n7.glyphpet.pet.PetEngine
+import n7.glyphpet.pet.PetEvent
 import n7.glyphpet.pet.PetRules
 import n7.glyphpet.pet.PetStore
 import n7.glyphpet.pet.Power
 import n7.glyphpet.pet.PressResult
 import n7.glyphpet.pet.ShakeAction
 import n7.glyphpet.pet.Scene
+import n7.glyphpet.pet.XpRules
+import n7.glyphpet.pet.XpSource
 
 /**
  * The pet as a Glyph Toy. Live: animates at ~12 fps. Holding the Glyph button feeds, rocking the phone gently from
@@ -56,7 +59,13 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
     private lateinit var store: PetStore
     private lateinit var motion: MotionSensor
     private lateinit var haptics: Haptics
-    private val engine = PetEngine().apply { haptics = mutableListOf() }
+    private val engine = PetEngine().apply { haptics = mutableListOf(); events = mutableListOf() }
+
+    /** When a new ball game last brought experience (uptime): at most once per [XpRules.BALL_COOLDOWN_MS]. */
+    private var ballXpAt = Long.MIN_VALUE / 2
+
+    /** Experience gained since the last debug log line, e.g. "FEED+10 TIME+1". */
+    private val xpLog = StringBuilder()
 
     private var connected = false
     private var running = false
@@ -149,7 +158,9 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         when (ButtonRules.decide(hasPet = n.active != null, mood = mood, eggOnMatrix = n.eggOnMatrix != null)) {
             ButtonAction.CRACK_EGG -> cracked = crackEgg()
             ButtonAction.FEED -> {
-                val accepted = store.feed()
+                val fed = store.feed()
+                val accepted = fed.ate
+                gained(XpSource.FEED, fed.xp)
                 val kind = n.activeForm?.kind
                 if (!accepted && kind != null && engine.trick(kind)) {
                     // Full: it shows off its trick instead of refusing, and the owner plays along by tilting.
@@ -194,11 +205,32 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         haptics.play(HapticEvent(kind, strength))
     }
 
-    /** Feels what the engine collected in its last frame. */
+    /** Feels what the engine collected in its last frame, and counts what the pet finished as experience. */
     private fun feelEngine() {
-        val events = engine.haptics ?: return
-        for (e in events) feel(e.kind, e.strength)
-        events.clear()
+        engine.haptics?.let { events ->
+            for (e in events) feel(e.kind, e.strength)
+            events.clear()
+        }
+        val done = engine.events ?: return
+        if (labOn()) { done.clear(); return }
+        for (e in done) when (e.kind) {
+            PetEvent.Kind.SIGNATURE -> award(XpRules.SIGNATURE, XpSource.SIGNATURE)
+            PetEvent.Kind.TRICK -> award(XpRules.trick(e.ms), XpSource.TRICK)
+        }
+        done.clear()
+    }
+
+    /** The pet earns [base] experience from [source] (see [PetStore.gain]); what it really gained. */
+    private fun award(base: Int, source: XpSource): Int {
+        if (base <= 0) return 0
+        return store.gain(base).also { gained(source, it) }
+    }
+
+    /** Experience from something the owner did: a spark rises above the pet, and the debug log hears of it. */
+    private fun gained(source: XpSource, xp: Int) {
+        if (xp <= 0) return
+        if (source != XpSource.TIME) engine.spark()
+        if (n7.glyphpet.BuildConfig.DEBUG && xpLog.length < 200) xpLog.append(source).append('+').append(xp).append(' ')
     }
 
     private fun onAod() {
@@ -293,7 +325,10 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         if (motion.consumeRock() && ButtonRules.rockPlays(hasPet = nursery?.active != null, mood = mood, eggOnMatrix = nursery?.eggOnMatrix != null)) {
             Log.d(TAG, "event rock -> play (ball out: ${engine.playingBall})")
             // A new game cheers it up and tires it a little; a kick to the ball already rolling changes nothing.
-            if (!engine.playingBall) store.update { PetRules.play(it) }
+            if (!engine.playingBall) {
+                store.update { PetRules.play(it) }
+                if (now - ballXpAt >= XpRules.BALL_COOLDOWN_MS && award(XpRules.BALL, XpSource.BALL) > 0) ballXpAt = now
+            }
             engine.play()
             feel(HapticKind.PLAY)
         }
@@ -310,10 +345,11 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             Log.d(TAG, "  engine ${engine.debug(n?.activeForm)}")
             Log.d(
                 TAG,
-                "  needs food=%.0f joy=%.0f energy=%.0f nap=${st?.napping} | growth=${g?.reached}/${g?.shown} care=${g?.careDays} ready=${g?.ready} shakes=${g?.evolvePresses}".format(
+                "  needs food=%.0f joy=%.0f energy=%.0f nap=${st?.napping} | growth=${g?.reached}/${g?.shown} xp=${g?.xp}/${g?.threshold ?: "max"} ready=${g?.ready} shakes=${g?.evolvePresses} | xp events: ${xpLog.ifEmpty { "-" }}".format(
                     st?.satiety ?: -1f, st?.joy ?: -1f, st?.energy ?: -1f,
                 ),
             )
+            xpLog.setLength(0)
             Log.d(
                 TAG,
                 "  egg=${n?.eggOnMatrix?.id} eggs=${n?.eggs?.size} | power plugged=${power.plugged} ${power.watts}W level=${power.level} | " +
@@ -364,6 +400,8 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         val now = SystemClock.uptimeMillis()
         if (!force && now - lastSyncAt < SYNC_MS) return
         lastSyncAt = now
+        // Time together: the pet is on the matrix while it is lit and not given over to the Lab.
+        gained(XpSource.TIME, store.together(seen = connected && !dark && !labOn()))
         val n = store.nursery()
         nursery = n
         mood = PetRules.mood(n.stats, store.asleep(n.stats))
