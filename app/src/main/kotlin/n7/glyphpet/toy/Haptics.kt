@@ -7,6 +7,7 @@ import android.os.VibrationEffect
 import android.os.VibrationEffect.Composition
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.provider.Settings
 import android.util.Log
 import n7.glyphpet.pet.HapticEvent
 import n7.glyphpet.pet.HapticKind
@@ -14,10 +15,11 @@ import n7.glyphpet.pet.HapticKind
 /**
  * The pet felt in the hand: turns a [HapticEvent] into a short, soft vibration. Composition primitives (tick, click,
  * thud, rise) where the vibrator has them, the predefined click effects or a soft waveform otherwise; never a long buzz.
- * Played as touch feedback, so the system "touch feedback" setting turns it off too. A phone without a vibrator, or
- * one that refuses, is simply silent.
+ * Played as hardware feedback (the toy is a background service, and Android drops touch feedback from apps in the
+ * background), with the system "touch feedback" setting checked by hand so turning it off silences the pet too. A
+ * phone without a vibrator, or one that refuses, is simply silent.
  */
-class Haptics(context: Context) {
+class Haptics(private val context: Context) {
 
     private companion object {
         const val TAG = "PetHaptics"
@@ -32,7 +34,14 @@ class Haptics(context: Context) {
         null
     }
 
-    private val attributes = VibrationAttributes.createForUsage(VibrationAttributes.USAGE_TOUCH)
+    private val attributes = VibrationAttributes.createForUsage(VibrationAttributes.USAGE_HARDWARE_FEEDBACK)
+
+    /** The system "touch feedback" switch (on when the setting cannot be read). */
+    private fun touchFeedbackOn(): Boolean = try {
+        Settings.System.getInt(context.contentResolver, Settings.System.HAPTIC_FEEDBACK_ENABLED, 1) != 0
+    } catch (e: Exception) {
+        true
+    }
 
     /** Primitive id to whether this vibrator can play it, asked once. */
     private val supported = HashMap<Int, Boolean>()
@@ -44,7 +53,7 @@ class Haptics(context: Context) {
 
     fun play(event: HapticEvent) {
         val v = vibrator ?: return
-        if (!enabled) return
+        if (!enabled || !touchFeedbackOn()) return
         val s = event.strength.coerceIn(0f, 1f)
         if (event.kind == HapticKind.BALL_HIT) {
             val now = SystemClock.uptimeMillis()
