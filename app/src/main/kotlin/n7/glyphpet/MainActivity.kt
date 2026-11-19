@@ -17,6 +17,12 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.runtime.movableContentOf
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -321,12 +327,32 @@ private fun PetScreen(
     val feedLabel = stringResource(R.string.action_feed)
     val eggDescription = "${stringResource(R.string.egg_title)}: ${stringResource(R.string.egg_crack_action)}"
 
+    // The open "All states" card sticks to the top once it scrolls past it, so heroes picked further down show their
+    // states right away. It is one movable piece of UI: it keeps its page and its live preview when it moves.
+    var statesOpen by rememberSaveable { mutableStateOf(false) }
+    var viewportTop by remember { mutableStateOf(0f) }
+    var slotTop by remember { mutableStateOf(Float.MAX_VALUE) }
+    var statesHeight by remember { mutableStateOf(0) }
+    val form = nursery.activeForm?.takeIf { nursery.active != null }
+    val statesCard = remember {
+        movableContentOf { m: Modifier, f: Species, open: Boolean ->
+            // Everything this pet can show, each played by its own engine: never the saved pet.
+            StatesCard(species = f, open = open, onOpen = { statesOpen = it }, modifier = m)
+        }
+    }
+    val sticky = form != null && statesOpen && slotTop < viewportTop
+
     Surface(modifier = Modifier.fillMaxSize(), color = N7Colors.Ground) {
+      Box(
+          Modifier
+              .fillMaxSize()
+              // The status bar stays outside the scroll, so scrolled cards never run under the clock.
+              .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+              .onGloballyPositioned { viewportTop = it.positionInWindow().y },
+      ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                // The status bar stays outside the scroll, so scrolled cards never run under the clock.
-                .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
                 .verticalScroll(rememberScrollState())
                 // The gesture bar is inside it: the content scrolls under it, and the end of the page clears it.
                 .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Bottom))
@@ -393,8 +419,20 @@ private fun PetScreen(
 
             NowCard(nursery = nursery, mood = mood, action = action, onPutOnMatrix = ::putOnMatrix)
 
-            // Everything this pet can show, each played by its own engine: never the saved pet.
-            if (nursery.active != null) nursery.activeForm?.let { StatesCard(species = it) }
+            if (form != null) {
+                // The card's place in the page; while it sticks to the top an empty space of its height keeps the place.
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .onGloballyPositioned { slotTop = it.positionInWindow().y },
+                ) {
+                    if (sticky) {
+                        Spacer(Modifier.fillMaxWidth().height(with(LocalDensity.current) { statesHeight.toDp() }))
+                    } else {
+                        statesCard(Modifier.onSizeChanged { statesHeight = it.height }, form, statesOpen)
+                    }
+                }
+            }
 
             Collection(
                 nursery = nursery,
@@ -436,6 +474,12 @@ private fun PetScreen(
 
             SignatureLabel(Modifier.align(Alignment.CenterHorizontally))
         }
+        if (sticky) {
+            Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(horizontal = 20.dp).padding(top = 8.dp)) {
+                statesCard(Modifier.shadow(12.dp, RoundedCornerShape(20.dp)), form!!, statesOpen)
+            }
+        }
+      }
     }
 }
 

@@ -56,14 +56,13 @@ private class LiveFrame(val speciesId: String, val page: Int, val cells: List<Ce
  * to one row ("All states") by default. The "Signature" page, right after Calm, is there only for kinds that have one.
  */
 @Composable
-internal fun StatesCard(species: Species, modifier: Modifier = Modifier) {
+internal fun StatesCard(species: Species, open: Boolean, onOpen: (Boolean) -> Unit, modifier: Modifier = Modifier) {
     val states = remember(species.kind) {
         PetState.entries.filter { it != PetState.SIGNATURE || Signatures.has(species.kind) }
     }
     val pager = rememberPagerState(pageCount = { states.size })
     val lifecycleOwner = LocalLifecycleOwner.current
     var onScreen by remember { mutableStateOf(false) }
-    var open by rememberSaveable { mutableStateOf(false) }
     var live by remember { mutableStateOf<LiveFrame?>(null) }
     // A still per state, made when its page first shows up during a swipe.
     val stills = remember(species.id) { HashMap<PetState, List<Cell>>() }
@@ -88,7 +87,7 @@ internal fun StatesCard(species: Species, modifier: Modifier = Modifier) {
             // Clipped by the scrolling screen: zero height once the card is scrolled away.
             .onGloballyPositioned { onScreen = it.boundsInWindow().height > 0f },
     ) {
-        ExpandRow(stringResource(R.string.states_all), open) { open = !open }
+        ExpandRow(stringResource(R.string.states_all), open) { onOpen(!open) }
         if (open) Column(Modifier.padding(bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Box {
                 // The tallest page decides the height, so the card does not jump while swiping. These copies are
