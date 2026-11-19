@@ -87,6 +87,9 @@ class MotionSensor(context: Context) : SensorEventListener {
     private var shakeAt = -1L
     private var knock = 0
     private val knocks = KnockDetector()
+
+    /** Debug: the last bump the knock detector saw and did not take, read once. */
+    fun consumeBump(): String? = knocks.lastBump.also { knocks.lastBump = null; knocks.resetBumpPeak() }
     private val twirls = TwirlDetector()
     private var twirled = false
     private var lastGyroNs = 0L

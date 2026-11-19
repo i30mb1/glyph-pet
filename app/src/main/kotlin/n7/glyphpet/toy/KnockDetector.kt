@@ -41,6 +41,10 @@ class KnockDetector {
     private var peak = 0f
     private var singleAt = -1L
 
+    /** Debug: the strongest bump since the last read that did not become a knock, and why. */
+    @Volatile var lastBump: String? = null
+    private var bumpPeak = 0f
+
     /** When the last knock was confirmed (sensor time, ms): its spike may also have looked like a shake. */
     var confirmedAt = Long.MIN_VALUE / 2
         private set
@@ -51,6 +55,10 @@ class KnockDetector {
      */
     fun feed(high: Float, magnitude: Float, dtS: Float, nowMs: Long): Int {
         var out = 0
+        if (state == State.IDLE && high > 0.3f && high > bumpPeak) {
+            bumpPeak = high
+            lastBump = "bump %.2f calm %.2f%s".format(high, calm, if (high <= MIN_PEAK) " (below MIN_PEAK)" else if (calm >= QUIET_BEFORE && !pairOpen(nowMs)) " (not calm before)" else "")
+        }
         when (state) {
             // The second knock of a pair comes while the phone still rings from the first: it may start from a busier
             // background than a first knock.
@@ -99,9 +107,14 @@ class KnockDetector {
 
     /** Not a knock: the phone is being handled. A waiting single knock was part of it too; calm must come back first. */
     private fun reject() {
+        lastBump = "rejected peak %.2f (too long, free fall or ringing after)".format(peak)
         state = State.IDLE
         calm = max(calm, peak)
         singleAt = -1
+    }
+
+    fun resetBumpPeak() {
+        bumpPeak = 0f
     }
 
     fun reset() {

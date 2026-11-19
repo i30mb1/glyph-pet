@@ -387,6 +387,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         if (n7.glyphpet.BuildConfig.DEBUG && now - lastDebugLogAt >= 1000) {
             lastDebugLogAt = now
             val sh = engine.shown
+            motion.consumeBump()?.let { Log.d(TAG, "  knock-debug $it") }
             val n = nursery
             val st = n?.stats
             val g = n?.activeGrowth
