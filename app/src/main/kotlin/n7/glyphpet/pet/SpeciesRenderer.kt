@@ -220,16 +220,16 @@ object SpeciesRenderer {
 
         if (face !in species.replaces) {
             when (face) {
-                Face.HAPPY -> glyph(frame, SPARK, heartX - 1, heartY + 3)
-                Face.LOVE -> glyph(frame, HEART, heartX, heartY)
-                Face.EAT -> glyph(frame, FOOD, sideX, sideY)
-                Face.SLEEP -> glyph(frame, Z, zX, zY)
+                Face.HAPPY -> badge(frame, SPARK, heartX - 1, heartY + 3)
+                Face.LOVE -> badge(frame, HEART, heartX, heartY)
+                Face.EAT -> badge(frame, FOOD, sideX, sideY)
+                Face.SLEEP -> badge(frame, Z, zX, zY)
                 Face.HUNGRY -> thoughtSpot(species, dx)?.let { (rows, x, y) -> glyph(frame, rows, x, y, hashValue = THOUGHT_DIM) }
                 Face.SAD -> tear(frame, species, ox, oy, timeMs)
-                Face.ANGRY -> glyph(frame, VEIN, zX, zY)
-                Face.SCARED -> glyph(frame, BANG, zX + 1, zY)
-                Face.DIZZY -> { glyph(frame, STAR, heartX - 3, heartY + 1); glyph(frame, STAR, heartX + 5, heartY + 1) }
-                Face.SICK -> glyph(frame, DROP, zX, zY + 1)
+                Face.ANGRY -> badge(frame, VEIN, zX, zY)
+                Face.SCARED -> badge(frame, BANG, zX + 1, zY)
+                Face.DIZZY -> { badge(frame, STAR, heartX - 3, heartY + 1); badge(frame, STAR, heartX + 5, heartY + 1) }
+                Face.SICK -> badge(frame, DROP, zX, zY + 1)
                 else -> Unit
             }
         }
@@ -473,6 +473,30 @@ object SpeciesRenderer {
                 }
             }
         }
+    }
+
+    /**
+     * Where a glyph meant for (x, y) fits: moved a step at a time toward the middle of the matrix until every lit cell
+     * of it is on the round matrix. A big pet leaves no room above or beside it, so its Zz, "!" or heart comes inward.
+     */
+    fun fitted(rows: List<String>, x: Int, y: Int): Pair<Int, Int> {
+        var cx = x
+        var cy = y
+        repeat(SIZE) {
+            val fits = rows.withIndex().all { (r, row) ->
+                row.withIndex().all { (c, ch) -> ch == '.' || GlyphMatrixSpec.isVisible(cx + c, cy + r) }
+            }
+            if (fits) return cx to cy
+            cx += Integer.signum(12 - (cx + rows[0].length / 2))
+            cy += Integer.signum(12 - (cy + rows.size / 2))
+        }
+        return cx to cy
+    }
+
+    /** A face's glyph (Zz, heart, "!", ...) at (x, y), or as near as it fits on the round matrix ([fitted]). */
+    fun badge(frame: IntArray, rows: List<String>, x: Int, y: Int, brightValue: Int = BRIGHT) {
+        val (fx, fy) = fitted(rows, x, y)
+        glyph(frame, rows, fx, fy, brightValue = brightValue)
     }
 
     fun put(frame: IntArray, x: Int, y: Int, value: Int) {

@@ -350,7 +350,7 @@ object ChargeRenderer {
         if (KindCharge.way(s) == null && s.charge == ChargeWay.WHEEL) 22 - (s.oy + s.height - 1) else 0
 
     internal fun zzz(f: IntArray, s: Species, dy: Int) =
-        SpeciesRenderer.glyph(f, Z, s.ox + s.width - 1, max(1, s.oy + dy - 3), brightValue = BRIGHT / 2)
+        SpeciesRenderer.badge(f, Z, s.ox + s.width - 1, max(1, s.oy + dy - 3), brightValue = BRIGHT / 2)
 
     internal fun set(f: IntArray, x: Int, y: Int, value: Int) {
         if (GlyphMatrixSpec.isVisible(x, y)) f[y * SIZE + x] = value
