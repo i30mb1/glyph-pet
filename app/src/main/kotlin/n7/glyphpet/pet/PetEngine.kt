@@ -94,6 +94,9 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
             return -room..room
         }
 
+        /** Reactions kept while an animation plays; more than this and the newest are dropped. */
+        private const val MAX_PENDING = 4
+
         /** How far past [walkRange] a tilted pet may slide out over the round edge. */
         const val MAX_PEEK = 3
 
@@ -238,7 +241,8 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
             (scene.mood == Mood.CONTENT || scene.mood == Mood.HAPPY)
         if (signatureMs >= 0) {
             signatureMs += dtMs
-            if (free && signatureMs < sig.durationMs) return true
+            // Once started it plays to the end: only a drop or falling asleep stops it (tilting is part of most effects).
+            if (!asleep && action == Action.NONE && signatureMs < sig.durationMs) return true
             signatureMs = -1
             signatureInMs = nextSignatureIn()
             return false
@@ -263,26 +267,44 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
     var shown: Shown = Shown(null)
         private set
 
+    /**
+     * Reactions that came while an animation was playing (a habit, a signature, a hatch or an evolution). They play
+     * right after it, so an animation is always seen to the end; the needs have changed already, only the picture waits.
+     */
+    private val pending = ArrayDeque<() -> Unit>()
+
+    private val busy: Boolean get() = moment != null || habitMs >= 0 || signatureMs >= 0
+
+    private fun react(reaction: () -> Unit) {
+        if (!busy) reaction() else if (pending.size < MAX_PENDING) pending.addLast(reaction)
+    }
+
+    /** The next waiting reaction, once nothing plays and the pet is free. */
+    private fun runPending() {
+        if (busy || action != Action.NONE || foodY != null) return
+        pending.removeFirstOrNull()?.invoke()
+    }
+
     /** Food drops from the top; a full pet frowns instead. A sleeper only opens one eye. */
-    fun feed(accepted: Boolean) {
+    fun feed(accepted: Boolean) = react {
         if (accepted) foodY = 0f else start(Action.REFUSING, 1200)
     }
 
     /** Stroked: heart eyes and a heart. A sleeper only opens one eye. */
-    fun pet() = start(Action.LOVED, 1600)
+    fun pet() = react { start(Action.LOVED, 1600) }
 
     /**
      * Played with (the phone rocked): stroked as by [pet], and a ball appears above the pet and rolls around the matrix
      * under gravity for [Ball.LIFE_MS]. The pet follows it with its eyes and stays happy while it is out. A rock while
      * the ball is out kicks it instead of bringing a second one. A sleeper only opens one eye, and gets no ball.
      */
-    fun play() {
-        pet()
+    fun play() = react {
+        start(Action.LOVED, 1600)
         ballAsked = true
     }
 
     /** Dizzy stars; a sleeper only opens one eye. */
-    fun shake() = start(Action.DIZZY, 2500)
+    fun shake() = react { start(Action.DIZZY, 2500) }
 
     /** The egg just hatched into [baby] (a supporter's egg is [golden]): [Moments.hatch] plays. */
     fun hatch(baby: Species, golden: Boolean) = startMoment(Hatch(baby, golden))
@@ -314,15 +336,20 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
     }
 
     /** A shake toward growing, not the last one: the pet flashes bright for a moment and trembles. */
-    fun surge() {
+    fun surge() = react {
         if (action != Action.HURT) start(Action.SURGE, SURGE_MS)
     }
 
-    /** The phone was dropped: "ouch!" (wide eyes, "!", a shudder), then dizzy stars. A sleeper only opens one eye. */
-    fun drop() = start(Action.HURT, HURT_MS)
+    /**
+     * The phone was dropped: "ouch!" (wide eyes, "!", a shudder), then dizzy stars. A sleeper only opens one eye. It
+     * cuts a habit or a signature short at once; a hatch or an evolution plays to the end first.
+     */
+    fun drop() {
+        if (moment != null) pending.addFirst { start(Action.HURT, HURT_MS) } else start(Action.HURT, HURT_MS)
+    }
 
     /** A notification came: the pet looks up with a "!". A sleeper only opens one eye. */
-    fun alert() {
+    fun alert() = react {
         if (action == Action.NONE || action == Action.PEEK) start(Action.ALERT, ALERT_MS)
     }
 
@@ -381,6 +408,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
             moment = null
         }
         updateAction(dtMs)
+        runPending()
         updateWobble(dtMs)
         val species = scene.species
         val egg = scene.egg
@@ -434,7 +462,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
             }
         }
         ball.update(dtMs, scene.tilt, scene.tiltY)
-        val sliding = !asleep && action == Action.NONE && abs(scene.tilt) > 0.3f
+        val sliding = !asleep && action == Action.NONE && habitMs < 0 && signatureMs < 0 && abs(scene.tilt) > 0.3f
         updateFood(dtMs, species)
         updateHabit(dtMs, species, scene, sliding)
         updateHop(dtMs, scene.mood, sliding)
@@ -541,17 +569,13 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
      */
     private fun updateHabit(dtMs: Long, species: Species, scene: Scene, sliding: Boolean) {
         val mood = scene.mood
-        val free = (mood == Mood.CONTENT || mood == Mood.HAPPY) && action == Action.NONE && !sliding && foodY == null &&
-            !ball.active
-        if (!free) {
-            habitMs = -1
-            trickAsked = false
-            habitSpot = null
-            return
-        }
-        val spots = habitSpots(species)
-        val at = x.roundToInt()
         if (habitMs >= 0) {
+            // A habit that started plays to the end; only a drop (the one action that comes at once) cuts it short.
+            if (action != Action.NONE) {
+                habitMs = -1
+                habitSpot = null
+                return
+            }
             habitMs += dtMs
             if (habitMs >= species.habit.durationMs) {
                 habitMs = -1
@@ -559,6 +583,15 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
             }
             return
         }
+        val free = (mood == Mood.CONTENT || mood == Mood.HAPPY) && action == Action.NONE && !sliding && foodY == null &&
+            !ball.active
+        if (!free) {
+            trickAsked = false
+            habitSpot = null
+            return
+        }
+        val spots = habitSpots(species)
+        val at = x.roundToInt()
         if (autoHabits) habitInMs -= dtMs
         // A hop in the air lands first; an asked-for trick starts at once (once the pet stands where it fits).
         if (trickAsked || (autoHabits && hopMs < 0 && habitInMs <= 0)) {
