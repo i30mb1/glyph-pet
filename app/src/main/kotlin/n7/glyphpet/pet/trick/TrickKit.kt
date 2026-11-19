@@ -73,8 +73,16 @@ internal class FeelGate(private val gapMs: Long = 140L) {
 internal class SpriteCache {
     private val map = HashMap<String, Sprite>()
 
-    fun get(species: Species, face: Face, blink: Boolean = false, withFace: Boolean = true, flipY: Boolean = false): Sprite =
-        map.getOrPut("${species.id}|$face|$blink|$withFace|$flipY") { Kit.sprite(species, face, blink, withFace = withFace, flipY = flipY) }
+    fun get(
+        species: Species,
+        face: Face,
+        blink: Boolean = false,
+        withFace: Boolean = true,
+        flipY: Boolean = false,
+        flipX: Boolean = false,
+    ): Sprite = map.getOrPut("${species.id}|$face|$blink|$withFace|$flipY|$flipX") {
+        Kit.sprite(species, face, blink, withFace = withFace, flipY = flipY).let { if (flipX) it.flippedX() else it }
+    }
 }
 
 internal object TrickKit {
@@ -88,11 +96,53 @@ internal object TrickKit {
 
     fun lerp(a: Float, b: Float, k: Float): Float = a + (b - a) * k
 
+    /** The scale that makes the pet [h] cells tall while it plays (never bigger than it is). */
+    fun small(species: Species, h: Float): Float = minOf(1f, h / species.height)
+
     /** A deterministic hash in 0..1, for sparkles that should not need a random generator. */
     fun hash01(n: Int): Float {
         var h = n * 374761393 + 668265263
         h = (h xor (h ushr 13)) * 1274126177
         return ((h xor (h ushr 16)) and 0xffff) / 65535f
+    }
+}
+
+/**
+ * The pet's way home: while [returning] is 0 it passes the play position through; once it rises, it glides from where
+ * the play ended to home ([hx], [hy]) and from the play scale back to 1.
+ */
+internal class Homing {
+    var x = 0f
+        private set
+    var y = 0f
+        private set
+    var s = 1f
+        private set
+    private var ex = Float.NaN
+    private var ey = 0f
+    private var es = 1f
+
+    fun reset() {
+        ex = Float.NaN
+    }
+
+    /** True while going home. */
+    fun apply(r: Float, cx: Float, cy: Float, scale: Float, hx: Float, hy: Float): Boolean {
+        if (r <= 0f) {
+            x = cx
+            y = cy
+            s = scale
+            return false
+        }
+        if (ex.isNaN()) {
+            ex = cx
+            ey = cy
+            es = scale
+        }
+        x = TrickKit.lerp(ex, hx, r)
+        y = TrickKit.lerp(ey, hy, r)
+        s = TrickKit.lerp(es, 1f, r)
+        return true
     }
 }
 
