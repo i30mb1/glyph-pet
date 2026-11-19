@@ -206,6 +206,40 @@ internal fun Canvas.over(src: Canvas) {
 }
 
 /**
+ * Draws [s] scaled by [scale] and turned by [angle] (radians, clockwise on the matrix) around its centre ([cx], [cy]),
+ * sampled bilinearly; adds to the layer like [spriteAt] (draw on a cleared one).
+ */
+internal fun Canvas.spriteTurned(s: Sprite, cx: Float, cy: Float, scale: Float, angle: Float, gain: Float = 1f) {
+    if (scale <= 0.05f || cx.isNaN() || cy.isNaN() || angle.isNaN()) return
+    val n = Kit.N
+    val c = kotlin.math.cos(angle)
+    val sn = kotlin.math.sin(angle)
+    val reach = hypot(s.w.toFloat(), s.h.toFloat()) * scale / 2f + 1f
+    val x0 = (cx - reach).toInt().coerceAtLeast(0)
+    val x1 = (cx + reach).toInt().coerceAtMost(n - 1)
+    val y0 = (cy - reach).toInt().coerceAtLeast(0)
+    val y1 = (cy + reach).toInt().coerceAtMost(n - 1)
+    for (y in y0..y1) for (x in x0..x1) {
+        val px = x + 0.5f - cx
+        val py = y + 0.5f - cy
+        val u = (px * c + py * sn) / scale + s.w / 2f - 0.5f
+        val w = (-px * sn + py * c) / scale + s.h / 2f - 0.5f
+        val iu = kotlin.math.floor(u).toInt()
+        val iw = kotlin.math.floor(w).toInt()
+        val fu = u - iu
+        val fw = w - iw
+        val k = s.coverage(iu, iw) * (1 - fu) * (1 - fw) + s.coverage(iu + 1, iw) * fu * (1 - fw) +
+            s.coverage(iu, iw + 1) * (1 - fu) * fw + s.coverage(iu + 1, iw + 1) * fu * fw
+        if (k <= 0.01f) continue
+        val value = s.value(iu, iw) * (1 - fu) * (1 - fw) + s.value(iu + 1, iw) * fu * (1 - fw) +
+            s.value(iu, iw + 1) * (1 - fu) * fw + s.value(iu + 1, iw + 1) * fu * fw
+        val i = y * n + x
+        v[i] += value * gain
+        cov[i] = (cov[i] + k).coerceAtMost(1f)
+    }
+}
+
+/**
  * A trick's frame of time: after a short crossfade in from the plain pet it plays ([scene]) for up to a minute
  * ([PLAY_MS]; the owner ends it sooner with another long press, which jumps to the ending) until [playEndMs]; then
  * over [RETURN_MS] the scene brings the pet back home ([returning] goes 0 → 1), crossfades over [BLEND_MS] into the
