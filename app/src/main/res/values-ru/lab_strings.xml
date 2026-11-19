@@ -17,4 +17,8 @@
     <string name="lab_lenticular_hint">Наклон влево — малыш, вправо — взрослый, прямо — подросток.</string>
     <string name="lab_distance">Вглубь</string>
     <string name="lab_distance_hint">Уходит к горизонту и возвращается: взрослый рядом, подросток, малыш вдали и тусклее.</string>
+    <string name="lab_hologram">Живая голограмма</string>
+    <string name="lab_hologram_hint">Глаз как объёмная наклейка: наклоняй — чуть поворачивается; каждые 3 с меняется лицо (спокоен, рад, любовь, грусть, сон), оно должно читаться.</string>
+    <string name="lab_always3d">Всегда 3D</string>
+    <string name="lab_always3d_hint">Взрослая Планета всегда объёмная: полосы вращаются, кольцо и луна уходят за неё; наклон поворачивает вид, лица сменяются как в 8.</string>
 </resources>

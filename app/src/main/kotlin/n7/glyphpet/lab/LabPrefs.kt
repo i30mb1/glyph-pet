@@ -23,6 +23,8 @@ object LabPrefs {
         R.string.lab_hop to R.string.lab_hop_hint,
         R.string.lab_lenticular to R.string.lab_lenticular_hint,
         R.string.lab_distance to R.string.lab_distance_hint,
+        R.string.lab_hologram to R.string.lab_hologram_hint,
+        R.string.lab_always3d to R.string.lab_always3d_hint,
     )
 
     val count: Int get() = experiments.size

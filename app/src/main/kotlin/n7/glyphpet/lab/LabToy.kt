@@ -29,6 +29,8 @@ class LabToy(private val context: Context) {
         HopExperiment(),
         LenticularExperiment(),
         DistanceExperiment(),
+        HologramExperiment(),
+        AlwaysPlanetExperiment(),
     )
     private val layer = Layer()
     private val digits = Layer()

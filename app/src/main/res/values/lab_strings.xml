@@ -18,4 +18,8 @@
     <string name="lab_lenticular_hint">Tilt left for the baby, right for the adult, upright for the teen.</string>
     <string name="lab_distance">Into the distance</string>
     <string name="lab_distance_hint">It walks off to the horizon and back: adult near, teen, baby far and dim.</string>
+    <string name="lab_hologram">Living hologram</string>
+    <string name="lab_hologram_hint">The Eye as a 3D sticker: tilt and it turns a little; the face cycles every 3 s (calm, happy, love, sad, asleep) and must stay readable.</string>
+    <string name="lab_always3d">Always 3D</string>
+    <string name="lab_always3d_hint">The adult Planet is always a 3D sphere: bands turn, the ring and moon pass behind; tilt turns the view, the face cycles as in 8.</string>
 </resources>
