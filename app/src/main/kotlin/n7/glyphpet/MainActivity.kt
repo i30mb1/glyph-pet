@@ -624,8 +624,11 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
             SectionLabel(stringResource(R.string.collection_title, found, SpeciesCatalog.all.size), Modifier.weight(1f))
             SectionLabel(stringResource(R.string.collection_forms, forms, SpeciesForms.all.size))
         }
-        // Grouped by status, common first, mythic last; catalogue order within a status.
-        SpeciesCatalog.all.sortedBy { it.rarity.ordinal }.chunked(3).forEach { row ->
+        // Grouped by status, common first, mythic last, each group from a new row under its header; catalogue order
+        // within a status.
+        SpeciesCatalog.all.groupBy { it.rarity }.toSortedMap().forEach { (rarity, heroes) ->
+          RarityHeader(rarity, found = heroes.count { (nursery.collection[it.id] ?: 0) > 0 }, total = heroes.size)
+          heroes.chunked(3).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { s ->
                     val count = nursery.collection[s.id] ?: 0
@@ -677,15 +680,40 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
                 }
                 repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
             }
+          }
         }
     }
+}
+
+/**
+ * The header of a status group in the collection: as many LED dots as the status is high (one for common, four for
+ * mythic), its name and how many of its heroes are collected.
+ */
+@Composable
+private fun RarityHeader(rarity: Rarity, found: Int, total: Int) {
+    Row(
+        Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        val level = rarity.ordinal + 1
+        Dots(lit = level, count = level, dot = 6.dp, gap = 3.dp)
+        SectionLabel(stringResource(rarityGroupName(rarity), found, total))
+    }
+}
+
+private fun rarityGroupName(rarity: Rarity): Int = when (rarity) {
+    Rarity.COMMON -> R.string.rarity_group_common
+    Rarity.RARE -> R.string.rarity_group_rare
+    Rarity.LEGENDARY -> R.string.rarity_group_legendary
+    Rarity.MYTHIC -> R.string.rarity_group_mythic
 }
 
 /**
  * A collected hero: its three forms on pages, swiped inside the tile, three dots under it for the page. It opens on the
  * form shown on the matrix. A form not reached yet is a dim silhouette with a lock. A tap puts the form on the page on
  * the matrix; the one there now is framed when [live] (the hero is the active pet and no egg is on the matrix).
- * Its status is drawn as an outline in dots ([statusFrame]); egg tiles have none, to keep the surprise.
+ * Its status is shown by the group it sits in ([RarityHeader]).
  */
 @Composable
 private fun HeroTile(
@@ -728,8 +756,6 @@ private fun HeroTile(
         modifier
             .clip(RoundedCornerShape(20.dp))
             .background(N7Colors.SurfaceRaised)
-            // The hero's status as an outline just inside the tile's edge; the "on the matrix" border stays on the edge.
-            .statusFrame(hero.rarity, 20.dp)
             .then(if (framed) Modifier.border(1.dp, N7Colors.ControlBorder, RoundedCornerShape(20.dp)) else Modifier)
             .clickable(enabled = reached && !framed, role = Role.Button) { onShow(stage) }
             .semantics(mergeDescendants = true) {

@@ -23,6 +23,10 @@
     <string name="rarity_rare">Редкий</string>
     <string name="rarity_legendary">Легендарный</string>
     <string name="rarity_mythic">Мифический</string>
+    <string name="rarity_group_common">Обычные · %1$d/%2$d</string>
+    <string name="rarity_group_rare">Редкие · %1$d/%2$d</string>
+    <string name="rarity_group_legendary">Легендарные · %1$d/%2$d</string>
+    <string name="rarity_group_mythic">Мифические · %1$d/%2$d</string>
 
     <string name="supporter_title">Supporter</string>
     <string name="supporter_thanks">Спасибо, что поддерживаешь n7!</string>

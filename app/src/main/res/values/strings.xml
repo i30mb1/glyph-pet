@@ -25,6 +25,10 @@
     <string name="rarity_rare">Rare</string>
     <string name="rarity_legendary">Legendary</string>
     <string name="rarity_mythic">Mythic</string>
+    <string name="rarity_group_common">Common · %1$d/%2$d</string>
+    <string name="rarity_group_rare">Rare · %1$d/%2$d</string>
+    <string name="rarity_group_legendary">Legendary · %1$d/%2$d</string>
+    <string name="rarity_group_mythic">Mythic · %1$d/%2$d</string>
 
     <string name="supporter_title">Supporter</string>
     <string name="supporter_thanks">Thank you for supporting n7!</string>
