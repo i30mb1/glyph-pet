@@ -46,7 +46,8 @@ object PetRules {
     const val FEED_JOY = 5f
     const val FULL = 90f
     const val PLAY_JOY = 15f
-    const val PLAY_ENERGY = 3f
+    /** A game of ball tires a little; a kick to a ball already out costs nothing (see PetToyService). */
+    const val PLAY_ENERGY = 1f
 
     /** Below both of these the pet is sick: nobody fed or played with it for about half a day. Food cures it. */
     const val SICK_SATIETY = 5f

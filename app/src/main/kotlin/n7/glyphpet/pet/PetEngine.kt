@@ -248,6 +248,9 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         return true
     }
 
+    /** Whether the ball is out: a rock now only kicks it. */
+    val playingBall: Boolean get() = ball.active
+
     /** Whether a trick is playing. */
     val playingTrick: Boolean get() = trickMs >= 0
 

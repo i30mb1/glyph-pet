@@ -291,8 +291,9 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             }
         }
         if (motion.consumeRock() && ButtonRules.rockPlays(hasPet = nursery?.active != null, mood = mood, eggOnMatrix = nursery?.eggOnMatrix != null)) {
-            Log.d(TAG, "event rock -> play")
-            store.update { PetRules.play(it) }
+            Log.d(TAG, "event rock -> play (ball out: ${engine.playingBall})")
+            // A new game cheers it up and tires it a little; a kick to the ball already rolling changes nothing.
+            if (!engine.playingBall) store.update { PetRules.play(it) }
             engine.play()
             feel(HapticKind.PLAY)
         }
