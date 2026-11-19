@@ -100,6 +100,14 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         /** Events kept for the toy to feel ([haptics]); more than this between two drains and the newest are dropped. */
         private const val MAX_HAPTICS = 16
 
+        /** How far the phone leans sideways (about 11 degrees) before the pet slides or crawls that way. */
+        const val SLIDE_TILT = 0.2f
+
+        /** Kinds that crawl down a slope slowly and calmly instead of sliding off it. */
+        private val CRAWLERS = setOf("snail")
+
+        private fun slideSpeed(kind: String?): Float = if (kind in CRAWLERS) 0.35f else 1f
+
         /** Reactions kept while an animation plays; more than this and the newest are dropped. */
         private const val MAX_PENDING = 4
 
@@ -219,6 +227,9 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
     private var moment: Moment? = null
     private var momentMs = 0L
     private val ball = Ball(random)
+
+    /** The kind on the matrix in the last tick. */
+    private var kindNow: String? = null
 
     /** The 3D look of the legendary and mythic pets. */
     private val living = Living3D()
@@ -468,6 +479,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
             return frame
         }
 
+        kindNow = species.kind
         if (species.kind != signatureKind) {
             signatureKind = species.kind
             signature = Signatures.of(species.kind)
@@ -490,7 +502,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         if (ball.hit >= BALL_FEEL_SPEED && species.kind != n7.glyphpet.pet.signature.HedgehogCurl.KIND) {
             feel(HapticEvent(HapticKind.BALL_HIT, ((ball.hit - BALL_FEEL_SPEED) / (Ball.MAX_SPEED - BALL_FEEL_SPEED)).coerceIn(0f, 1f)))
         }
-        val sliding = !asleep && action == Action.NONE && habitMs < 0 && signatureMs < 0 && abs(scene.tilt) > 0.3f
+        val sliding = !asleep && action == Action.NONE && habitMs < 0 && signatureMs < 0 && abs(scene.tilt) > SLIDE_TILT
         updateFood(dtMs, species)
         updateHabit(dtMs, species, scene, sliding)
         updateHop(dtMs, scene.mood, sliding)
@@ -741,7 +753,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         if (x < slide.first || x > slide.last) x = x.coerceIn(slide.first.toFloat(), slide.last.toFloat())
         if (asleep || action != Action.NONE || habitMs >= 0) return
         if (sliding) {
-            x = (x + scene.tilt * dtMs * 0.01f).coerceIn(slide.first.toFloat(), slide.last.toFloat())
+            x = (x + scene.tilt * dtMs * 0.01f * slideSpeed(kindNow)).coerceIn(slide.first.toFloat(), slide.last.toFloat())
             targetX = x
             return
         }
@@ -814,7 +826,8 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         action != Action.NONE -> reaction() ?: Face.IDLE
         // Playing with the ball: happy, even while the phone is tilted to roll it.
         ball.active -> Face.CONTENT
-        sliding -> Face.SCARED
+        // A crawler takes a slope calmly; the others slide off it in a fright.
+        sliding -> if (kindNow in CRAWLERS) Face.CONTENT else Face.SCARED
         yawnLeftMs > 0 -> Face.YAWN
         else -> moodFace(mood)
     }
