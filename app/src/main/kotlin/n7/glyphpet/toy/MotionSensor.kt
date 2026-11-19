@@ -26,6 +26,9 @@ class MotionSensor(context: Context) : SensorEventListener {
 
         /** The accelerometer runs at 100 Hz, fast enough to catch the short spike of a knock. */
         const val ACCEL_PERIOD_US = 10_000
+
+        /** A shake is confirmed this long after its spike, unless the spike turned out to be a knock. */
+        const val SHAKE_CONFIRM_MS = 200L
     }
 
     private val sensors = context.getSystemService(SensorManager::class.java)
@@ -58,6 +61,9 @@ class MotionSensor(context: Context) : SensorEventListener {
     private var dropped = false
     private var rocked = false
     private var lastShakeMs = 0L
+    private var shakeAt = -1L
+    private var knock = 0
+    private val knocks = KnockDetector()
     private val drops = DropDetector()
     private val rocks = RockDetector()
     private val low = FloatArray(3)
@@ -72,6 +78,8 @@ class MotionSensor(context: Context) : SensorEventListener {
         readings = 0
         lastAccelNs = 0L
         jitter = 0f
+        shakeAt = -1L
+        knocks.reset()
         accelerometer?.let { sensors?.registerListener(this, it, ACCEL_PERIOD_US) }
         proximity?.let { sensors?.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
         light?.let { sensors?.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
@@ -107,6 +115,10 @@ class MotionSensor(context: Context) : SensorEventListener {
 
     @Synchronized
     fun consumeDrop(): Boolean = dropped.also { dropped = false }
+
+    /** A knock on the desk or the back of the phone ([KnockDetector]): 1 single, 2 double, 0 none; once. */
+    @Synchronized
+    fun consumeKnock(): Int = knock.also { knock = 0 }
 
     @Synchronized
     fun consumeRock(): Boolean = rocked.also { rocked = false }
@@ -154,8 +166,14 @@ class MotionSensor(context: Context) : SensorEventListener {
 
         val force = magnitude - SensorManager.GRAVITY_EARTH
         if (rocks.feed(tilt, force, now)) synchronized(this) { rocked = true }
+        val knocked = knocks.feed(high, magnitude, dt, now)
+        if (knocked > 0) synchronized(this) { knock = maxOf(knock, knocked) }
+        // A hard knock on the back can be as strong as a shake for a moment: a shake waits to see that it was none.
         val wall = System.currentTimeMillis()
-        if (force > 9f && wall - lastShakeMs > SHAKE_GAP_MS) {
+        if (force > 9f && shakeAt < 0 && wall - lastShakeMs > SHAKE_GAP_MS) shakeAt = now
+        if (shakeAt >= 0 && knocks.confirmedAt >= shakeAt) shakeAt = -1
+        if (shakeAt >= 0 && now - shakeAt >= SHAKE_CONFIRM_MS) {
+            shakeAt = -1
             lastShakeMs = wall
             synchronized(this) { shaken = true }
         }

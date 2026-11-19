@@ -73,6 +73,12 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         const val OUCH_MS = 700L
         const val ALERT_MS = 1400L
 
+        /** A knock: the pet looks up at the viewer and hops once. */
+        const val NOTICE_MS = 700L
+
+        /** A double knock tickles: a giggling wiggle. */
+        const val TICKLE_MS = 1200L
+
         /** How long the egg wobbles after a press. */
         const val CRACK_WOBBLE_MS = 600L
 
@@ -197,7 +203,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         }
     }
 
-    private enum class Action { NONE, EATING, REFUSING, LOVED, DIZZY, PEEK, HURT, ALERT, SURGE }
+    private enum class Action { NONE, EATING, REFUSING, LOVED, DIZZY, PEEK, HURT, ALERT, SURGE, NOTICE, TICKLE }
 
     /** A big moment that takes over the whole matrix for a few seconds. */
     private sealed class Moment(val durationMs: Long)
@@ -225,6 +231,9 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
     private var pace = 0.0
     private var hopInMs = 2000L
     private var hopMs = -1L
+
+    /** Hops asked for by a reaction (a knock, a greeting), played one after another whatever the mood. */
+    private var hopsLeft = 0
     private var habitInMs = 8000L
     private var habitMs = -1L
     private var trickAsked = false
@@ -410,6 +419,22 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
     fun play() = react {
         start(Action.LOVED, 1600)
         ballAsked = true
+    }
+
+    /** A knock on the desk or the phone: the pet looks up at the viewer and hops once. A sleeper only opens one eye. */
+    fun notice() = react {
+        if (action == Action.NONE || action == Action.PEEK) {
+            start(Action.NOTICE, NOTICE_MS)
+            hopsLeft = 1
+        }
+    }
+
+    /** A double knock: a giggling wiggle with a happy face. A sleeper only opens one eye. */
+    fun tickle() = react {
+        if (action == Action.NONE || action == Action.PEEK || action == Action.NOTICE) {
+            start(Action.TICKLE, TICKLE_MS)
+            hopsLeft = 0
+        }
     }
 
     /** Dizzy stars; a sleeper only opens one eye. */
@@ -638,9 +663,13 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         val habit = own ?: if (leaning) leanFrame(species, (scene.tilt * 2.2f).roundToInt().coerceIn(-2, 2)) else null
         val face = own?.face ?: face(scene.mood, asleep, sliding)
         val lift = if (hopMs >= 0) HOP.getOrElse((hopMs / 80).toInt()) { 0 } else 0
-        val shudder = action == Action.REFUSING || action == Action.SURGE || (action == Action.HURT && ouch())
-        // A refusal sways slowly, "no, thanks"; a surge or an ouch trembles.
-        val jitterMs = if (action == Action.REFUSING) 300L else 120L
+        val shudder = action == Action.REFUSING || action == Action.SURGE || action == Action.TICKLE || (action == Action.HURT && ouch())
+        // A refusal sways slowly, "no, thanks"; a surge or an ouch trembles; a tickle wiggles fast.
+        val jitterMs = when (action) {
+            Action.REFUSING -> 300L
+            Action.TICKLE -> 60L
+            else -> 120L
+        }
         val jitter = if (shudder) (if ((time / jitterMs) % 2 == 0L) -1 else 1) else 0
         val dx = x.roundToInt() + jitter
         cover.fill(SpeciesRenderer.COVER_NONE)
@@ -654,7 +683,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         SpeciesRenderer.render(
             species, face, blink = blinkLeftMs > 0, dx = dx, frame = frame, timeMs = time, lift = lift,
             habit = if (painter != null) living.habitFor(species, own, habit) else habit, hurt = scene.hurt,
-            eyeDx = ball.side(centerX), shadow = true, cover = cover, painter = painter,
+            eyeDx = if (action == Action.NOTICE) 0 else ball.side(centerX), shadow = true, cover = cover, painter = painter,
         )
         foodY?.let { fy -> SpeciesRenderer.glyph(frame, listOf("oo", "oo"), species.ox + dx + species.width / 2 - 1, fy.toInt()) }
         if (action == Action.SURGE) surgeGlow(frame)
@@ -725,6 +754,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
      * was started turns into that peek. Awake, a leftover peek ends at once.
      */
     private fun stir(asleep: Boolean) {
+        if (asleep) hopsLeft = 0
         if (!asleep) {
             if (action == Action.PEEK) action = Action.NONE
             return
@@ -780,6 +810,19 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
 
     /** A happy pet hops every 2-4 s; one playing with the ball every second or so. */
     private fun updateHop(dtMs: Long, mood: Mood, sliding: Boolean) {
+        if (hopsLeft > 0 && !sliding && habitMs < 0) {
+            if (hopMs < 0) {
+                hopMs = 0
+            } else {
+                hopMs += dtMs
+                if (hopMs >= HOP_MS) {
+                    hopsLeft--
+                    hopMs = if (hopsLeft > 0) 0 else -1
+                }
+            }
+            return
+        }
+        hopsLeft = 0
         if ((mood != Mood.HAPPY && !ball.active) || action != Action.NONE || sliding || habitMs >= 0) {
             hopMs = -1
             return
@@ -840,6 +883,8 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         Action.HURT -> if (ouch()) Face.SCARED else Face.DIZZY
         Action.ALERT -> Face.SCARED
         Action.SURGE -> Face.IDLE
+        Action.NOTICE -> Face.CONTENT
+        Action.TICKLE -> Face.HAPPY
     }
 
     /** The first moment of a drop: the "ouch!". */

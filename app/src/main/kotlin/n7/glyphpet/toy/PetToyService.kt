@@ -54,6 +54,10 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
 
         /** A notification in Always-on wakes the pet for this long, then the calm frame comes back. */
         const val BURST_MS = 2600L
+
+        /** A double knock cheers the pet up by [TICKLE_JOY] at most this often. */
+        const val TICKLE_JOY_MS = 3000L
+        const val TICKLE_JOY = 1f
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -65,6 +69,9 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
 
     /** When a new ball game last brought experience (uptime): at most once per [XpRules.BALL_COOLDOWN_MS]. */
     private var ballXpAt = Long.MIN_VALUE / 2
+
+    /** When a double knock last cheered the pet up (uptime): at most once per [TICKLE_JOY_MS]. */
+    private var tickleJoyAt = Long.MIN_VALUE / 2
 
     /** Experience gained since the last debug log line, e.g. "FEED+10 TIME+1". */
     private val xpLog = StringBuilder()
@@ -312,6 +319,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             sync(force = true)
         }
         if (hideUnseen && hidden(now)) {
+            motion.consumeKnock()
             sendDark()
             return
         }
@@ -343,6 +351,8 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             engine.play()
             feel(HapticKind.PLAY)
         }
+        val knock = motion.consumeKnock()
+        if (knock > 0 && (posture == Posture.DESK || posture == Posture.HAND)) onKnock(knock, now)
         sync(force = false)
         send(engine.tick(dt, if (using) scene() else scene(tilt = motion.tilt, tiltY = motion.tiltY)))
         if (n7.glyphpet.BuildConfig.DEBUG && now - lastDebugLogAt >= 1000) {
@@ -368,6 +378,29 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             )
         }
         feelEngine()
+    }
+
+    /**
+     * A knock on the desk or the back of the phone: once, the pet looks up at the viewer and hops; twice, it is tickled
+     * (a giggle, a light haptic, a little joy at most every [TICKLE_JOY_MS]). A sleeper only opens one eye and nothing
+     * changes for it.
+     */
+    private fun onKnock(knocks: Int, now: Long) {
+        val n = nursery
+        if (n?.active == null || n.eggOnMatrix != null) return
+        val asleep = mood == Mood.SLEEPING
+        Log.d(TAG, "event knock x$knocks posture=$posture asleep=$asleep")
+        if (knocks >= 2) {
+            engine.tickle()
+            if (asleep) return
+            feel(HapticKind.TICKLE)
+            if (now - tickleJoyAt >= TICKLE_JOY_MS) {
+                tickleJoyAt = now
+                store.update { it.copy(joy = (it.joy + TICKLE_JOY).coerceIn(0f, 100f)) }
+            }
+        } else {
+            engine.notice()
+        }
     }
 
     /** Reads the screen state twice a second and tells the [Posture] for this frame. */
@@ -468,7 +501,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
                 l.stop()
                 motion.start()
                 // Nothing that happened in the Lab reaches the pet.
-                motion.consumeShake(); motion.consumeDrop(); motion.consumeRock()
+                motion.consumeShake(); motion.consumeDrop(); motion.consumeRock(); motion.consumeKnock()
             }
             return false
         }

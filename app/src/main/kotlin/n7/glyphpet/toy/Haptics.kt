@@ -105,6 +105,10 @@ class Haptics(private val context: Context) {
             ?: predefined(if (s >= 0.8f) VibrationEffect.EFFECT_HEAVY_CLICK else VibrationEffect.EFFECT_CLICK)
         HapticKind.PLAY -> compose(Step(Composition.PRIMITIVE_TICK, 0.6f))
             ?: predefined(VibrationEffect.EFFECT_TICK)
+        HapticKind.TICKLE -> compose(Step(Composition.PRIMITIVE_TICK, 0.35f), Step(Composition.PRIMITIVE_TICK, 0.3f, delayMs = 70), Step(Composition.PRIMITIVE_TICK, 0.25f, delayMs = 70))
+            ?: predefined(VibrationEffect.EFFECT_TICK)
+        HapticKind.GREET -> compose(Step(Composition.PRIMITIVE_TICK, 0.4f))
+            ?: predefined(VibrationEffect.EFFECT_TICK)
     }
 
     /** One primitive of a composition, at [scale] 0..1, [delayMs] after the one before. */

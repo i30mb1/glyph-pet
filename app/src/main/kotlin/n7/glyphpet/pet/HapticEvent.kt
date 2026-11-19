@@ -43,6 +43,12 @@ enum class HapticKind {
 
     /** Rocking the phone started a game. */
     PLAY,
+
+    /** A double knock tickled the pet: a light giggle. */
+    TICKLE,
+
+    /** The pet greets the owner who picked the phone up: one soft tick. */
+    GREET,
 }
 
 /**
