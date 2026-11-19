@@ -740,11 +740,11 @@ object Habits {
 
     /** Lion: a long tail with a tufted tip rises from behind it and flicks to and fro while an ear twitches. */
     fun lion(rows: List<String>): Habit {
-        val low = o(14, 15, "##...", "..##o")
-        val up = o(14, 10, "...oo", "....#", "....#", "...#.", "..#..", "##...")
-        val back = o(14, 10, "..oo.", "...#.", "....#", "...#.", "..#..", "##...")
-        val out = o(14, 10, "......o", ".....#o", "....#..", "...#...", "..#....", "##.....")
-        val ear = o(11, 2, "x")
+        val low = o(13, 13, "##...", "..##o")
+        val up = o(13, 8, "...oo", "....#", "....#", "...#.", "..#..", "##...")
+        val back = o(13, 8, "..oo.", "...#.", "....#", "...#.", "..#..", "##...")
+        val out = o(13, 8, "......o", ".....#o", "....#..", "...#...", "..#....", "##.....")
+        val ear = o(10, 2, "x")
         return Habit(
             "tail_flick",
             listOf(
@@ -764,9 +764,9 @@ object Habits {
     fun mech(rows: List<String>): Habit {
         val leftOpen = o(0, 4, "#.#", "x#.")
         val leftShut = o(0, 4, ".#.", "x#.")
-        val rightOpen = o(16, 4, "#.#", ".#x")
-        val rightShut = o(16, 4, ".#.", ".#x")
-        val antenna = o(9, 0, "x")
+        val rightOpen = o(14, 4, "#.#", ".#x")
+        val rightShut = o(14, 4, ".#.", ".#x")
+        val antenna = o(8, 0, "x")
         return Habit(
             "claw_snap",
             listOf(
@@ -791,9 +791,9 @@ object Habits {
      * front of its snout while it stomps. The opened mouth is one extra row, so the frame rises by one.
      */
     fun rex(rows: List<String>): Habit {
-        val open = rows.take(6) + "...........###......" + rows.drop(6)
-        val near = o(20, 5, "o", "o")
-        val far = o(21, 4, "o.", ".o", ".o", "o.")
+        val open = rows.take(5) + ".........###....." + rows.drop(5)
+        val near = o(17, 4, "o", "o")
+        val far = o(18, 3, "o.", ".o", ".o", "o.")
         return Habit(
             "roar",
             listOf(
@@ -867,9 +867,9 @@ object Habits {
      * its head. The waves are placed for the stretched (one row higher) head.
      */
     fun rooster(rows: List<String>): Habit {
-        val open = stamp(rows, 8, 8, "...", "ooo")
-        val near = listOf(o(16, 5, "o", "o"), o(2, 5, "o", "o"))
-        val far = listOf(o(17, 4, "o.", ".o", ".o", "o."), o(0, 4, ".o", "o.", "o.", ".o"))
+        val open = stamp(rows, 7, 6, "...", "ooo")
+        val near = listOf(o(15, 3, "o", "o"), o(1, 3, "o", "o"))
+        val far = listOf(o(16, 2, "o.", ".o", ".o", "o."), o(-1, 2, ".o", "o.", "o.", ".o"))
         return Habit(
             "crow",
             listOf(
@@ -887,8 +887,8 @@ object Habits {
 
     /** Mushroom family: the two little mushrooms bob up and down in turn, then the big one puffs a few spores. */
     fun shroomFamily(rows: List<String>): Habit {
-        val left = 0..4
-        val right = rows[0].length - 5 until rows[0].length
+        val left = 0..3
+        val right = rows[0].length - 4 until rows[0].length
         fun up(base: List<String>, xs: IntRange) = shiftDown(base, xs, 7..12, -1)
         fun down(base: List<String>, xs: IntRange) = shiftDown(base, xs, 8..12, 1)
         return Habit(
@@ -915,7 +915,7 @@ object Habits {
     fun thundercloud(rows: List<String>): Habit {
         val sky = rows.indexOfFirst { 'o' in it }
         val lit = (sky until rows.size).flatMap { y -> rows[y].indices.filter { rows[y][it] == 'o' }.map { it to y } }
-        val bolt = lit.filter { it.first in 9..12 }.toSet()
+        val bolt = lit.filter { it.first in 8..11 }.toSet()
         val drops = lit.filter { it !in bolt }
         val height = rows.size - sky
 
@@ -942,7 +942,7 @@ object Habits {
 
     /** Eagle owl: turns its face round to one side, ear tufts following, then to the other. */
     fun eagleOwl(rows: List<String>): Habit {
-        fun turn(d: Int) = slide(slide(rows, 4..8, 4..14, d, '#'), 0..1, rows[0].indices, d / 2, '.')
+        fun turn(d: Int) = slide(slide(rows, 3..7, 3..13, d, '#'), 0..1, rows[0].indices, d / 2, '.')
         return Habit(
             "head_turn",
             listOf(
@@ -961,9 +961,9 @@ object Habits {
     /** Kitsune: waves its three tails, the side ones lifting in turn while the middle one sways after them. */
     fun kitsune(rows: List<String>): Habit {
         fun wave(left: Boolean, middle: Int, right: Boolean): List<String> {
-            var r = slide(rows, 0..2, 6..12, middle, '.')
-            if (left) r = stamp(r, 0, 0, ".oo", ".##", "..##")
-            if (right) r = stamp(stamp(r, 16, 0, "oo.", "##."), 15, 2, "##..")
+            var r = slide(rows, 0..2, 5..11, middle, '.')
+            if (left) r = stamp(r, 0, 0, "oo", "##", ".##")
+            if (right) r = stamp(stamp(r, 15, 0, "oo", "##"), 14, 2, "##.")
             return r
         }
         return Habit(
@@ -1034,37 +1034,37 @@ object Habits {
     /** Slime king: squashes flat, crown and all, springs up tall and settles. Both shapes keep its bottom row. */
     fun slimeKing(rows: List<String>): Habit {
         val flat = listOf(
-            ".......o.o.o.......",
-            ".......ooooo.......",
-            ".....#########.....",
-            "...#o###########...",
-            ".##o##############.",
-            "###################",
-            "###################",
-            "###################",
-            "###################",
-            "###################",
-            "#.#####.###.#####.#",
-            "#...#.....#.....#..",
+            "......o.o.o......",
+            "......ooooo......",
+            "....#########....",
+            "..#o###########..",
+            ".##o############.",
+            "#################",
+            "#################",
+            "#################",
+            "#################",
+            "#################",
+            "#.####.###.####.#",
+            "#...#....#....#..",
         )
         val tall = listOf(
-            ".......o.o.o.......",
-            ".......ooooo.......",
-            "........###........",
-            "......#######......",
-            ".....#########.....",
-            "....#o#########....",
-            "...##o##########...",
-            "..###############..",
-            "..###############..",
-            "..###############..",
-            "..###############..",
-            "..###############..",
-            "..###############..",
-            "..###############..",
-            "..###############..",
-            "..#.#####.#####.#..",
-            "..#...#.....#...#..",
+            "......o.o.o......",
+            "......ooooo......",
+            ".......###.......",
+            ".....#######.....",
+            "....#########....",
+            "...#o#########...",
+            "..##o##########..",
+            "..#############..",
+            "..#############..",
+            "..#############..",
+            "..#############..",
+            "..#############..",
+            "..#############..",
+            "..#############..",
+            "..#############..",
+            "..#.####.####.#..",
+            "..#...#...#...#..",
         )
         val down = rows.size - flat.size
         val up = rows.size - tall.size
@@ -1086,9 +1086,9 @@ object Habits {
      * along at the far ends), then all four blink together.
      */
     fun eyestalks(rows: List<String>): Habit {
-        val tips = listOf(2, 8, 14)
+        val tips = listOf(1, 7, 13)
         fun shut(i: Int) = o(tips[i], 0, "xx", "##")
-        fun look(d: Int) = slide(slide(rows, 7..12, 1 until rows[0].length - 1, d, '#'), 0..1, rows[0].indices, d / 2, '.')
+        fun look(d: Int) = slide(slide(rows, 6..11, 1 until rows[0].length - 1, d, '#'), 0..1, rows[0].indices, d / 2, '.')
         return Habit(
             "look_around",
             listOf(
@@ -1214,11 +1214,11 @@ object Habits {
      * shutting.
      */
     fun fiddler(rows: List<String>): Habit {
-        val claw = 12 until rows[0].length
+        val claw = 10 until rows[0].length
         fun bow(d: Int, conduct: Boolean): List<String> {
             val moved = shiftDown(rows, claw, 0..6, d)
             // Raised, the arm keeps its joint on the shell.
-            val arm = if (d < 0) stamp(moved, 14, 6, "#") else moved
+            val arm = if (d < 0) stamp(moved, 12, 6, "#") else moved
             return if (conduct) stamp(arm, 0, 3, ".o.") else arm
         }
         return Habit(
@@ -1265,8 +1265,8 @@ object Habits {
      * The big sprite has no room to fly round the flower itself, so the flower waits under its left wing.
      */
     fun queenBee(rows: List<String>): Habit {
-        val folded = wingless(rows, 0..6, 5, rows[0].length - 6)
-        val flower = o(0, 13, "o.o", ".o.", ".#.")
+        val folded = wingless(rows, 0..6, 4, rows[0].length - 5)
+        val flower = o(0, 12, "o.o", ".o.", ".#.")
         fun fly(dx: Int, dy: Int, up: Boolean, ms: Long = 120, face: Face? = null) =
             HabitFrame(ms, rows = if (up) rows else folded, dx = dx, dy = dy, over = listOf(flower), face = face)
         return Habit(
@@ -1284,9 +1284,9 @@ object Habits {
     /** Night guard: wraps itself in its wings like a cloak, goes dark inside, then flings them open. */
     fun nightGuard(rows: List<String>): Habit {
         val w = rows[0].length
-        val half = blank(blank(rows, 4..9, 0..1), 4..9, w - 2 until w)
-        val wrap = "...o###########o..."
-        val cloaked = stamp(rows, 0, 4, wrap, wrap, wrap, wrap, "....o#########o....", ".....o##o#o##o.....")
+        val half = blank(blank(rows, 4..8, 0..1), 4..8, w - 2 until w)
+        val wrap = "..o###########o.."
+        val cloaked = stamp(rows, 0, 4, wrap, wrap, wrap, "...o#########o...", "....o##o#o##o....")
         return Habit(
             "cloak",
             listOf(
@@ -1325,7 +1325,7 @@ object Habits {
         val w = rows[0].length
         fun wave(center: Int) = rows.mapIndexed { y, row ->
             String(CharArray(row.length) { x ->
-                val gill = row[x] == 'o' && (x <= 3 || x >= w - 4)
+                val gill = row[x] == 'o' && (x <= 2 || x >= w - 3)
                 if (gill && abs(y - center) > 1) '#' else row[x]
             })
         }
@@ -1344,9 +1344,9 @@ object Habits {
         val mid = w / 2
         val sparks = listOf<(Int, Int) -> Boolean>(
             { x, y -> y <= 2 && x <= 3 },
-            { x, y -> y in 2..4 && x >= w - 3 },
-            { x, y -> y in 12..14 && x >= w - 3 },
-            { x, y -> y in 10..12 && x <= 2 },
+            { x, y -> y in 1..3 && x >= w - 3 },
+            { x, y -> y in 11..13 && x >= w - 3 },
+            { x, y -> y in 9..11 && x <= 2 },
         )
         val stone = rows.mapIndexed { y, row -> String(CharArray(row.length) { x -> if (sparks.any { it(x, y) }) '.' else row[x] }) }
 
@@ -1384,7 +1384,7 @@ object Habits {
                 .filter { (cx, cy) -> !behind || sky.getOrNull(cy)?.getOrNull(cx).let { it == null || it == '.' } }
             return if (cells.isEmpty()) emptyList() else listOf(dots(cells))
         }
-        val path = listOf(18 to 3, 17 to 8, 13 to 11, 8 to 12, 3 to 10, 0 to 6, 3 to 3, 8 to 2, 13 to 1)
+        val path = listOf(16 to 3, 15 to 8, 12 to 11, 7 to 12, 3 to 10, 0 to 6, 3 to 3, 7 to 2, 12 to 1)
         return Habit(
             "moon_orbit",
             path.mapIndexed { i, (x, y) -> HabitFrame(120, rows = sky, over = moon(x, y, behind = i >= 6)) } +

@@ -67,8 +67,8 @@ object ChargeRenderer {
         7 to 8, 6 to 8, 5 to 8, 4 to 8, 3 to 7, 3 to 6, 3 to 5, 3 to 4,
     )
 
-    /** The adult Eye's iris: the same ring, three columns right and four rows down in its bigger sprite. */
-    private val IRIS_ADULT = IRIS.map { (x, y) -> x + 3 to y + 4 }
+    /** The adult Eye's iris: the same ring, two columns right and three rows down in its bigger sprite. */
+    private val IRIS_ADULT = IRIS.map { (x, y) -> x + 2 to y + 3 }
 
     /**
      * Where the Bot's indicator sits, in sprite coordinates.
@@ -79,7 +79,7 @@ object ChargeRenderer {
     private class BarShape(val row: Int, val from: Int, val steps: Int, val antenna: Pair<Int, Int>)
 
     private val BAR_TEEN = BarShape(row = 7, from = 1, steps = 9, antenna = 5 to 0)
-    private val BAR_ADULT = BarShape(row = 9, from = 4, steps = 11, antenna = 9 to 0)
+    private val BAR_ADULT = BarShape(row = 9, from = 4, steps = 9, antenna = 8 to 0)
 
     /**
      * How the Cloud storms.
@@ -94,8 +94,8 @@ object ChargeRenderer {
 
     /** The thundercloud is too big to float up or to drop lightning under itself: it flashes the bolt it carries. */
     private val STORM_ADULT = StormShape(
-        lift = 0, fillRows = 11, strikes = IntArray(0),
-        bolt = (11..16).flatMap { y -> (9..12).map { x -> x to y } },
+        lift = 0, fillRows = 9, strikes = IntArray(0),
+        bolt = (9..14).flatMap { y -> (8..11).map { x -> x to y } },
     )
 
     /**
@@ -105,9 +105,9 @@ object ChargeRenderer {
      */
     private class BeamShape(val hull: Int, val lights: List<Int>, val coneX: Int, val coneY: Int)
 
-    /** The beam starts right under the hull's feet: 9 rows below the teen's home row, 13 below the mothership's. */
+    /** The beam starts right under the hull's feet: 9 rows below the teen's home row, 12 below the mothership's. */
     private val BEAM_TEEN = BeamShape(hull = 6, lights = List(7) { 1 + it * 2 }, coneX = 12, coneY = 17)
-    private val BEAM_ADULT = BeamShape(hull = 8, lights = List(9) { 1 + it * 2 }, coneX = 12, coneY = 18)
+    private val BEAM_ADULT = BeamShape(hull = 7, lights = List(8) { 1 + it * 2 }, coneX = 12, coneY = 18)
 
     private fun adult(s: Species): Boolean = s.stage == Stage.ADULT
 
@@ -204,7 +204,7 @@ object ChargeRenderer {
         if (st.still && st.reaction == null) zzz(f, s, dy)
     }
 
-    /** The Bot: the bottom row of its screen is a bar (nine steps, eleven on the adult) and its antenna blinks with the watts. */
+    /** The Bot: the bottom row of its screen is a bar of nine steps and its antenna blinks with the watts. */
     private fun bar(f: IntArray, s: Species, st: ChargeState) {
         val shape = if (adult(s)) BAR_ADULT else BAR_TEEN
         val n = shape.steps

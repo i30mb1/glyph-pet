@@ -170,7 +170,7 @@ internal class DistanceExperiment : Experiment() {
     private val backs = forms.map { it.sprite(face = false) }
 
     /** Each form shrinks inside its stretch so it hands over to the next at about the same size. */
-    private val endScale = floatArrayOf(0.79f, 0.73f, 0.7f)
+    private val endScale = floatArrayOf(0.88f, 0.73f, 0.7f)
     private val hog = Layer()
     private val scenery = Layer()
 

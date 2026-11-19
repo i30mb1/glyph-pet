@@ -55,7 +55,7 @@ internal class BotHologram : Signature {
         val tipY = sp.oy.toFloat()
         val size = when {
             sp.width <= 9 -> HALF * 0.8f
-            sp.width >= 19 -> HALF * 1.1f
+            sp.width >= 17 -> HALF * 1.1f
             else -> HALF
         }
         val grow = Kit.envelope(input.tMs, DURATION, UNFOLD_MS, UNFOLD_MS)
