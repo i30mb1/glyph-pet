@@ -31,6 +31,9 @@ interface Signature {
     /** The effect starts again from the beginning. */
     fun start() {}
 
+    /** How long its ending takes (a trick's way home); stopping it early jumps to that ending. */
+    val outroMs: Long get() = 0L
+
     /** Draws the whole frame into [frame] (values 0..4095, visible LEDs only: draw through [SpeciesRenderer.put] or [SpeciesRenderer.splat]). */
     fun draw(frame: IntArray, input: SignatureInput)
 }

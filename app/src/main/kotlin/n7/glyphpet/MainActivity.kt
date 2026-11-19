@@ -409,7 +409,12 @@ private fun PetScreen(
                             role = Role.Button,
                             onLongClickLabel = feedLabel,
                             onLongClick = {
-                                // As on the Glyph button: a full pet shows its trick instead of refusing.
+                                // As on the Glyph button: a full pet shows its trick instead of refusing, and a long
+                                // press during the trick ends it.
+                                if (engine.playingTrick) {
+                                    engine.stopTrick()
+                                    return@combinedClickable
+                                }
                                 val accepted = store.feed()
                                 val kind = nursery.activeForm?.kind
                                 if (!accepted && kind != null && engine.trick(kind)) {

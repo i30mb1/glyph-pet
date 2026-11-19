@@ -251,6 +251,12 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
     /** Whether a trick is playing. */
     val playingTrick: Boolean get() = trickMs >= 0
 
+    /** The owner had enough: the trick goes to its ending at once (the pet heads home and settles). */
+    fun stopTrick() {
+        val tr = trick ?: return
+        if (trickMs >= 0) trickMs = maxOf(trickMs, tr.durationMs - tr.outroMs)
+    }
+
     /** The kind on the matrix in the last tick. */
     private var kindNow: String? = null
 

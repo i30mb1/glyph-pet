@@ -209,6 +209,7 @@ internal class Canvas {
 internal class SafeSignature(private val inner: Signature) : Signature {
     private var broken = false
     override val durationMs: Long get() = inner.durationMs
+    override val outroMs: Long get() = inner.outroMs
 
     override fun start() {
         broken = false

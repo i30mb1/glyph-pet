@@ -10,8 +10,8 @@ class RockDetector {
     companion object {
         /** About 6 degrees each way. */
         const val LEAN = 0.10f
-        const val SWINGS = 2
-        const val WINDOW_MS = 3500L
+        const val SWINGS = 4
+        const val WINDOW_MS = 4000L
 
         /** m/s² above gravity; shaking starts at 9, walking with the phone in hand stays below. */
         const val MAX_FORCE = 8f

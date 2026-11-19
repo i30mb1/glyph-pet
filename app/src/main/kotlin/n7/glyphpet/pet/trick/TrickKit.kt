@@ -156,12 +156,15 @@ internal fun Canvas.over(src: Canvas) {
 }
 
 /**
- * A trick's frame of time: after a short crossfade in from the plain pet it plays ([scene]) until [playEndMs]; then
+ * A trick's frame of time: after a short crossfade in from the plain pet it plays ([scene]) for up to a minute
+ * ([PLAY_MS]; the owner ends it sooner with another long press, which jumps to the ending) until [playEndMs]; then
  * over [RETURN_MS] the scene brings the pet back home ([returning] goes 0 → 1), crossfades over [BLEND_MS] into the
  * plain pet at home with a content face, which closes the trick for [SETTLE_MS] with a little happy hop.
  */
-internal abstract class Trick(final override val durationMs: Long) : Signature {
+internal abstract class Trick(@Suppress("UNUSED_PARAMETER") planned: Long) : Signature {
     companion object {
+        /** How long a trick plays at most before the pet goes home by itself. */
+        const val PLAY_MS = 60_000L
         const val IN_MS = 240L
         const val RETURN_MS = 1300L
         const val BLEND_MS = 320L
@@ -169,6 +172,9 @@ internal abstract class Trick(final override val durationMs: Long) : Signature {
         const val HOP_FROM_MS = 60L
         const val HOP_TO_MS = 300L
     }
+
+    final override val outroMs: Long = RETURN_MS + BLEND_MS + SETTLE_MS
+    final override val durationMs: Long = PLAY_MS + outroMs
 
     protected val tilt = TrickTilt()
     protected val gate = FeelGate()

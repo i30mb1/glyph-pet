@@ -138,6 +138,13 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         hideGate.reset()
         if (!running) startLive()
         val n = nursery ?: store.nursery()
+        if (engine.playingTrick) {
+            // A long press during a trick ends it: the pet goes home.
+            engine.stopTrick()
+            feel(HapticKind.PLAY)
+            Log.d(TAG, "event long press -> stop trick")
+            return
+        }
         var cracked = false
         when (ButtonRules.decide(hasPet = n.active != null, mood = mood, eggOnMatrix = n.eggOnMatrix != null)) {
             ButtonAction.CRACK_EGG -> cracked = crackEgg()
