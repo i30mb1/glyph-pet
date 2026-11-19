@@ -614,10 +614,10 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         if (action == Action.SURGE) surgeGlow(frame)
         if (scene.ready && action != Action.SURGE) readySparkle(frame, species, dx, lift)
         ball.draw(frame, scene.tilt, scene.tiltY, cover)
-        // Rain for a hungry pet, a calm snow for a sleeper (the charger returns earlier, so never there); drawn behind
+        // Rain for a sad pet, a calm snow for a sleeper (the charger returns earlier, so never there); drawn behind
         // everything lit so far.
         val sky = when (scene.mood) {
-            Mood.HUNGRY -> Weather.Kind.RAIN
+            Mood.SAD -> Weather.Kind.RAIN
             Mood.SLEEPING -> Weather.Kind.SNOW
             else -> Weather.Kind.NONE
         }
