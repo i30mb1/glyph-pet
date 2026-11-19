@@ -382,7 +382,8 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         sync(force = false)
         val desk = posture == Posture.DESK
         updateToward(dt)
-        send(engine.tick(dt, if (using) scene() else scene(tilt = motion.tilt, tiltY = motion.tiltY, desk = desk, spin = if (desk) motion.spin else 0f, toward = toward)))
+        send(engine.tick(dt, if (using) scene() else scene(tilt = motion.tilt, tiltY = motion.tiltY, desk = desk, spin = if (desk) motion.spin else 0f, toward = toward,
+            yaw = if (posture == Posture.HAND) motion.yaw else 0f)))
         if (n7.glyphpet.BuildConfig.DEBUG && now - lastDebugLogAt >= 1000) {
             lastDebugLogAt = now
             val sh = engine.shown
@@ -390,7 +391,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             val st = n?.stats
             val g = n?.activeGrowth
             val pose = motion.pose
-            Log.d(TAG, "tick posture=$posture jitter=%.3f spin=%.2f toward=%.2f tilt=%.2f tiltY=%.2f | form=${n?.activeForm?.id} mood=$mood face=${sh.face} dx=${sh.dx} habitFrame=${sh.habit} lift=${sh.lift}".format(motion.jitter, motion.spin, toward, motion.tilt, motion.tiltY))
+            Log.d(TAG, "tick posture=$posture jitter=%.3f spin=%.2f toward=%.2f yaw=%.2f tilt=%.2f tiltY=%.2f | form=${n?.activeForm?.id} mood=$mood face=${sh.face} dx=${sh.dx} habitFrame=${sh.habit} lift=${sh.lift}".format(motion.jitter, motion.spin, toward, motion.yaw, motion.tilt, motion.tiltY))
             Log.d(TAG, "  engine ${engine.debug(n?.activeForm)}")
             Log.d(
                 TAG,
@@ -505,7 +506,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         send(IntArray(PetEngine.SIZE * PetEngine.SIZE))
     }
 
-    private fun scene(tilt: Float = 0f, tiltY: Float = 1f, desk: Boolean = false, spin: Float = 0f, toward: Float = 0f): Scene {
+    private fun scene(tilt: Float = 0f, tiltY: Float = 1f, desk: Boolean = false, spin: Float = 0f, toward: Float = 0f, yaw: Float = 0f): Scene {
         val n = nursery ?: return Scene(null, Mood.CONTENT)
         return Scene(
             species = n.activeForm,
@@ -522,6 +523,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             desk = desk,
             spin = spin,
             toward = toward,
+            yaw = yaw,
         )
     }
 

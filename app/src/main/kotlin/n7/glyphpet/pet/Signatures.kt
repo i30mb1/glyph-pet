@@ -18,6 +18,8 @@ class SignatureInput(
     val face: Face,
     val dx: Int,
     val feel: (HapticEvent) -> Unit = {},
+    /** The phone just turned round the vertical in the hand ([Scene.yaw]), radians; 0 when not. */
+    val yaw: Float = 0f,
 )
 
 /**

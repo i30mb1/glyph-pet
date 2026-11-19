@@ -43,6 +43,11 @@ data class Scene(
      * away (negative, it shrinks back: a dimmer body), -1..1 from how it is usually held.
      */
     val toward: Float = 0f,
+    /**
+     * In the hand, the phone just turned round the vertical (radians, ±0.6, back to 0 when the turn stops): positive
+     * when its right side came toward the viewer. The 3D pets show their side; flat ones look and lean that way.
+     */
+    val yaw: Float = 0f,
 )
 
 /**
@@ -134,6 +139,10 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
          */
         const val SLIDE_TILT = 0.35f
         const val LEAN_TILT = 0.12f
+
+        /** The phone turned round in the hand ([Scene.yaw], radians) past this turns flat pets' eyes; the lean is a part of it. */
+        const val YAW_LOOK = 0.1f
+        const val YAW_LEAN = 0.5f
 
         /** [Scene.toward] past this: the pet comes closer, or shrinks back to [BACK_DIM] of its brightness. */
         const val TOWARD = 0.45f
@@ -700,7 +709,11 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         val own = if (habitMs >= 0) species.habit.frameAt(habitMs) else null
         // The pet leans its head with the phone tilted a little (a big pet, with little room to slide, also when
         // tilted more); on the desk it turns its head with the phone turned round instead.
-        val leanBy = if (abs(scene.spin) > SPIN_LOOK) scene.spin else scene.tilt
+        val leanBy = when {
+            abs(scene.spin) > SPIN_LOOK -> scene.spin
+            abs(scene.tilt) > LEAN_TILT -> scene.tilt
+            else -> scene.yaw * YAW_LEAN
+        }
         val big = range.last <= 1
         val leaning = own == null && !asleep && abs(leanBy) > LEAN_TILT && (big || !sliding) &&
             (action == Action.NONE || action == Action.LOVED)
@@ -721,7 +734,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         // Legendary and mythic pets are drawn in 3D, turning a little with the phone ([Living3D]).
         val painter = if (Living3D.handles(species)) {
             val progress = if (own != null) habitMs / species.habit.durationMs.coerceAtLeast(1).toFloat() else -1f
-            runCatching { living.live(species, dtMs, scene.tilt, scene.tiltY, time, progress) }.getOrNull()
+            runCatching { living.live(species, dtMs, scene.tilt, scene.tiltY, time, progress, scene.yaw) }.getOrNull()
         } else {
             null
         }
@@ -756,6 +769,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
      */
     private fun input(species: Species, tMs: Long, dtMs: Long, scene: Scene, face: Face) = SignatureInput(
         species, tMs, dtMs, if (scene.desk) scene.spin else scene.tilt, scene.tiltY, blinkLeftMs > 0, face, x.roundToInt(), feel,
+        yaw = scene.yaw,
     )
 
     /**
@@ -767,6 +781,8 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         ball.active -> ball.side(centerX)
         !asleep && abs(scene.spin) > SPIN_LOOK -> (scene.spin * 2.5f).roundToInt().coerceIn(-2, 2)
         !asleep && abs(scene.tilt) > LEAN_TILT -> if (scene.tilt > 0) 1 else -1
+        // Turned round in the hand: the eyes stay on the viewer, who is now off to that side.
+        !asleep && abs(scene.yaw) > YAW_LOOK -> (scene.yaw * 4f).roundToInt().coerceIn(-2, 2)
         else -> 0
     }
 

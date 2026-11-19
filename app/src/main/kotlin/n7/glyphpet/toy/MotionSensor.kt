@@ -32,6 +32,10 @@ class MotionSensor(context: Context) : SensorEventListener {
 
         /** rad/s around the screen's axis that is [spin] 1: half a turn a second. */
         const val SPIN_FULL = 3f
+
+        /** [yaw] at most this far (radians, about 34 degrees), and it slides back to 0 over this time once the turn stops. */
+        const val YAW_MAX = 0.6f
+        const val YAW_BACK_S = 2f
     }
 
     private val sensors = context.getSystemService(SensorManager::class.java)
@@ -60,6 +64,14 @@ class MotionSensor(context: Context) : SensorEventListener {
      * round on it. Positive turns it clockwise as seen from the back (the matrix).
      */
     @Volatile var spin: Float = 0f
+        private set
+
+    /**
+     * How far the phone has just been turned round the world's vertical axis (radians, -[YAW_MAX]..[YAW_MAX]): positive
+     * when its right side (as seen on the matrix) came toward the viewer. The gyroscope's rate projected on gravity, so
+     * what the accelerometer cannot see; it slides back to 0 over [YAW_BACK_S] once the turn stops.
+     */
+    @Volatile var yaw: Float = 0f
         private set
 
     @Volatile private var gravityZ = 0f
@@ -97,6 +109,7 @@ class MotionSensor(context: Context) : SensorEventListener {
         twirls.reset()
         lastGyroNs = 0L
         spin = 0f
+        yaw = 0f
         gyroscope?.let { sensors?.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
         accelerometer?.let { sensors?.registerListener(this, it, ACCEL_PERIOD_US) }
         proximity?.let { sensors?.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
@@ -213,6 +226,13 @@ class MotionSensor(context: Context) : SensorEventListener {
         val wz = event.values[2]
         spin += ((wz / SPIN_FULL).coerceIn(-1f, 1f) - spin) * (1f - exp(-dt / 0.25f))
         if (twirls.feed(wz, dt, event.timestamp / 1_000_000)) synchronized(this) { twirled = true }
+        // The turn round the vertical: the rate along "up" (the slow accelerometer, which reads up while still).
+        // Counterclockwise from above takes the matrix's right side (the device's -x end) away from the viewer.
+        val g = sqrt(low[0] * low[0] + low[1] * low[1] + low[2] * low[2])
+        if (readings > 0 && g > 4f) {
+            val up = (event.values[0] * low[0] + event.values[1] * low[1] + wz * low[2]) / g
+            yaw = ((yaw - up * dt) * exp(-dt / YAW_BACK_S)).coerceIn(-YAW_MAX, YAW_MAX)
+        }
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit

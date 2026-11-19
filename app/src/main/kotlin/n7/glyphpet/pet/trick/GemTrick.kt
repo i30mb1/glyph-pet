@@ -80,7 +80,7 @@ internal abstract class MythicSpinTrick : Trick(0L) {
             abs(omega) > FAST -> Face.DIZZY
             else -> Face.IDLE
         }
-        val painter = view.live(sp, input.dtMs, input.gx.takeIf { it.isFinite() } ?: 0f, input.gy.takeIf { it.isFinite() } ?: 0f, t, -1f)
+        val painter = view.live(sp, input.dtMs, input.gx.takeIf { it.isFinite() } ?: 0f, input.gy.takeIf { it.isFinite() } ?: 0f, t, -1f, input.yaw)
         val grid = SpeciesRenderer.carve(sp, face, input.blink && face == Face.IDLE)
         val drawn = try {
             painter.paint(frame, sp, face, sp.rows, grid, sp.ox + input.dx, sp.oy, SpeciesRenderer.BODY, SpeciesRenderer.BRIGHT)

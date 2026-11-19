@@ -48,6 +48,13 @@ internal class Living3D {
     var tiltY = 0f
         private set
 
+    /**
+     * The phone turned round the vertical in the hand (radians, positive: its right side toward the viewer): added to
+     * the view's yaw as it is, so the pet shows its side the way a real object behind the matrix would.
+     */
+    var yaw = 0f
+        private set
+
     /** Engine time, ms, for sways and spins (frozen at 0 for the still frame). */
     var timeMs = 0L
         private set
@@ -72,7 +79,8 @@ internal class Living3D {
     private val mythic = Mythic3D(this)
 
     /** One live frame: follows the tilt and returns the painter for [species]. */
-    fun live(species: Species, dtMs: Long, tilt: Float, tiltYRaw: Float, timeMs: Long, habit: Float): BodyPainter {
+    fun live(species: Species, dtMs: Long, tilt: Float, tiltYRaw: Float, timeMs: Long, habit: Float, yaw: Float = 0f): BodyPainter {
+        this.yaw = if (yaw.isFinite()) yaw else 0f
         val dt = dtMs.coerceIn(0, 250).toFloat()
         if (base.isNaN() || still) base = tiltYRaw
         base += (tiltYRaw - base) * (1f - exp(-dt / BASE_MS))
@@ -90,6 +98,7 @@ internal class Living3D {
     /** The painter for Always-on's single frame. */
     fun still(species: Species): BodyPainter {
         still = true
+        yaw = 0f
         timeMs = 0
         habit = -1f
         return painter(species)
@@ -290,7 +299,7 @@ internal class Hologram(private val view: Living3D) : BodyPainter {
             a = STILL_YAW; b = STILL_PITCH
         } else {
             // The face turns toward the low side; leaning back tips the top away.
-            a = -view.tiltX * YAW + SWAY_YAW * sin(t * 0.55f)
+            a = -view.tiltX * YAW + view.yaw + SWAY_YAW * sin(t * 0.55f)
             b = view.tiltY * PITCH + SWAY_PITCH * sin(t * 0.41f + 1f)
         }
         val ca = cos(a); val sa = sin(a)

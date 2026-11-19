@@ -192,7 +192,7 @@ internal class Mythic3D(private val view: Living3D) : BodyPainter {
         if (view.still) {
             a = STILL_YAW; b = STILL_PITCH
         } else {
-            a = -view.tiltX * YAW + SWAY_YAW * sin(t * 0.37f)
+            a = -view.tiltX * YAW + view.yaw + SWAY_YAW * sin(t * 0.37f)
             b = view.tiltY * PITCH + SWAY_PITCH * sin(t * 0.29f + 2f)
         }
         val gain = body / SpeciesRenderer.BODY.toFloat()
