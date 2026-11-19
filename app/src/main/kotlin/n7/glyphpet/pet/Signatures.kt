@@ -33,9 +33,15 @@ interface Signature {
     fun draw(frame: IntArray, input: SignatureInput)
 }
 
-/** The signature effects by kind: rare pets in [RareSignatures], legendary and mythic ones in [LegendSignatures]. */
+/**
+ * The signature effects by kind: common pets' small ones in [CommonSignatures], rare pets' in [RareSignatures],
+ * legendary and mythic ones in [LegendSignatures].
+ */
 object Signatures {
-    fun of(kind: String): Signature? = (RareSignatures.all[kind] ?: LegendSignatures.all[kind])?.invoke()
+    private fun factory(kind: String): (() -> Signature)? =
+        LegendSignatures.all[kind] ?: RareSignatures.all[kind] ?: CommonSignatures.all[kind]
 
-    fun has(kind: String): Boolean = kind in RareSignatures.all || kind in LegendSignatures.all
+    fun of(kind: String): Signature? = factory(kind)?.invoke()
+
+    fun has(kind: String): Boolean = factory(kind) != null
 }
