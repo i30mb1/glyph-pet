@@ -234,11 +234,11 @@
     <string name="sig_whale">Aquarium</string>
     <string name="sig_whale_about">Swims in a deep aquarium</string>
     <string name="sig_jelly">Deep sea</string>
-    <string name="sig_jelly_about">Glows in the dark of the deep sea</string>
+    <string name="sig_jelly_about">Pulses with light while specks of the deep drift by</string>
     <string name="sig_owl">Head turn</string>
-    <string name="sig_owl_about">Turns its head all the way round</string>
+    <string name="sig_owl_about">Turns its head right round to the back and returns</string>
     <string name="sig_cloud">Thunderstorm</string>
-    <string name="sig_cloud_about">Rain, lightning and a roll of thunder</string>
+    <string name="sig_cloud_about">Rain in three layers and a flash of lightning</string>
     <string name="sig_bee">Flower flight</string>
     <string name="sig_bee_about">Flies round a flower, in front and behind</string>
     <string name="sig_eye">Living sphere</string>
@@ -248,7 +248,7 @@
     <string name="sig_ufo">Hyperspace</string>
     <string name="sig_ufo_about">Jumps to light speed through streaming stars</string>
     <string name="sig_slime">Soft body</string>
-    <string name="sig_slime_about">Wobbles and sags like real jelly</string>
+    <string name="sig_slime_about">Pours toward the low side as you tilt, then gathers back</string>
     <string name="sig_gem">3D gem</string>
     <string name="sig_gem_about">A cut gem turns in 3D, its facets glinting</string>
     <string name="sig_planet">3D planet</string>

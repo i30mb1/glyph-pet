@@ -110,7 +110,7 @@ object SpeciesCatalog {
     )
 
     val all: List<Species> = listOf(
-        // Rare: the first five
+        // The first batch: cat, ghost, bot, frog, dino (the rarity is on each species)
         Species(
             "cat", "Cat", Rarity.RARE,
             listOf(
@@ -162,7 +162,7 @@ object SpeciesCatalog {
             ox = 5, oy = 7, eyes = listOf(8 to 1), mouth = 9 to 3,
             habit = Habits::dino,
         ),
-        // Common: ten more
+        // Ten more of the first batch
         Species(
             "jelly", "Jelly", Rarity.RARE,
             listOf(
@@ -264,7 +264,7 @@ object SpeciesCatalog {
             charge = ChargeWay.FILL,
             habit = Habits::slime,
         ),
-        // Legendary: the three crazy ones
+        // The three crazy ones
         Species(
             "eye", "Eye", Rarity.LEGENDARY,
             listOf(
@@ -312,7 +312,7 @@ object SpeciesCatalog {
             charge = ChargeWay.BEAM,
             habit = Habits::ufo,
         ),
-        // Common: the second batch, five more
+        // The second batch
         Species(
             "snail", "Snail", Rarity.COMMON,
             listOf(
@@ -365,7 +365,7 @@ object SpeciesCatalog {
             charge = ChargeWay.FILL,
             habit = Habits::bee,
         ),
-        // Rare: three more
+        // Three more of the second batch
         Species(
             "bat", "Bat", Rarity.RARE,
             listOf(
@@ -394,7 +394,7 @@ object SpeciesCatalog {
             ox = 5, oy = 8, eyes = listOf(3 to 4, 10 to 4), mouth = 6 to 6,
             habit = Habits::axolotl,
         ),
-        // Mythic: the two rarest of all
+        // The two rarest of all
         Species(
             "gem", "Gem", Rarity.MYTHIC,
             listOf(

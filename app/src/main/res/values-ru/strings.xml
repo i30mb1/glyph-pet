@@ -236,11 +236,11 @@
     <string name="sig_whale">Аквариум</string>
     <string name="sig_whale_about">Плавает в глубоком аквариуме</string>
     <string name="sig_jelly">Глубоководье</string>
-    <string name="sig_jelly_about">Светится в темноте глубины</string>
+    <string name="sig_jelly_about">Мерцает в такт, а вокруг плывут огоньки глубины</string>
     <string name="sig_owl">Поворот головы</string>
-    <string name="sig_owl_about">Поворачивает голову кругом</string>
+    <string name="sig_owl_about">Поворачивает голову затылком к тебе и обратно</string>
     <string name="sig_cloud">Гроза</string>
-    <string name="sig_cloud_about">Дождь, молния и раскат грома</string>
+    <string name="sig_cloud_about">Дождь в три слоя и вспышка молнии</string>
     <string name="sig_bee">Облёт цветка</string>
     <string name="sig_bee_about">Облетает цветок спереди и сзади</string>
     <string name="sig_eye">Живой шар</string>
@@ -250,7 +250,7 @@
     <string name="sig_ufo">Гиперпространство</string>
     <string name="sig_ufo_about">Прыжок сквозь летящие звёзды</string>
     <string name="sig_slime">Мягкое тело</string>
-    <string name="sig_slime_about">Колышется и проседает, как настоящее желе</string>
+    <string name="sig_slime_about">Растекается по наклону и собирается обратно</string>
     <string name="sig_gem">3D-самоцвет</string>
     <string name="sig_gem_about">Огранённый камень вращается в 3D и сверкает гранями</string>
     <string name="sig_planet">3D-планета</string>
