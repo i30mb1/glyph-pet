@@ -127,6 +127,13 @@ import java.util.Date
 
 class MainActivity : ComponentActivity() {
 
+    companion object {
+        /** Whether the app is in front: the owner looks at the pet's screen, not busy with another app. */
+        @Volatile
+        var inFront = false
+            private set
+    }
+
     private lateinit var store: PetStore
     private lateinit var billing: SupporterBilling
 
@@ -156,7 +163,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        inFront = true
         billing.connect()
+    }
+
+    override fun onPause() {
+        inFront = false
+        super.onPause()
     }
 
     override fun onDestroy() {

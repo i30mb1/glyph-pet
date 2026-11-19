@@ -1,5 +1,6 @@
 package n7.glyphpet.toy
 
+import android.app.KeyguardManager
 import android.app.Service
 import android.content.ComponentName
 import android.content.Intent
@@ -7,6 +8,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.Messenger
+import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
 import com.nothing.ketchum.Glyph
@@ -80,6 +82,11 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
     private var hurt = false
     private var hideUnseen = true
     private val hideGate = HideGate()
+    private val postures = PostureTracker()
+    private var posture = Posture.HAND
+    private var screenOn = true
+    private var unlocked = false
+    private var screenCheckedAt = Long.MIN_VALUE / 2
     private var dark = false
 
     /** While > 0: the live loop was started by a notification in Always-on and ends at this uptime. */
@@ -271,6 +278,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         running = true
         dark = false
         hideGate.reset()
+        postures.reset()
         motion.start()
         lastFrameAt = SystemClock.uptimeMillis()
         main.post(frameLoop)
@@ -294,6 +302,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             drawStill()
             return
         }
+        updatePosture(now)
         if (motion.consumeDrop() && nursery?.active != null) {
             Log.d(TAG, "event drop")
             // The hit of a drop also reads as a shake: it is the drop that counts.
@@ -307,7 +316,9 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             return
         }
         dark = false
-        if (motion.consumeShake()) {
+        // Busy with the screen in another app: the phone moves with the hand, and none of it is play.
+        val using = posture == Posture.USING_PHONE
+        if (motion.consumeShake() && !using) {
             val n = nursery
             val shake = ButtonRules.shake(hasPet = n?.active != null, eggOnMatrix = n?.eggOnMatrix != null, petReady = n?.ready == true)
             Log.d(TAG, "event shake -> $shake")
@@ -322,7 +333,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
                 ShakeAction.NOTHING -> Unit
             }
         }
-        if (motion.consumeRock() && ButtonRules.rockPlays(hasPet = nursery?.active != null, mood = mood, eggOnMatrix = nursery?.eggOnMatrix != null)) {
+        if (motion.consumeRock() && !using && ButtonRules.rockPlays(hasPet = nursery?.active != null, mood = mood, eggOnMatrix = nursery?.eggOnMatrix != null)) {
             Log.d(TAG, "event rock -> play (ball out: ${engine.playingBall})")
             // A new game cheers it up and tires it a little; a kick to the ball already rolling changes nothing.
             if (!engine.playingBall) {
@@ -333,7 +344,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             feel(HapticKind.PLAY)
         }
         sync(force = false)
-        send(engine.tick(dt, scene(tilt = motion.tilt, tiltY = motion.tiltY)))
+        send(engine.tick(dt, if (using) scene() else scene(tilt = motion.tilt, tiltY = motion.tiltY)))
         if (n7.glyphpet.BuildConfig.DEBUG && now - lastDebugLogAt >= 1000) {
             lastDebugLogAt = now
             val sh = engine.shown
@@ -341,7 +352,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             val st = n?.stats
             val g = n?.activeGrowth
             val pose = motion.pose
-            Log.d(TAG, "tick tilt=%.2f tiltY=%.2f | form=${n?.activeForm?.id} mood=$mood face=${sh.face} dx=${sh.dx} habitFrame=${sh.habit} lift=${sh.lift}".format(motion.tilt, motion.tiltY))
+            Log.d(TAG, "tick posture=$posture jitter=%.3f tilt=%.2f tiltY=%.2f | form=${n?.activeForm?.id} mood=$mood face=${sh.face} dx=${sh.dx} habitFrame=${sh.habit} lift=${sh.lift}".format(motion.jitter, motion.tilt, motion.tiltY))
             Log.d(TAG, "  engine ${engine.debug(n?.activeForm)}")
             Log.d(
                 TAG,
@@ -357,6 +368,16 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             )
         }
         feelEngine()
+    }
+
+    /** Reads the screen state twice a second and tells the [Posture] for this frame. */
+    private fun updatePosture(now: Long) {
+        if (now - screenCheckedAt >= 500) {
+            screenCheckedAt = now
+            screenOn = getSystemService(PowerManager::class.java)?.isInteractive ?: true
+            unlocked = getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == false
+        }
+        posture = postures.update(motion.pose, motion.jitter, screenOn, unlocked, n7.glyphpet.MainActivity.inFront, now)
     }
 
     /**

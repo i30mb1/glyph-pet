@@ -7,6 +7,7 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Handler
 import android.os.Looper
+import kotlin.math.exp
 import kotlin.math.sqrt
 
 /**
@@ -22,6 +23,9 @@ class MotionSensor(context: Context) : SensorEventListener {
     private companion object {
         /** Shakes closer together count as one; short enough that five shakes open an egg in a few seconds. */
         const val SHAKE_GAP_MS = 1200L
+
+        /** The accelerometer runs at 100 Hz, fast enough to catch the short spike of a knock. */
+        const val ACCEL_PERIOD_US = 10_000
     }
 
     private val sensors = context.getSystemService(SensorManager::class.java)
@@ -37,6 +41,13 @@ class MotionSensor(context: Context) : SensorEventListener {
     @Volatile var tiltY: Float = 1f
         private set
 
+    /**
+     * How much the phone trembles: the high-passed acceleration (m/s²) smoothed over about half a second. A phone on a
+     * table stays near 0.03, one held in the hand 0.1 and more.
+     */
+    @Volatile var jitter: Float = 0f
+        private set
+
     @Volatile private var gravityZ = 0f
     @Volatile private var near: Boolean? = null
     @Volatile private var lux: Float? = null
@@ -49,6 +60,8 @@ class MotionSensor(context: Context) : SensorEventListener {
     private var lastShakeMs = 0L
     private val drops = DropDetector()
     private val rocks = RockDetector()
+    private val low = FloatArray(3)
+    private var lastAccelNs = 0L
 
     /** How the phone lies, or null before the accelerometer has said anything. */
     val pose: Pose? get() = if (readings > 0) Pose(gravityZ, near, lux) else null
@@ -57,7 +70,9 @@ class MotionSensor(context: Context) : SensorEventListener {
         if (running) return
         running = true
         readings = 0
-        accelerometer?.let { sensors?.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
+        lastAccelNs = 0L
+        jitter = 0f
+        accelerometer?.let { sensors?.registerListener(this, it, ACCEL_PERIOD_US) }
         proximity?.let { sensors?.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
         light?.let { sensors?.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
     }
@@ -109,13 +124,28 @@ class MotionSensor(context: Context) : SensorEventListener {
             }
         }
         val (ax, ay, az) = event.values
+        val dt = if (lastAccelNs == 0L) 0.01f else ((event.timestamp - lastAccelNs) / 1e9f).coerceIn(0.001f, 0.1f)
+        lastAccelNs = event.timestamp
+        // Smoothing by time, not by reading, so it stays the same at any sensor rate (tau of 0.8 and 0.85 per 20 ms).
+        val kTilt = 1f - exp(-dt / 0.09f)
         // Seen from the back, the device's +x edge is on the viewer's left: lifting it tips the pet right.
         val lean = (ax / SensorManager.GRAVITY_EARTH).coerceIn(-1f, 1f)
-        tilt = tilt * 0.8f + lean * 0.2f
+        tilt += (lean - tilt) * kTilt
         // The device's +y edge is the top of the matrix from either side: upright, gravity pulls toward the bottom row.
         val upright = (ay / SensorManager.GRAVITY_EARTH).coerceIn(-1f, 1f)
-        tiltY = tiltY * 0.8f + upright * 0.2f
-        gravityZ = if (readings == 0) az else gravityZ * 0.85f + az * 0.15f
+        tiltY += (upright - tiltY) * kTilt
+        gravityZ = if (readings == 0) az else gravityZ + (az - gravityZ) * (1f - exp(-dt / 0.12f))
+        // High-pass: the acceleration minus its slow average (gravity and the hand's slow moves).
+        if (readings == 0) { low[0] = ax; low[1] = ay; low[2] = az }
+        val kLow = 1f - exp(-dt / 0.25f)
+        low[0] += (ax - low[0]) * kLow
+        low[1] += (ay - low[1]) * kLow
+        low[2] += (az - low[2]) * kLow
+        val hx = ax - low[0]
+        val hy = ay - low[1]
+        val hz = az - low[2]
+        val high = sqrt(hx * hx + hy * hy + hz * hz)
+        jitter += (high - jitter) * (1f - exp(-dt / 0.6f))
         readings++
 
         val magnitude = sqrt(ax * ax + ay * ay + az * az)
