@@ -26,7 +26,10 @@ class KnockDetector {
 
         /** m/s², the whole vector: lower is free fall (a drop or a shake), never a knock. */
         const val FREE_FALL = 5f
-        const val DOUBLE_MS = 400L
+        const val DOUBLE_MS = 550L
+
+        /** How much busier the background may be before the second knock of a pair. */
+        const val SECOND_QUIET = 4f
     }
 
     private enum class State { IDLE, SPIKE, AFTER }
@@ -49,7 +52,9 @@ class KnockDetector {
     fun feed(high: Float, magnitude: Float, dtS: Float, nowMs: Long): Int {
         var out = 0
         when (state) {
-            State.IDLE -> if (high > MIN_PEAK && calm < QUIET_BEFORE) {
+            // The second knock of a pair comes while the phone still rings from the first: it may start from a busier
+            // background than a first knock.
+            State.IDLE -> if (high > MIN_PEAK && (calm < QUIET_BEFORE || (pairOpen(nowMs) && calm < QUIET_BEFORE * SECOND_QUIET))) {
                 state = State.SPIKE
                 spikeAt = nowMs
                 peak = high
@@ -74,6 +79,8 @@ class KnockDetector {
         }
         return out
     }
+
+    private fun pairOpen(nowMs: Long): Boolean = singleAt >= 0 && nowMs - singleAt <= DOUBLE_MS
 
     private fun confirm(nowMs: Long): Int {
         state = State.IDLE
