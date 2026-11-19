@@ -16,6 +16,8 @@ import n7.glyphpet.alerts.PetAlerts
 import n7.glyphpet.pet.ButtonAction
 import n7.glyphpet.pet.ButtonRules
 import n7.glyphpet.pet.GrowResult
+import n7.glyphpet.pet.HapticEvent
+import n7.glyphpet.pet.HapticKind
 import n7.glyphpet.pet.Mood
 import n7.glyphpet.pet.Nursery
 import n7.glyphpet.pet.PetEngine
@@ -35,6 +37,8 @@ import n7.glyphpet.pet.Scene
  * Always-on: one calm frame per EVENT_AOD (once a minute); a notification wakes the pet for a moment.
  * Nobody sees the matrix while the phone lies screen up or is in a pocket: then it stays dark (a setting, on by default).
  * A drop hurts: "ouch!" and a plaster until tomorrow.
+ * The phone answers with short, soft vibrations ([Haptics], a setting, on by default): never for a sleeping pet (only its
+ * egg and hatch), never in Always-on frames or the Lab.
  */
 class PetToyService : Service(), GlyphMatrixManager.Callback {
 
@@ -51,7 +55,8 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
     private lateinit var glyph: GlyphMatrixManager
     private lateinit var store: PetStore
     private lateinit var motion: MotionSensor
-    private val engine = PetEngine()
+    private lateinit var haptics: Haptics
+    private val engine = PetEngine().apply { haptics = mutableListOf() }
 
     private var connected = false
     private var running = false
@@ -90,6 +95,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
     override fun onBind(intent: Intent?): IBinder {
         store = PetStore(this)
         motion = MotionSensor(this)
+        haptics = Haptics(this)
         glyph = GlyphMatrixManager.getInstance(this)
         glyph.init(this)
         PetAlerts.onNotification = ::onNotification
@@ -131,20 +137,52 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         hideGate.reset()
         if (!running) startLive()
         val n = nursery ?: store.nursery()
+        var cracked = false
         when (ButtonRules.decide(hasPet = n.active != null, mood = mood, eggOnMatrix = n.eggOnMatrix != null)) {
-            ButtonAction.CRACK_EGG -> crackEgg()
-            ButtonAction.FEED -> engine.feed(store.feed())
+            ButtonAction.CRACK_EGG -> cracked = crackEgg()
+            ButtonAction.FEED -> {
+                val accepted = store.feed()
+                engine.feed(accepted)
+                feel(if (accepted) HapticKind.FEED else HapticKind.REFUSE)
+            }
             // The stroke turns into a peek for a sleeper, and its needs stay as they are.
             ButtonAction.STIR -> engine.pet()
             ButtonAction.NOTHING -> Unit
         }
         sync(force = true)
+        if (cracked) {
+            // Each crack is felt firmer than the one before; the hatching press is felt through the hatch itself.
+            val egg = nursery?.eggOnMatrix
+            val presses = if (egg != null) nursery?.pressesOf(egg.id) ?: 1 else 1
+            feel(HapticKind.CRACK, presses.toFloat() / (n7.glyphpet.pet.EggRules.PRESSES_TO_HATCH - 1))
+        }
         Log.d(TAG, "Long press handled, mood=$mood")
     }
 
-    /** A crack wobbles the egg at once; a hatch plays through sync(), by justHatched. */
-    private fun crackEgg() {
-        if (store.pressEgg() == PressResult.CRACKED) engine.crack()
+    /** A crack wobbles the egg at once; a hatch plays through sync(), by justHatched. Whether the press cracked it. */
+    private fun crackEgg(): Boolean {
+        if (store.pressEgg() != PressResult.CRACKED) return false
+        engine.crack()
+        return true
+    }
+
+    /**
+     * Plays [kind] in the hand, if vibration is on. A sleeping pet is never disturbed: then only the egg and its hatch
+     * are felt.
+     */
+    private fun feel(kind: HapticKind, strength: Float = 1f) {
+        if (labOn()) return
+        val egg = kind == HapticKind.CRACK || kind == HapticKind.HATCH_SWING || kind == HapticKind.HATCH_RISE ||
+            kind == HapticKind.HATCH_FLASH
+        if (mood == Mood.SLEEPING && !egg) return
+        haptics.play(HapticEvent(kind, strength))
+    }
+
+    /** Feels what the engine collected in its last frame. */
+    private fun feelEngine() {
+        val events = engine.haptics ?: return
+        for (e in events) feel(e.kind, e.strength)
+        events.clear()
     }
 
     private fun onAod() {
@@ -224,7 +262,10 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             val n = nursery
             when (ButtonRules.shake(hasPet = n?.active != null, eggOnMatrix = n?.eggOnMatrix != null, petReady = n?.ready == true)) {
                 // The evolution plays through sync(), by justEvolved; each shake before it makes the pet flare up.
-                ShakeAction.GROW -> { if (store.growShake() == GrowResult.SHOOK) engine.surge(); sync(force = true) }
+                ShakeAction.GROW -> {
+                    if (store.growShake() == GrowResult.SHOOK) { engine.surge(); feel(HapticKind.GROW_SHAKE) }
+                    sync(force = true)
+                }
                 // Shaking is no game: dizzy stars, no joy. A sleeper only opens one eye.
                 ShakeAction.DIZZY -> engine.shake()
                 ShakeAction.NOTHING -> Unit
@@ -233,9 +274,11 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         if (motion.consumeRock() && ButtonRules.rockPlays(hasPet = nursery?.active != null, mood = mood, eggOnMatrix = nursery?.eggOnMatrix != null)) {
             store.update { PetRules.play(it) }
             engine.play()
+            feel(HapticKind.PLAY)
         }
         sync(force = false)
         send(engine.tick(dt, scene(tilt = motion.tilt, tiltY = motion.tiltY)))
+        feelEngine()
     }
 
     /**
@@ -285,6 +328,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         power = store.power()
         hurt = store.hurt()
         hideUnseen = store.hideWhenUnseen
+        haptics.enabled = store.vibration
         val hatched = n.justHatched
         if (hatched != null && hatched.id != celebratedId) {
             celebratedId = hatched.id
@@ -332,6 +376,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             motion.stop()
             l.start()
         }
+        engine.haptics?.clear()
         send(l.frame(dtMs))
         return true
     }

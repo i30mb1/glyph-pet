@@ -94,6 +94,12 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
             return -room..room
         }
 
+        /** The ball must hit the round edge at least this fast (cells/s) to be felt. */
+        const val BALL_FEEL_SPEED = 7f
+
+        /** Events kept for the toy to feel ([haptics]); more than this between two drains and the newest are dropped. */
+        private const val MAX_HAPTICS = 16
+
         /** Reactions kept while an animation plays; more than this and the newest are dropped. */
         private const val MAX_PENDING = 4
 
@@ -263,6 +269,15 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
     /** A habit is due but does not fit where the pet stands: it walks here first. */
     private var habitSpot: Int? = null
 
+    /**
+     * What to feel in the hand: filled during [tick] (the ball on the edge, a signature's landing or strike, the beats of
+     * a hatch or an evolution) for the toy to drain after each frame. Null, the default, collects nothing: the app's
+     * preview never vibrates.
+     */
+    var haptics: MutableList<HapticEvent>? = null
+
+    private val feel: (HapticEvent) -> Unit = { e -> haptics?.let { if (it.size < MAX_HAPTICS) it.add(e) } }
+
     /** What the last [tick] showed. */
     var shown: Shown = Shown(null)
         private set
@@ -396,8 +411,13 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         time += dtMs
         val frame = IntArray(SIZE * SIZE)
         moment?.let { m ->
+            val before = momentMs
             momentMs += dtMs
             if (momentMs < m.durationMs) {
+                if (haptics != null) when (m) {
+                    is Hatch -> Moments.hatchFeel(before, momentMs, feel)
+                    is Evolve -> Moments.evolveFeel(before, momentMs, feel)
+                }
                 when (m) {
                     is Hatch -> Moments.hatch(frame, momentMs, m.baby, m.golden)
                     is Evolve -> Moments.evolve(frame, momentMs, m.from, m.to)
@@ -462,6 +482,10 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
             }
         }
         ball.update(dtMs, scene.tilt, scene.tiltY)
+        // A hard hit on the edge is felt; the hedgehog's ball is not seen (it rolls as the ball itself).
+        if (ball.hit >= BALL_FEEL_SPEED && species.kind != n7.glyphpet.pet.signature.HedgehogCurl.KIND) {
+            feel(HapticEvent(HapticKind.BALL_HIT, ((ball.hit - BALL_FEEL_SPEED) / (Ball.MAX_SPEED - BALL_FEEL_SPEED)).coerceIn(0f, 1f)))
+        }
         val sliding = !asleep && action == Action.NONE && habitMs < 0 && signatureMs < 0 && abs(scene.tilt) > 0.3f
         updateFood(dtMs, species)
         updateHabit(dtMs, species, scene, sliding)
@@ -473,7 +497,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         if (sig != null && updateSignature(dtMs, sig, scene, asleep, sliding)) {
             // The pet's own depth effect has the whole matrix for a moment.
             val face = face(scene.mood, asleep, sliding)
-            sig.draw(frame, SignatureInput(species, signatureMs, dtMs, scene.tilt, scene.tiltY, blinkLeftMs > 0, face, x.roundToInt()))
+            sig.draw(frame, SignatureInput(species, signatureMs, dtMs, scene.tilt, scene.tiltY, blinkLeftMs > 0, face, x.roundToInt(), feel))
             if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
             shown = Shown(face, dx = x.roundToInt())
             return frame

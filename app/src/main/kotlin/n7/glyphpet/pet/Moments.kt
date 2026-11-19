@@ -52,6 +52,56 @@ object Moments {
     /** Rows a happy pet is off the ground in its hop, 80 ms each: two hops and a rest. */
     private val HOP = intArrayOf(1, 2, 2, 1, 0, 1, 2, 2, 1, 0, 0, 0)
 
+    /** How far the egg leans in the rocking part of the hatch, [t] ms in: harder and faster, a cell either way, then two. */
+    private fun rockWobble(t: Long): Int {
+        val amp = if (t < ROCK_END / 2) 1 else 2
+        val period = if (t < ROCK_END / 2) 110L else 75L
+        return when ((t / period) % 4) { 1L -> amp; 3L -> -amp; else -> 0 }
+    }
+
+    /** The moments the rocking egg swings out to a side: one soft beat each. */
+    private val HATCH_SWINGS: LongArray = buildList {
+        var last = 0
+        for (t in 0 until ROCK_END step 5) {
+            val w = rockWobble(t)
+            if (w != 0 && last == 0) add(t)
+            last = w
+        }
+    }.toLongArray()
+
+    /**
+     * The beats of the evolution's turn: every eighth of it, closer and closer together as it speeds up (the inverse
+     * of the angle in [evolve]); the last one, the full turn, is the flash.
+     */
+    private val EVOLVE_BEATS: LongArray = LongArray(7) { i ->
+        val k = (i + 1) / 8.0
+        val p = (-0.25 + Math.sqrt(0.0625 + 3.0 * k)) / 1.5
+        (p * TURN_END).toLong()
+    }
+
+    /**
+     * What to feel of the hatch between [t0] (excluded) and [t1] ms: a soft beat on each swing of the rocking egg,
+     * growing; a rising rumble while the crack runs across it; a thud on the flash.
+     */
+    fun hatchFeel(t0: Long, t1: Long, feel: (HapticEvent) -> Unit) {
+        HATCH_SWINGS.forEachIndexed { i, at ->
+            if (at in (t0 + 1)..t1) feel(HapticEvent(HapticKind.HATCH_SWING, 0.35f + 0.65f * i / maxOf(1, HATCH_SWINGS.size - 1)))
+        }
+        if (ROCK_END in (t0 + 1)..t1) feel(HapticEvent(HapticKind.HATCH_RISE))
+        if (CRACK_END in (t0 + 1)..t1) feel(HapticEvent(HapticKind.HATCH_FLASH))
+    }
+
+    /**
+     * What to feel of the evolution between [t0] (excluded) and [t1] ms: a beat with each eighth of the 3D turn,
+     * faster and stronger, and a thud on the flash.
+     */
+    fun evolveFeel(t0: Long, t1: Long, feel: (HapticEvent) -> Unit) {
+        EVOLVE_BEATS.forEachIndexed { i, at ->
+            if (at in (t0 + 1)..t1) feel(HapticEvent(HapticKind.EVOLVE_TURN, (i + 1f) / EVOLVE_BEATS.size))
+        }
+        if (TURN_END in (t0 + 1)..t1) feel(HapticEvent(HapticKind.EVOLVE_FLASH))
+    }
+
     /** The row of the crack in column [x] of the big egg: a zigzag right across its middle. */
     private fun crackRow(x: Int) = if (x % 2 == 0) 4 else 5
 
@@ -66,11 +116,7 @@ object Moments {
         val top = EggRenderer.BIG_TOP
         when {
             t < ROCK_END -> {
-                // Harder and faster: a cell either way, then two.
-                val amp = if (t < ROCK_END / 2) 1 else 2
-                val period = if (t < ROCK_END / 2) 110L else 75L
-                val wobble = when ((t / period) % 4) { 1L -> amp; 3L -> -amp; else -> 0 }
-                EggRenderer.big(frame, EggView(EggStage.CRACKED_MORE, golden), wobble)
+                EggRenderer.big(frame, EggView(EggStage.CRACKED_MORE, golden), rockWobble(t))
             }
             t < CRACK_END -> {
                 // The crack runs from left to right; light glints at its tip.

@@ -114,6 +114,8 @@ internal class CloudStorm : Signature {
             if (flashLeft[k] < 0) {
                 flashLeft[k] = FLASH_FRAMES[k]
                 bolts[k] = bolt(sp, input.dx, dx, dy, k)
+                // The strike is felt with its flash: the smaller one softer.
+                input.feel(n7.glyphpet.pet.HapticEvent(n7.glyphpet.pet.HapticKind.LIGHTNING, FLASH[k] / FLASH[0]))
             }
             if (since < BOLT_MS) {
                 // The bolt flickers once, then fades.

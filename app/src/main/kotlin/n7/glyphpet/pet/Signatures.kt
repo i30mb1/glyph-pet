@@ -6,6 +6,7 @@ package n7.glyphpet.pet
  * @param tMs time since the effect started; it ends at [Signature.durationMs].
  * @param gx with [gy] the way "down" points on the matrix, seen from the back (Scene.tilt, Scene.tiltY).
  * @param dx where the pet stands, cells from its home spot.
+ * @param feel reports a moment to feel in the hand (a landing, a strike); the app's preview ignores it.
  */
 class SignatureInput(
     val species: Species,
@@ -16,6 +17,7 @@ class SignatureInput(
     val blink: Boolean,
     val face: Face,
     val dx: Int,
+    val feel: (HapticEvent) -> Unit = {},
 )
 
 /**

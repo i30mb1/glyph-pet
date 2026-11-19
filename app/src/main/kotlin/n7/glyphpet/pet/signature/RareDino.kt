@@ -59,6 +59,8 @@ internal class DinoStomp : Signature {
             if (p >= FLIGHT && !landed[j]) {
                 landed[j] = true
                 kickDust(sp, input.dx, j)
+                // The thud is felt too: harder after the higher jump.
+                input.feel(n7.glyphpet.pet.HapticEvent(n7.glyphpet.pet.HapticKind.STOMP, HEIGHTS[j].toFloat() / HEIGHTS[0]))
             }
             val since = p - FLIGHT
             if (since in 0 until SHAKE_MS) shakeLeft = SHAKE_MS - since

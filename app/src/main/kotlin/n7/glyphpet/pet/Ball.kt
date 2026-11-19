@@ -58,6 +58,10 @@ class Ball(private val random: Random) {
     private var sqx = 0f
     private var sqy = 1f
 
+    /** How fast the ball ran into the round edge in the last [update], in cells/s; 0 if it did not touch it. */
+    var hit = 0f
+        private set
+
     /** Whether a ball is out. */
     val active: Boolean get() = ageMs >= 0
 
@@ -90,6 +94,7 @@ class Ball(private val random: Random) {
 
     /** Moves the ball on by [dtMs] under gravity ([gx], [gy]): -1..1 each, the phone's lean. */
     fun update(dtMs: Long, gx: Float, gy: Float) {
+        hit = 0f
         if (!active) return
         ageMs += dtMs
         if (ageMs >= LIFE_MS) { clear(); return }
@@ -126,6 +131,7 @@ class Ball(private val random: Random) {
         if (!bounce) return
         val vn = vx * nx + vy * ny
         if (vn > 0f) {
+            hit = maxOf(hit, vn)
             vx -= (1f + BOUNCE) * vn * nx
             vy -= (1f + BOUNCE) * vn * ny
             squash = maxOf(squash, minOf(0.35f, vn / 30f))

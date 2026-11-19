@@ -275,6 +275,7 @@ private fun PetScreen(
     var toyOpened by remember { mutableStateOf(ui.getBoolean(KEY_TOY_OPENED, false)) }
     var hurt by remember { mutableStateOf(store.hurt()) }
     var hideUnseen by remember { mutableStateOf(store.hideWhenUnseen) }
+    var vibration by remember { mutableStateOf(store.vibration) }
     var notifications by remember { mutableStateOf(PetAlerts.hasAccess(context)) }
 
     fun refresh() {
@@ -449,6 +450,8 @@ private fun PetScreen(
             SettingsCard(
                 hideUnseen = hideUnseen,
                 onHideUnseen = { store.hideWhenUnseen = it; hideUnseen = it },
+                vibration = vibration,
+                onVibration = { store.vibration = it; vibration = it },
                 notifications = notifications,
                 onNotifications = { context.startActivity(PetAlerts.settingsIntent(context)) },
                 hurt = hurt,
@@ -831,13 +834,15 @@ private fun Lock(modifier: Modifier = Modifier) {
 }
 
 /**
- * One folded section: how the pet behaves on the back of the phone (dark when nobody sees it, notifications, the
- * plaster after a drop). Folded by default; the header row opens it.
+ * One folded section: how the pet behaves on the back of the phone (dark when nobody sees it, vibration, notifications,
+ * the plaster after a drop). Folded by default; the header row opens it.
  */
 @Composable
 private fun SettingsCard(
     hideUnseen: Boolean,
     onHideUnseen: (Boolean) -> Unit,
+    vibration: Boolean,
+    onVibration: (Boolean) -> Unit,
     notifications: Boolean,
     onNotifications: () -> Unit,
     hurt: Boolean,
@@ -853,6 +858,13 @@ private fun SettingsCard(
                     text = stringResource(R.string.matrix_hide_text),
                     checked = hideUnseen,
                     onChange = onHideUnseen,
+                )
+                N7Divider()
+                ToggleRow(
+                    title = stringResource(R.string.matrix_vibration_title),
+                    text = stringResource(R.string.matrix_vibration_text),
+                    checked = vibration,
+                    onChange = onVibration,
                 )
                 N7Divider()
                 // Access to notifications is a system setting: the switch opens it and shows what was chosen there.

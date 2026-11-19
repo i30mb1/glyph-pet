@@ -226,6 +226,11 @@ class PetStore(context: Context) {
         get() = prefs.getBoolean(KEY_HIDE_UNSEEN, true)
         set(value) = prefs.edit().putBoolean(KEY_HIDE_UNSEEN, value).apply()
 
+    /** Setting: the phone answers the pet with short, soft vibrations (feeding, cracking, growing, play). On by default. */
+    var vibration: Boolean
+        get() = prefs.getBoolean(KEY_VIBRATION, true)
+        set(value) = prefs.edit().putBoolean(KEY_VIBRATION, value).apply()
+
     @Synchronized
     fun setSupporter(value: Boolean, nowMs: Long = GameClock.now()) {
         saveState(loadState(nowMs).copy(supporter = value))
@@ -373,6 +378,7 @@ class PetStore(context: Context) {
         const val KEY_GRANT_DAY = "grant_day"
         const val KEY_HURT_UNTIL = "hurt_until"
         const val KEY_HIDE_UNSEEN = "hide_unseen"
+        const val KEY_VIBRATION = "vibration"
         const val KEY_GROWTH = "growth"
         const val KEY_CARE_DAY = "care_day"
         const val KEY_CARE_FED = "care_fed"
