@@ -150,6 +150,7 @@ object SpeciesRenderer {
      * @param habit a frame of the species' habit playing now, drawn over the face.
      * @param eyeDx shifts the eyes sideways (a glance), unless the habit frame shifts them itself.
      * @param shadow a pet off the ground (a hop, a jump for joy, a habit that rises) casts a dim shadow on the ground.
+     * @param painter draws the body in 3D instead of flat (see [Living3D]); null, the default, draws it flat.
      * @param cover if given, gets [COVER_BODY] for every visible cell of the silhouette (the carved eye and mouth holes
      *   included) and [COVER_FACE] for the eye and mouth slots with a cell of margin around them.
      */
@@ -167,6 +168,7 @@ object SpeciesRenderer {
         eyeDx: Int = 0,
         shadow: Boolean = false,
         cover: ByteArray? = null,
+        painter: BodyPainter? = null,
     ): IntArray {
         val look = LOOKS.getValue(face)
         val eyesDx = habit?.eyeDx?.takeIf { it != 0 } ?: eyeDx
@@ -183,10 +185,16 @@ object SpeciesRenderer {
         if (cover != null) cover(cover, species, rows, ox, oy, eyesDx)
         val body = (BODY * look.body * (habit?.body ?: 1f)).toInt()
         val bright = if (face in ASLEEP) BRIGHT / 2 else BRIGHT
+        // The top tiers' 3D body ([Living3D]); anything going wrong there draws the flat body for this frame.
+        val painted = painter != null && try {
+            painter.paint(frame, species, face, rows, grid, ox, oy, body, bright)
+        } catch (e: Exception) {
+            false
+        }
         grid.forEachIndexed { y, row ->
             row.forEachIndexed { x, c ->
                 if (c != '.' && clipped != null && !GlyphMatrixSpec.isVisible(ox + x, oy + y)) clipped += ox + x to oy + y
-                when (c) {
+                if (!painted) when (c) {
                     '#' -> put(frame, ox + x, oy + y, body)
                     'o' -> put(frame, ox + x, oy + y, bright)
                 }
@@ -200,7 +208,7 @@ object SpeciesRenderer {
         }
 
         // A sleeper's opened eye is the one thing at full brightness on its dimmed body, so the peek reads at a glance.
-        if (face == Face.PEEK) species.eyes.firstOrNull()?.let { (ex, ey) ->
+        if (face == Face.PEEK && !painted) species.eyes.firstOrNull()?.let { (ex, ey) ->
             val x = ox + ex + eyesDx
             val y = oy + ey
             if (species.inverted) {

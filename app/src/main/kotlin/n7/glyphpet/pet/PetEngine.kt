@@ -220,6 +220,9 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
     private var momentMs = 0L
     private val ball = Ball(random)
 
+    /** The 3D look of the legendary and mythic pets. */
+    private val living = Living3D()
+
     /** The hedgehog has no ball: it curls into one itself for the ball's life. */
     private val curl = n7.glyphpet.pet.signature.HedgehogCurl()
 
@@ -401,7 +404,8 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         if (scene.charging) {
             ChargeRenderer.render(species, chargeState(scene, still = true), frame = frame)
         } else {
-            SpeciesRenderer.render(species, face, frame = frame, hurt = scene.hurt, shadow = true)
+            val painter = if (Living3D.handles(species)) runCatching { living.still(species) }.getOrNull() else null
+            SpeciesRenderer.render(species, face, frame = frame, hurt = scene.hurt, shadow = true, painter = painter)
         }
         if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = true)
         return frame
@@ -527,9 +531,17 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         val jitter = if (shudder) (if ((time / 120) % 2 == 0L) -1 else 1) else 0
         val dx = x.roundToInt() + jitter
         cover.fill(SpeciesRenderer.COVER_NONE)
+        // Legendary and mythic pets are drawn in 3D, turning a little with the phone ([Living3D]).
+        val painter = if (Living3D.handles(species)) {
+            val progress = if (own != null) habitMs / species.habit.durationMs.coerceAtLeast(1).toFloat() else -1f
+            runCatching { living.live(species, dtMs, scene.tilt, scene.tiltY, time, progress) }.getOrNull()
+        } else {
+            null
+        }
         SpeciesRenderer.render(
-            species, face, blink = blinkLeftMs > 0, dx = dx, frame = frame, timeMs = time, lift = lift, habit = habit, hurt = scene.hurt,
-            eyeDx = ball.side(centerX), shadow = true, cover = cover,
+            species, face, blink = blinkLeftMs > 0, dx = dx, frame = frame, timeMs = time, lift = lift,
+            habit = if (painter != null) living.habitFor(species, own, habit) else habit, hurt = scene.hurt,
+            eyeDx = ball.side(centerX), shadow = true, cover = cover, painter = painter,
         )
         foodY?.let { fy -> SpeciesRenderer.glyph(frame, listOf("oo", "oo"), species.ox + dx + species.width / 2 - 1, fy.toInt()) }
         if (action == Action.SURGE) surgeGlow(frame)
