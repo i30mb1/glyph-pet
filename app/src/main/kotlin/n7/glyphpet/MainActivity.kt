@@ -622,7 +622,7 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
                         Text(label.uppercase(), style = N7Type.Label, color = if (egg) N7Colors.Ink else N7Colors.InkSubtle, textAlign = TextAlign.Center)
                         Text(stringResource(rarityName(s.rarity)), style = N7Type.Caption, color = N7Colors.InkSubtle)
                         // Same height as a hero tile with its three page dots.
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(7.dp))
                     }
                 }
                 repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
@@ -651,22 +651,27 @@ private fun HeroTile(
 ) {
     val forms = SpeciesForms.all(hero.id)
     val pager = rememberPagerState(initialPage = growth.shown.ordinal) { forms.size }
+    val ready = growth.ready && growth.reached.next != null
+    val onMatrix = stringResource(R.string.form_on_matrix)
+    val tomorrow = stringResource(R.string.form_tomorrow)
+    // Only the pet on the matrix feels the shakes: its next form says how to grow it.
+    val readyLine = stringResource(if (active) R.string.form_shake else R.string.form_ready)
+    val rarity = stringResource(rarityName(hero.rarity))
+    val careLeft = GrowthRules.TEEN_CARE_DAYS - if (growth.reached == Stage.TEEN) growth.careDays else 0
+    val careLine = pluralStringResource(R.plurals.form_care_days, careLeft, careLeft)
+    fun status(stage: Stage): String = when {
+        live && stage == growth.shown -> onMatrix
+        stage <= growth.reached -> rarity
+        ready && stage == growth.reached.next -> readyLine
+        stage == Stage.TEEN -> tomorrow
+        else -> careLine
+    }
     val stage = forms[pager.currentPage].stage
     val reached = stage <= growth.reached
     val framed = live && stage == growth.shown
-    val ready = growth.ready && growth.reached.next != null
     val stageName = stringResource(stageName(stage))
-    val status = when {
-        framed -> stringResource(R.string.form_on_matrix)
-        !reached && ready && stage == growth.reached.next -> stringResource(R.string.form_ready)
-        !reached && stage == Stage.TEEN -> stringResource(R.string.form_tomorrow)
-        !reached -> {
-            val left = GrowthRules.TEEN_CARE_DAYS - if (growth.reached == Stage.TEEN) growth.careDays else 0
-            pluralStringResource(R.plurals.form_care_days, left, left)
-        }
-        else -> stringResource(rarityName(hero.rarity))
-    }
-    Column(
+    // The whole tile swipes between the forms; the dots stay put at the bottom.
+    Box(
         modifier
             .clip(RoundedCornerShape(20.dp))
             .background(N7Colors.SurfaceRaised)
@@ -674,28 +679,41 @@ private fun HeroTile(
             .statusFrame(hero.rarity, 20.dp)
             .then(if (framed) Modifier.border(1.dp, N7Colors.ControlBorder, RoundedCornerShape(20.dp)) else Modifier)
             .clickable(enabled = reached && !framed, role = Role.Button) { onShow(stage) }
-            .padding(vertical = 10.dp)
-            .semantics(mergeDescendants = true) { contentDescription = "${hero.name}, $stageName: $status" },
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+            .semantics(mergeDescendants = true) { contentDescription = "${hero.name}, $stageName: ${status(stage)}" },
     ) {
         HorizontalPager(state = pager, modifier = Modifier.fillMaxWidth()) { page ->
             val form = forms[page]
             val open = form.stage <= growth.reached
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                GlyphMatrix(cells = (if (open) cells else shadows).getValue(form.id), glow = false, modifier = Modifier.size(60.dp))
-                if (!open) Lock(Modifier.size(18.dp))
+            Column(
+                Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 21.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    GlyphMatrix(cells = (if (open) cells else shadows).getValue(form.id), glow = false, modifier = Modifier.size(60.dp))
+                    if (!open) Lock(Modifier.size(18.dp))
+                }
+                Text(
+                    (if (count > 1) "${hero.name} ×$count" else hero.name).uppercase(),
+                    style = N7Type.Label,
+                    color = N7Colors.Ink,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                )
+                Text(
+                    status(form.stage),
+                    style = N7Type.Caption,
+                    color = if (ready && form.stage == growth.reached.next) N7Colors.Ink else N7Colors.InkSubtle,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
-        Text(
-            (if (count > 1) "${hero.name} ×$count" else hero.name).uppercase(),
-            style = N7Type.Label,
-            color = N7Colors.Ink,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-        )
-        Text(status, style = N7Type.Caption, color = if (ready && !reached) N7Colors.Ink else N7Colors.InkSubtle, maxLines = 1)
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             forms.indices.forEach { i ->
                 Box(
                     Modifier
@@ -703,10 +721,6 @@ private fun HeroTile(
                         .background(if (i == pager.currentPage) N7Colors.LedOn else N7Colors.LedOff, CircleShape),
                 )
             }
-        }
-        if (ready && active && pager.currentPage == growth.reached.ordinal + 1) {
-            // Only the pet on the matrix feels the shakes; the line says how.
-            Text(stringResource(R.string.form_shake), style = N7Type.Caption, color = N7Colors.Ink, textAlign = TextAlign.Center)
         }
     }
 }
