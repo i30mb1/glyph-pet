@@ -408,7 +408,17 @@ private fun PetScreen(
                             enabled = canFeed,
                             role = Role.Button,
                             onLongClickLabel = feedLabel,
-                            onLongClick = { engine.feed(store.feed()); refresh() },
+                            onLongClick = {
+                                // As on the Glyph button: a full pet shows its trick instead of refusing.
+                                val accepted = store.feed()
+                                val kind = nursery.activeForm?.kind
+                                if (!accepted && kind != null && engine.trick(kind)) {
+                                    store.update { it.copy(joy = (it.joy + n7.glyphpet.pet.Tricks.JOY).coerceIn(0f, 100f)) }
+                                } else {
+                                    engine.feed(accepted)
+                                }
+                                refresh()
+                            },
                             onClick = {},
                         ),
                     contentDescription = if (nursery.eggOnMatrix != null) eggDescription else nursery.active?.name ?: eggDescription,

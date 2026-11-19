@@ -506,6 +506,22 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         stir(asleep)
         updateCharge(dtMs, scene, asleep)
         updateBlink(dtMs, asleep)
+        // A trick plays on the charger too: the owner asked for it.
+        val tr = trick
+        if (tr != null && trickMs >= 0) {
+            trickMs += dtMs
+            // Only a drop or falling asleep cuts a trick short; the owner is playing along with it.
+            if (!asleep && action == Action.NONE && trickMs < tr.durationMs) {
+                val face = face(scene.mood, asleep, false)
+                tr.draw(frame, SignatureInput(species, trickMs, dtMs, scene.tilt, scene.tiltY, blinkLeftMs > 0, face, x.roundToInt(), feel))
+                if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
+                shown = Shown(face, dx = x.roundToInt())
+                return frame
+            }
+            trick = null
+            trickMs = -1
+        }
+
         if (scene.charging) {
             // On the charger the pet stays put and shows its charging indicator; food is eaten on the spot.
             habitMs = -1
@@ -549,21 +565,6 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         updateMovement(dtMs, scene, range, slideRange(species), asleep, sliding)
         updateYawn(dtMs, scene.mood)
 
-        val tr = trick
-        if (tr != null && trickMs >= 0) {
-            trickMs += dtMs
-            // Only a drop or falling asleep cuts a trick short; the owner is playing along with it.
-            if (!asleep && action == Action.NONE && trickMs < tr.durationMs) {
-                val face = face(scene.mood, asleep, false)
-                tr.draw(frame, SignatureInput(species, trickMs, dtMs, scene.tilt, scene.tiltY, blinkLeftMs > 0, face, x.roundToInt(), feel))
-                if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
-                shown = Shown(face, dx = x.roundToInt())
-                return frame
-            }
-            trick = null
-            trickMs = -1
-        }
-
         val sig = signature
         if (sig != null && updateSignature(dtMs, sig, scene, asleep, sliding)) {
             // The pet's own depth effect has the whole matrix for a moment.
@@ -595,7 +596,9 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         val face = own?.face ?: face(scene.mood, asleep, sliding)
         val lift = if (hopMs >= 0) HOP.getOrElse((hopMs / 80).toInt()) { 0 } else 0
         val shudder = action == Action.REFUSING || action == Action.SURGE || (action == Action.HURT && ouch())
-        val jitter = if (shudder) (if ((time / 120) % 2 == 0L) -1 else 1) else 0
+        // A refusal sways slowly, "no, thanks"; a surge or an ouch trembles.
+        val jitterMs = if (action == Action.REFUSING) 300L else 120L
+        val jitter = if (shudder) (if ((time / jitterMs) % 2 == 0L) -1 else 1) else 0
         val dx = x.roundToInt() + jitter
         cover.fill(SpeciesRenderer.COVER_NONE)
         // Legendary and mythic pets are drawn in 3D, turning a little with the phone ([Living3D]).
@@ -766,7 +769,8 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         Action.DIZZY -> Face.DIZZY
         Action.EATING -> if ((time / 250) % 2 == 0L) Face.EAT else Face.CONTENT
         Action.LOVED -> Face.LOVE
-        Action.REFUSING -> Face.ANGRY
+        // Full: a content "no, thanks", not anger.
+        Action.REFUSING -> Face.CONTENT
         Action.PEEK -> Face.PEEK
         Action.HURT -> if (ouch()) Face.SCARED else Face.DIZZY
         Action.ALERT -> Face.SCARED
