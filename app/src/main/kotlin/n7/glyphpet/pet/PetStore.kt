@@ -244,6 +244,7 @@ class PetStore(context: Context) {
             energy = prefs.getFloat(KEY_ENERGY, 80f),
             bornAtMs = prefs.getLong(KEY_BORN, nowMs),
             updatedAtMs = prefs.getLong(KEY_UPDATED, nowMs),
+            napping = prefs.getBoolean(KEY_NAPPING, false),
         )
     }
 
@@ -254,6 +255,7 @@ class PetStore(context: Context) {
             .putFloat(KEY_ENERGY, stats.energy)
             .putLong(KEY_BORN, stats.bornAtMs)
             .putLong(KEY_UPDATED, stats.updatedAtMs)
+            .putBoolean(KEY_NAPPING, stats.napping)
             .apply()
     }
 
@@ -366,6 +368,7 @@ class PetStore(context: Context) {
         const val KEY_ENERGY = "energy"
         const val KEY_BORN = "born_at"
         const val KEY_UPDATED = "updated_at"
+        const val KEY_NAPPING = "napping"
         const val KEY_ACTIVE = "active_species"
         const val KEY_SEEN = "seen_"
         const val KEY_SUPPORTER = "supporter"

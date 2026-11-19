@@ -9,6 +9,8 @@ data class PetStats(
     val energy: Float,
     val bornAtMs: Long,
     val updatedAtMs: Long,
+    /** A daytime nap is on: the pet sleeps until its energy is back to [PetRules.NAP_WAKE_ENERGY]. */
+    val napping: Boolean = false,
 ) {
     fun ageDays(nowMs: Long): Int = ((nowMs - bornAtMs) / DAY_MS).toInt().coerceAtLeast(0)
 
@@ -27,6 +29,15 @@ object PetRules {
     const val JOY_PER_HOUR = 8f
     const val ENERGY_AWAKE_PER_HOUR = 6f
     const val ENERGY_ASLEEP_PER_HOUR = 16f
+
+    /**
+     * A pet that runs out of energy in the day (below [NAP_ENERGY]) takes a short nap: its energy comes back at
+     * [ENERGY_NAP_PER_HOUR] and it wakes once it reaches [NAP_WAKE_ENERGY] (from empty, about 12 minutes), so it does
+     * not doze off again right after waking.
+     */
+    const val NAP_ENERGY = 10f
+    const val NAP_WAKE_ENERGY = 30f
+    const val ENERGY_NAP_PER_HOUR = 150f
 
     const val FEED_SATIETY = 35f
     const val FEED_JOY = 5f
@@ -47,7 +58,8 @@ object PetRules {
     fun isNight(hour: Int): Boolean = hour >= 23 || hour < 7
 
     /** A pet on the charger stays awake during the day: it works out, see [ChargeRenderer]. */
-    fun isAsleep(stats: PetStats, hour: Int): Boolean = isNight(hour) || stats.energy < 10f
+    fun isAsleep(stats: PetStats, hour: Int): Boolean =
+        isNight(hour) || stats.energy < NAP_ENERGY || (stats.napping && stats.energy < NAP_WAKE_ENERGY)
 
     /**
      * Moves [stats] forward to [nowMs] in 10-minute steps. [charging] counts only for the latest step:
@@ -59,14 +71,24 @@ object PetRules {
         while (s.updatedAtMs < nowMs) {
             val stepEnd = minOf(s.updatedAtMs + STEP_MS, nowMs)
             val hours = (stepEnd - s.updatedAtMs) / HOUR_MS
-            val asleep = isAsleep(s, hourAt(s.updatedAtMs))
+            val hour = hourAt(s.updatedAtMs)
+            val asleep = isAsleep(s, hour)
+            val nap = asleep && !isNight(hour)
             val resting = asleep || (charging && stepEnd == nowMs)
             val hungry = s.satiety < 25f
+            val gain = when {
+                nap -> ENERGY_NAP_PER_HOUR
+                resting -> ENERGY_ASLEEP_PER_HOUR
+                else -> -ENERGY_AWAKE_PER_HOUR
+            }
+            // A nap fills only up to its waking point; the rest of the step is spent awake.
+            val energy = (s.energy + gain * hours).let { if (nap) minOf(it, maxOf(s.energy, NAP_WAKE_ENERGY)) else it }.clamp()
             s = s.copy(
                 satiety = (s.satiety - SATIETY_PER_HOUR * hours * (if (asleep) 0.5f else 1f)).clamp(),
                 joy = (s.joy - JOY_PER_HOUR * hours * (if (hungry) 1.5f else 1f) * (if (asleep) 0.3f else 1f)).clamp(),
-                energy = (s.energy + (if (resting) ENERGY_ASLEEP_PER_HOUR else -ENERGY_AWAKE_PER_HOUR) * hours).clamp(),
+                energy = energy,
                 updatedAtMs = stepEnd,
+                napping = !isNight(hourAt(stepEnd)) && (energy < NAP_ENERGY || (nap && energy < NAP_WAKE_ENERGY)),
             )
         }
         return s
