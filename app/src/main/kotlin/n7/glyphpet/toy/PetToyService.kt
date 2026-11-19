@@ -143,8 +143,16 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             ButtonAction.CRACK_EGG -> cracked = crackEgg()
             ButtonAction.FEED -> {
                 val accepted = store.feed()
-                engine.feed(accepted)
-                feel(if (accepted) HapticKind.FEED else HapticKind.REFUSE)
+                val kind = n.activeForm?.kind
+                if (!accepted && kind != null && engine.trick(kind)) {
+                    // Full: it shows off its trick instead of refusing, and the owner plays along by tilting.
+                    store.update { it.copy(joy = (it.joy + n7.glyphpet.pet.Tricks.JOY).coerceIn(0f, 100f)) }
+                    feel(HapticKind.PLAY)
+                    Log.d(TAG, "event trick $kind")
+                } else {
+                    engine.feed(accepted)
+                    feel(if (accepted) HapticKind.FEED else HapticKind.REFUSE)
+                }
             }
             // The stroke turns into a peek for a sleeper, and its needs stay as they are.
             ButtonAction.STIR -> engine.pet()

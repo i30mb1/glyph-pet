@@ -228,6 +228,29 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
     private var momentMs = 0L
     private val ball = Ball(random)
 
+    /** The trick a full pet is showing ([Tricks]); [trickMs] >= 0 while it plays. */
+    private var trick: Signature? = null
+    private var trickMs = -1L
+
+    /**
+     * A full pet was asked to eat: it shows its trick instead, if its kind has one. Returns false (nothing started)
+     * for a kind without a trick, so the caller can fall back to the refusal. Waits for an animation that plays.
+     */
+    fun trick(kind: String): Boolean {
+        if (!Tricks.has(kind)) return false
+        react {
+            trick = Tricks.of(kind)?.also { it.start() }
+            trickMs = 0
+            ball.clear()
+            ballAsked = false
+            hopMs = -1
+        }
+        return true
+    }
+
+    /** Whether a trick is playing. */
+    val playingTrick: Boolean get() = trickMs >= 0
+
     /** The kind on the matrix in the last tick. */
     private var kindNow: String? = null
 
@@ -241,9 +264,9 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
     fun debug(species: Species?): String {
         val walk = species?.let { walkRange(it) }
         val slide = species?.let { slideRange(it) }
-        return "x=%.1f walk=%s slide=%s sliding=%b action=%s(%dms) habit=%d sig=%s@%d(in %d) moment=%s(%d) food=%s hop=%d ball=%b pending=%d busy=%b".format(
+        return "x=%.1f walk=%s slide=%s sliding=%b action=%s(%dms) habit=%d sig=%s@%d(in %d) moment=%s(%d) trick=%d food=%s hop=%d ball=%b pending=%d busy=%b".format(
             x, walk, slide, slidingNow, action, actionLeftMs, habitMs, signatureKind, signatureMs, signatureInMs,
-            moment?.javaClass?.simpleName, momentMs, foodY?.let { "%.1f".format(it) }, hopMs, ball.active, pending.size, busy,
+            moment?.javaClass?.simpleName, momentMs, trickMs, foodY?.let { "%.1f".format(it) }, hopMs, ball.active, pending.size, busy,
         )
     }
 
@@ -273,7 +296,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
      * the ball, a slide, sleep).
      */
     private fun updateSignature(dtMs: Long, sig: Signature, scene: Scene, asleep: Boolean, sliding: Boolean): Boolean {
-        val free = !asleep && !sliding && action == Action.NONE && habitMs < 0 && foodY == null && !ball.active &&
+        val free = !asleep && !sliding && action == Action.NONE && habitMs < 0 && trickMs < 0 && foodY == null && !ball.active &&
             (scene.mood == Mood.CONTENT || scene.mood == Mood.HAPPY)
         if (signatureMs >= 0) {
             signatureMs += dtMs
@@ -318,7 +341,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
      */
     private val pending = ArrayDeque<() -> Unit>()
 
-    private val busy: Boolean get() = moment != null || habitMs >= 0 || signatureMs >= 0
+    private val busy: Boolean get() = moment != null || habitMs >= 0 || signatureMs >= 0 || trickMs >= 0
 
     private fun react(reaction: () -> Unit) {
         if (!busy) reaction() else if (pending.size < MAX_PENDING) pending.addLast(reaction)
@@ -518,13 +541,28 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         if (ball.hit >= BALL_FEEL_SPEED && species.kind != n7.glyphpet.pet.signature.HedgehogCurl.KIND) {
             feel(HapticEvent(HapticKind.BALL_HIT, ((ball.hit - BALL_FEEL_SPEED) / (Ball.MAX_SPEED - BALL_FEEL_SPEED)).coerceIn(0f, 1f)))
         }
-        val sliding = !asleep && action == Action.NONE && habitMs < 0 && signatureMs < 0 && abs(scene.tilt) > SLIDE_TILT
+        val sliding = !asleep && action == Action.NONE && habitMs < 0 && signatureMs < 0 && trickMs < 0 && abs(scene.tilt) > SLIDE_TILT
         slidingNow = sliding
         updateFood(dtMs, species)
         updateHabit(dtMs, species, scene, sliding)
         updateHop(dtMs, scene.mood, sliding)
         updateMovement(dtMs, scene, range, slideRange(species), asleep, sliding)
         updateYawn(dtMs, scene.mood)
+
+        val tr = trick
+        if (tr != null && trickMs >= 0) {
+            trickMs += dtMs
+            // Only a drop or falling asleep cuts a trick short; the owner is playing along with it.
+            if (!asleep && action == Action.NONE && trickMs < tr.durationMs) {
+                val face = face(scene.mood, asleep, false)
+                tr.draw(frame, SignatureInput(species, trickMs, dtMs, scene.tilt, scene.tiltY, blinkLeftMs > 0, face, x.roundToInt(), feel))
+                if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
+                shown = Shown(face, dx = x.roundToInt())
+                return frame
+            }
+            trick = null
+            trickMs = -1
+        }
 
         val sig = signature
         if (sig != null && updateSignature(dtMs, sig, scene, asleep, sliding)) {
@@ -648,7 +686,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
             }
             return
         }
-        val free = (mood == Mood.CONTENT || mood == Mood.HAPPY) && action == Action.NONE && !sliding && foodY == null &&
+        val free = (mood == Mood.CONTENT || mood == Mood.HAPPY) && action == Action.NONE && !sliding && trickMs < 0 && foodY == null &&
             !ball.active
         if (!free) {
             trickAsked = false
@@ -768,7 +806,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
     /** [range]: where the pet walks by itself; [slide]: how far a tilt takes it, out over the edge for a big pet. */
     private fun updateMovement(dtMs: Long, scene: Scene, range: IntRange, slide: IntRange, asleep: Boolean, sliding: Boolean) {
         if (x < slide.first || x > slide.last) x = x.coerceIn(slide.first.toFloat(), slide.last.toFloat())
-        if (asleep || action != Action.NONE || habitMs >= 0) return
+        if (asleep || action != Action.NONE || habitMs >= 0 || trickMs >= 0) return
         if (sliding) {
             x = (x + scene.tilt * dtMs * 0.01f * slideSpeed(kindNow)).coerceIn(slide.first.toFloat(), slide.last.toFloat())
             targetX = x
