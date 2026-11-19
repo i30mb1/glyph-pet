@@ -8,14 +8,14 @@ package n7.glyphpet.toy
 class RockDetector {
 
     companion object {
-        /** About 9 degrees each way. */
-        const val LEAN = 0.15f
-        const val SWINGS = 3
-        const val WINDOW_MS = 3000L
+        /** About 6 degrees each way. */
+        const val LEAN = 0.10f
+        const val SWINGS = 2
+        const val WINDOW_MS = 3500L
 
         /** m/s² above gravity; shaking starts at 9, walking with the phone in hand stays below. */
-        const val MAX_FORCE = 6f
-        const val COOLDOWN_MS = 2500L
+        const val MAX_FORCE = 8f
+        const val COOLDOWN_MS = 2000L
     }
 
     private var side = 0
