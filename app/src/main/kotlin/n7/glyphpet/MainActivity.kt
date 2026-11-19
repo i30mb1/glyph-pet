@@ -612,6 +612,12 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
     }
     val cells = remember { SpeciesForms.all.associate { s -> s.id to PetEngine.toCells(SpeciesRenderer.render(s, Face.IDLE)) } }
     // A form not reached yet: every LED of it dim, no face.
+    val unknown = remember {
+        val frame = IntArray(SpeciesRenderer.SIZE * SpeciesRenderer.SIZE)
+        val mark = listOf(".###.", "#...#", "....#", "...#.", "..#..", "..#..", ".....", "..#..")
+        SpeciesRenderer.glyph(frame, mark, 10, 8, hashValue = 900, brightValue = 900)
+        PetEngine.toCells(frame)
+    }
     val shadows = remember {
         SpeciesForms.all.associate { s ->
             val frame = IntArray(SpeciesRenderer.SIZE * SpeciesRenderer.SIZE)
@@ -670,7 +676,8 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        val picture = if (egg) eggPicture(EggView(EggRules.stage(presses), nursery.supporter)) else shadows.getValue(s.id)
+                        // A hero not met yet shows nothing of itself: a question mark until it hatches.
+                        val picture = if (egg) eggPicture(EggView(EggRules.stage(presses), nursery.supporter)) else unknown
                         GlyphMatrix(cells = picture, glow = false, modifier = Modifier.size(60.dp))
                         Text(label.uppercase(), style = N7Type.Label, color = if (egg) N7Colors.Ink else N7Colors.InkSubtle, textAlign = TextAlign.Center)
                         Text(stringResource(rarityName(s.rarity)), style = N7Type.Caption, color = N7Colors.InkSubtle)
