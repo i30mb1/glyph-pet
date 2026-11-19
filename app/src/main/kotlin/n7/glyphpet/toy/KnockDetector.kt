@@ -14,7 +14,7 @@ class KnockDetector {
 
     companion object {
         /** m/s², high-passed. Typing on the same desk stays well below; a finger tap on the back gives 3 and more. */
-        const val MIN_PEAK = 1.2f
+        const val MIN_PEAK = 0.4f
 
         /** Harder than this is a hit or a fall, not a knock. */
         const val MAX_PEAK = 30f
