@@ -62,6 +62,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
     private var running = false
     private var lastFrameAt = 0L
     private var lastSyncAt = 0L
+    private var lastDebugLogAt = 0L
     private var nursery: Nursery? = null
     private var mood = Mood.CONTENT
     private var power = Power.NONE
@@ -156,7 +157,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             val presses = if (egg != null) nursery?.pressesOf(egg.id) ?: 1 else 1
             feel(HapticKind.CRACK, presses.toFloat() / (n7.glyphpet.pet.EggRules.PRESSES_TO_HATCH - 1))
         }
-        Log.d(TAG, "Long press handled, mood=$mood")
+        Log.d(TAG, "event long press -> ${ButtonRules.decide(hasPet = n.active != null, mood = mood, eggOnMatrix = n.eggOnMatrix != null)} cracked=$cracked mood=$mood")
     }
 
     /** A crack wobbles the egg at once; a hatch plays through sync(), by justHatched. Whether the press cracked it. */
@@ -247,6 +248,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             return
         }
         if (motion.consumeDrop() && nursery?.active != null) {
+            Log.d(TAG, "event drop")
             // The hit of a drop also reads as a shake: it is the drop that counts.
             motion.consumeShake()
             store.drop()
@@ -260,7 +262,9 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         dark = false
         if (motion.consumeShake()) {
             val n = nursery
-            when (ButtonRules.shake(hasPet = n?.active != null, eggOnMatrix = n?.eggOnMatrix != null, petReady = n?.ready == true)) {
+            val shake = ButtonRules.shake(hasPet = n?.active != null, eggOnMatrix = n?.eggOnMatrix != null, petReady = n?.ready == true)
+            Log.d(TAG, "event shake -> $shake")
+            when (shake) {
                 // The evolution plays through sync(), by justEvolved; each shake before it makes the pet flare up.
                 ShakeAction.GROW -> {
                     if (store.growShake() == GrowResult.SHOOK) { engine.surge(); feel(HapticKind.GROW_SHAKE) }
@@ -272,12 +276,34 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             }
         }
         if (motion.consumeRock() && ButtonRules.rockPlays(hasPet = nursery?.active != null, mood = mood, eggOnMatrix = nursery?.eggOnMatrix != null)) {
+            Log.d(TAG, "event rock -> play")
             store.update { PetRules.play(it) }
             engine.play()
             feel(HapticKind.PLAY)
         }
         sync(force = false)
         send(engine.tick(dt, scene(tilt = motion.tilt, tiltY = motion.tiltY)))
+        if (n7.glyphpet.BuildConfig.DEBUG && now - lastDebugLogAt >= 1000) {
+            lastDebugLogAt = now
+            val sh = engine.shown
+            val n = nursery
+            val st = n?.stats
+            val g = n?.activeGrowth
+            val pose = motion.pose
+            Log.d(TAG, "tick tilt=%.2f tiltY=%.2f | form=${n?.activeForm?.id} mood=$mood face=${sh.face} dx=${sh.dx} habitFrame=${sh.habit} lift=${sh.lift}".format(motion.tilt, motion.tiltY))
+            Log.d(TAG, "  engine ${engine.debug(n?.activeForm)}")
+            Log.d(
+                TAG,
+                "  needs food=%.0f joy=%.0f energy=%.0f nap=${st?.napping} | growth=${g?.reached}/${g?.shown} care=${g?.careDays} ready=${g?.ready} shakes=${g?.evolvePresses}".format(
+                    st?.satiety ?: -1f, st?.joy ?: -1f, st?.energy ?: -1f,
+                ),
+            )
+            Log.d(
+                TAG,
+                "  egg=${n?.eggOnMatrix?.id} eggs=${n?.eggs?.size} | power plugged=${power.plugged} ${power.watts}W level=${power.level} | " +
+                    "pose gz=${pose?.gravityZ} near=${pose?.near} lux=${pose?.lux} unseen=${pose?.let { Sight.unseen(it) }} dark=$dark hideUnseen=$hideUnseen hurt=$hurt",
+            )
+        }
         feelEngine()
     }
 

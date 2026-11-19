@@ -231,6 +231,22 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
     /** The kind on the matrix in the last tick. */
     private var kindNow: String? = null
 
+    /** Whether the pet was sliding (or crawling) with the tilt in the last tick; for [debug]. */
+    private var slidingNow = false
+
+    /**
+     * One line of the engine's state for debug logs: where the pet stands and may go, whether it slides, and what is
+     * keeping it busy (a reaction, a habit, its signature, a moment, food, the ball, waiting reactions).
+     */
+    fun debug(species: Species?): String {
+        val walk = species?.let { walkRange(it) }
+        val slide = species?.let { slideRange(it) }
+        return "x=%.1f walk=%s slide=%s sliding=%b action=%s(%dms) habit=%d sig=%s@%d(in %d) moment=%s(%d) food=%s hop=%d ball=%b pending=%d busy=%b".format(
+            x, walk, slide, slidingNow, action, actionLeftMs, habitMs, signatureKind, signatureMs, signatureInMs,
+            moment?.javaClass?.simpleName, momentMs, foodY?.let { "%.1f".format(it) }, hopMs, ball.active, pending.size, busy,
+        )
+    }
+
     /** The 3D look of the legendary and mythic pets. */
     private val living = Living3D()
 
@@ -503,6 +519,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
             feel(HapticEvent(HapticKind.BALL_HIT, ((ball.hit - BALL_FEEL_SPEED) / (Ball.MAX_SPEED - BALL_FEEL_SPEED)).coerceIn(0f, 1f)))
         }
         val sliding = !asleep && action == Action.NONE && habitMs < 0 && signatureMs < 0 && abs(scene.tilt) > SLIDE_TILT
+        slidingNow = sliding
         updateFood(dtMs, species)
         updateHabit(dtMs, species, scene, sliding)
         updateHop(dtMs, scene.mood, sliding)
