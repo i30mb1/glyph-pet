@@ -469,6 +469,21 @@ private fun PetScreen(
             if (BuildConfig.DEBUG) {
                 // Debug builds only: one button that opens every hero and every form.
                 N7Button("Unlock all", { store.unlockAll(); refresh() }, Modifier.fillMaxWidth(), N7ButtonVariant.Secondary)
+                // Debug builds only: every need full or empty at once, to try the moods, weather and tricks.
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    N7Button(
+                        "Needs 100",
+                        { store.update { it.copy(satiety = 100f, joy = 100f, energy = 100f, napping = false) }; refresh() },
+                        Modifier.weight(1f),
+                        N7ButtonVariant.Secondary,
+                    )
+                    N7Button(
+                        "Needs 0",
+                        { store.update { it.copy(satiety = 0f, joy = 0f, energy = 0f) }; refresh() },
+                        Modifier.weight(1f),
+                        N7ButtonVariant.Secondary,
+                    )
+                }
                 // Debug builds only: depth experiments on the Glyph toy (n7.glyphpet.lab).
                 n7.glyphpet.lab.LabPanel()
             }
