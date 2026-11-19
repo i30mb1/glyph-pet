@@ -3,6 +3,7 @@ package n7.glyphpet.pet
 import n7.glyphpet.pet.signature.SafeSignature
 import n7.glyphpet.pet.trick.BotTrick
 import n7.glyphpet.pet.trick.CatTrick
+import n7.glyphpet.pet.trick.AxolotlTrick
 import n7.glyphpet.pet.trick.CactusTrick
 import n7.glyphpet.pet.trick.ShroomTrick
 import n7.glyphpet.pet.trick.DinoTrick
@@ -51,5 +52,6 @@ object TrickList {
         "dino" to { SafeSignature(DinoTrick()) },
         "shroom" to { SafeSignature(ShroomTrick()) },
         "cactus" to { SafeSignature(CactusTrick()) },
+        "axolotl" to { SafeSignature(AxolotlTrick()) },
     )
 }
