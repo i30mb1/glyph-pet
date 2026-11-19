@@ -39,6 +39,9 @@ object PetRules {
     const val NAP_WAKE_ENERGY = 30f
     const val ENERGY_NAP_PER_HOUR = 150f
 
+    /** The charger fills the pet up much faster than any sleep: from empty to full in about 3 minutes. */
+    const val ENERGY_CHARGE_PER_HOUR = 2000f
+
     const val FEED_SATIETY = 35f
     const val FEED_JOY = 5f
     const val FULL = 90f
@@ -63,7 +66,7 @@ object PetRules {
 
     /**
      * Moves [stats] forward to [nowMs] in 10-minute steps. [charging] counts only for the latest step:
-     * the charger fills the pet's energy as fast as sleep does, awake or not.
+     * the charger fills the pet's energy at [ENERGY_CHARGE_PER_HOUR], awake or asleep, faster than any sleep.
      */
     fun advance(stats: PetStats, nowMs: Long, charging: Boolean = false, hourAt: (Long) -> Int = localHour): PetStats {
         if (nowMs <= stats.updatedAtMs) return stats
@@ -74,15 +77,16 @@ object PetRules {
             val hour = hourAt(s.updatedAtMs)
             val asleep = isAsleep(s, hour)
             val nap = asleep && !isNight(hour)
-            val resting = asleep || (charging && stepEnd == nowMs)
+            val charged = charging && stepEnd == nowMs
             val hungry = s.satiety < 25f
             val gain = when {
+                charged -> ENERGY_CHARGE_PER_HOUR
                 nap -> ENERGY_NAP_PER_HOUR
-                resting -> ENERGY_ASLEEP_PER_HOUR
+                asleep -> ENERGY_ASLEEP_PER_HOUR
                 else -> -ENERGY_AWAKE_PER_HOUR
             }
-            // A nap fills only up to its waking point; the rest of the step is spent awake.
-            val energy = (s.energy + gain * hours).let { if (nap) minOf(it, maxOf(s.energy, NAP_WAKE_ENERGY)) else it }.clamp()
+            // A nap fills only up to its waking point; the rest of the step is spent awake. The charger has no such cap.
+            val energy = (s.energy + gain * hours).let { if (nap && !charged) minOf(it, maxOf(s.energy, NAP_WAKE_ENERGY)) else it }.clamp()
             s = s.copy(
                 satiety = (s.satiety - SATIETY_PER_HOUR * hours * (if (asleep) 0.5f else 1f)).clamp(),
                 joy = (s.joy - JOY_PER_HOUR * hours * (if (hungry) 1.5f else 1f) * (if (asleep) 0.3f else 1f)).clamp(),
