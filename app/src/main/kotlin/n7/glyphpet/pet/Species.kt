@@ -164,7 +164,7 @@ object SpeciesCatalog {
         ),
         // Common: ten more
         Species(
-            "jelly", "Jelly", Rarity.COMMON,
+            "jelly", "Jelly", Rarity.RARE,
             listOf(
                 "...#####...", ".#########.", "###########", "###########", "###########", "###########",
                 "###########", "###########", "#.#.#.#.#.#", "#.#.#.#.#.#", ".#..#.#..#.", ".#...#...#.",
@@ -202,7 +202,7 @@ object SpeciesCatalog {
             habit = Habits::shroom,
         ),
         Species(
-            "cloud", "Cloud", Rarity.COMMON,
+            "cloud", "Cloud", Rarity.RARE,
             listOf(
                 ".....###.......", "...#######.###.", "..############.", ".##############", "###############",
                 "###############", "###############", ".#############.", "..###########..",
@@ -216,7 +216,7 @@ object SpeciesCatalog {
             habit = Habits::cloud,
         ),
         Species(
-            "owl", "Owl", Rarity.COMMON,
+            "owl", "Owl", Rarity.RARE,
             listOf(
                 "#...........#", "##.........##", "#############", "##oooo#oooo##", "##o##o#o##o##", "##o##o#o##o##", "##oooo#oooo##",
                 "######o######", "#############", "#############", "#############", ".###########.", "..##.....##..",
@@ -255,7 +255,7 @@ object SpeciesCatalog {
             habit = Habits::penguin,
         ),
         Species(
-            "slime", "Slime", Rarity.COMMON,
+            "slime", "Slime", Rarity.LEGENDARY,
             listOf(
                 ".....###.....", "...#######...", "..#########..", ".###########.", "#############",
                 "#############", "#############", "#############", ".#.##..###.#.", "....#....#...",
@@ -345,7 +345,7 @@ object SpeciesCatalog {
             habit = Habits::crab,
         ),
         Species(
-            "whale", "Whale", Rarity.COMMON,
+            "whale", "Whale", Rarity.RARE,
             listOf(
                 "...o.o.........", "....o..........", "..#######......", ".#########...##", "###########.##.",
                 "#############..", "############...", "###########....", ".##########....", "..########.....",
@@ -355,7 +355,7 @@ object SpeciesCatalog {
             habit = Habits::whale,
         ),
         Species(
-            "bee", "Bee", Rarity.COMMON,
+            "bee", "Bee", Rarity.RARE,
             listOf(
                 "oo..o.....o..oo", "o.o..#...#..o.o", "o..o#######o..o", ".oo#########oo.", "..###########..",
                 "..###########..", "..###########..", "..###########..", "...ooooooooo...", "...#########...",

@@ -3,6 +3,7 @@ package n7.glyphpet.pet
 import n7.glyphpet.pet.signature.LegendEye
 import n7.glyphpet.pet.signature.LegendGem
 import n7.glyphpet.pet.signature.LegendPlanet
+import n7.glyphpet.pet.signature.LegendSlime
 import n7.glyphpet.pet.signature.LegendToast
 import n7.glyphpet.pet.signature.LegendUfo
 
@@ -14,5 +15,6 @@ object LegendSignatures {
         "ufo" to { LegendUfo() },
         "gem" to { LegendGem() },
         "planet" to { LegendPlanet() },
+        "slime" to { LegendSlime() },
     )
 }
