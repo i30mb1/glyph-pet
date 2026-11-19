@@ -31,6 +31,13 @@ data class Scene(
     val missedCall: Boolean = false,
     /** The pet may grow now: a sparkle runs over it every few seconds. */
     val ready: Boolean = false,
+    /**
+     * The phone lies screen down on the desk, the matrix up: it cannot be tilted, so tricks and signatures play with
+     * [spin] as their sideways lean.
+     */
+    val desk: Boolean = false,
+    /** How fast the phone is turned round on the desk, -1..1 (positive clockwise as seen on the matrix). */
+    val spin: Float = 0f,
 )
 
 /**
@@ -109,6 +116,9 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         /** The spark of gained experience ([spark]): how long it rises above the pet, and how many rows. */
         const val SPARK_MS = 600L
         private const val SPARK_RISE = 3
+
+        /** Turning the phone on the desk faster than this ([Scene.spin]) turns the pet's eyes and head with it. */
+        const val SPIN_LOOK = 0.12f
 
         /** How far the phone leans sideways (about 11 degrees) before the pet slides or crawls that way. */
         const val SLIDE_TILT = 0.2f
@@ -580,7 +590,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
             // Only a drop or falling asleep cuts a trick short; the owner is playing along with it.
             if (!asleep && action == Action.NONE && trickMs < tr.durationMs) {
                 val face = face(scene.mood, asleep, false)
-                tr.draw(frame, SignatureInput(species, trickMs, dtMs, scene.tilt, scene.tiltY, blinkLeftMs > 0, face, x.roundToInt(), feel))
+                tr.draw(frame, input(species, trickMs, dtMs, scene, face))
                 if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
                 shown = Shown(face, dx = x.roundToInt())
                 return frame
@@ -637,7 +647,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         if (sig != null && updateSignature(dtMs, sig, scene, asleep, sliding)) {
             // The pet's own depth effect has the whole matrix for a moment.
             val face = face(scene.mood, asleep, sliding)
-            sig.draw(frame, SignatureInput(species, signatureMs, dtMs, scene.tilt, scene.tiltY, blinkLeftMs > 0, face, x.roundToInt(), feel))
+            sig.draw(frame, input(species, signatureMs, dtMs, scene, face))
             if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
             shown = Shown(face, dx = x.roundToInt())
             return frame
@@ -658,9 +668,11 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
 
         val own = if (habitMs >= 0) species.habit.frameAt(habitMs) else null
         // A big pet, with little room to slide, also leans with the phone while it is rocked or tilted.
-        val leaning = own == null && !asleep && range.last <= 1 && abs(scene.tilt) > 0.15f &&
+        // On the desk it turns its head with the phone turned round instead.
+        val leanBy = if (abs(scene.spin) > SPIN_LOOK) scene.spin else scene.tilt
+        val leaning = own == null && !asleep && range.last <= 1 && abs(leanBy) > 0.15f &&
             (action == Action.NONE || action == Action.LOVED)
-        val habit = own ?: if (leaning) leanFrame(species, (scene.tilt * 2.2f).roundToInt().coerceIn(-2, 2)) else null
+        val habit = own ?: if (leaning) leanFrame(species, (leanBy * 2.2f).roundToInt().coerceIn(-2, 2)) else null
         val face = own?.face ?: face(scene.mood, asleep, sliding)
         val lift = if (hopMs >= 0) HOP.getOrElse((hopMs / 80).toInt()) { 0 } else 0
         val shudder = action == Action.REFUSING || action == Action.SURGE || action == Action.TICKLE || (action == Action.HURT && ouch())
@@ -683,7 +695,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         SpeciesRenderer.render(
             species, face, blink = blinkLeftMs > 0, dx = dx, frame = frame, timeMs = time, lift = lift,
             habit = if (painter != null) living.habitFor(species, own, habit) else habit, hurt = scene.hurt,
-            eyeDx = if (action == Action.NOTICE) 0 else ball.side(centerX), shadow = true, cover = cover, painter = painter,
+            eyeDx = look(centerX, scene, asleep), shadow = true, cover = cover, painter = painter,
         )
         foodY?.let { fy -> SpeciesRenderer.glyph(frame, listOf("oo", "oo"), species.ox + dx + species.width / 2 - 1, fy.toInt()) }
         if (action == Action.SURGE) surgeGlow(frame)
@@ -701,6 +713,25 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
         shown = Shown(face, habit = own != null, lift = lift, step = own, dx = dx)
         return frame
+    }
+
+    /**
+     * What a trick or a signature plays with. On the desk the phone cannot be tilted: turning it round on the table is
+     * the sideways lean, so every one of them is playable without lifting the phone.
+     */
+    private fun input(species: Species, tMs: Long, dtMs: Long, scene: Scene, face: Face) = SignatureInput(
+        species, tMs, dtMs, if (scene.desk) scene.spin else scene.tilt, scene.tiltY, blinkLeftMs > 0, face, x.roundToInt(), feel,
+    )
+
+    /**
+     * Where the pet looks, in cells: straight at the viewer when a knock called it, after the ball while it rolls, with
+     * the phone turned round on the desk.
+     */
+    private fun look(centerX: Float, scene: Scene, asleep: Boolean): Int = when {
+        action == Action.NOTICE -> 0
+        ball.active -> ball.side(centerX)
+        !asleep && abs(scene.spin) > SPIN_LOOK -> (scene.spin * 2.5f).roundToInt().coerceIn(-2, 2)
+        else -> 0
     }
 
     /** The spark of gained experience: a bright dot with a dim tail rising [SPARK_RISE] rows above the pet's head. */

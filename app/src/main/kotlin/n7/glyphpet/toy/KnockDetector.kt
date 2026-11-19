@@ -103,3 +103,35 @@ class KnockDetector {
         singleAt = -1
     }
 }
+
+/**
+ * Spots the phone twirled round and round in the plane of its screen (turned on the desk, or spun in the hand): the
+ * gyroscope's z rate over [FAST] adds to a bucket that leaks [LEAK] when slower; [TURNS] full turns in it is a twirl.
+ */
+class TwirlDetector {
+
+    companion object {
+        /** rad/s: about 140 degrees a second. */
+        const val FAST = 2.5f
+        const val LEAK = 2f
+        const val TURNS = 2f
+        const val COOLDOWN_MS = 3000L
+    }
+
+    private var bucket = 0f
+    private var last = Long.MIN_VALUE / 2
+
+    /** One gyroscope reading: [rate] around z (rad/s), [dtS] since the last one. True once per twirl. */
+    fun feed(rate: Float, dtS: Float, nowMs: Long): Boolean {
+        val r = kotlin.math.abs(rate)
+        bucket = if (r > FAST) bucket + r * dtS else max(0f, bucket - LEAK * dtS)
+        if (bucket < TURNS * 2f * Math.PI.toFloat() || nowMs - last < COOLDOWN_MS) return false
+        last = nowMs
+        bucket = 0f
+        return true
+    }
+
+    fun reset() {
+        bucket = 0f
+    }
+}

@@ -320,6 +320,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         }
         if (hideUnseen && hidden(now)) {
             motion.consumeKnock()
+            motion.consumeTwirl()
             sendDark()
             return
         }
@@ -341,6 +342,11 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
                 ShakeAction.NOTHING -> Unit
             }
         }
+        if (motion.consumeTwirl() && !using && nursery?.active != null && nursery?.eggOnMatrix == null) {
+            // Turned round and round (on the desk, or in the hand in the plane of the screen): dizzy stars.
+            Log.d(TAG, "event twirl -> dizzy posture=$posture")
+            engine.shake()
+        }
         if (motion.consumeRock() && !using && ButtonRules.rockPlays(hasPet = nursery?.active != null, mood = mood, eggOnMatrix = nursery?.eggOnMatrix != null)) {
             Log.d(TAG, "event rock -> play (ball out: ${engine.playingBall})")
             // A new game cheers it up and tires it a little; a kick to the ball already rolling changes nothing.
@@ -354,7 +360,8 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         val knock = motion.consumeKnock()
         if (knock > 0 && (posture == Posture.DESK || posture == Posture.HAND)) onKnock(knock, now)
         sync(force = false)
-        send(engine.tick(dt, if (using) scene() else scene(tilt = motion.tilt, tiltY = motion.tiltY)))
+        val desk = posture == Posture.DESK
+        send(engine.tick(dt, if (using) scene() else scene(tilt = motion.tilt, tiltY = motion.tiltY, desk = desk, spin = if (desk) motion.spin else 0f)))
         if (n7.glyphpet.BuildConfig.DEBUG && now - lastDebugLogAt >= 1000) {
             lastDebugLogAt = now
             val sh = engine.shown
@@ -362,7 +369,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             val st = n?.stats
             val g = n?.activeGrowth
             val pose = motion.pose
-            Log.d(TAG, "tick posture=$posture jitter=%.3f tilt=%.2f tiltY=%.2f | form=${n?.activeForm?.id} mood=$mood face=${sh.face} dx=${sh.dx} habitFrame=${sh.habit} lift=${sh.lift}".format(motion.jitter, motion.tilt, motion.tiltY))
+            Log.d(TAG, "tick posture=$posture jitter=%.3f spin=%.2f tilt=%.2f tiltY=%.2f | form=${n?.activeForm?.id} mood=$mood face=${sh.face} dx=${sh.dx} habitFrame=${sh.habit} lift=${sh.lift}".format(motion.jitter, motion.spin, motion.tilt, motion.tiltY))
             Log.d(TAG, "  engine ${engine.debug(n?.activeForm)}")
             Log.d(
                 TAG,
@@ -433,7 +440,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         send(IntArray(PetEngine.SIZE * PetEngine.SIZE))
     }
 
-    private fun scene(tilt: Float = 0f, tiltY: Float = 1f): Scene {
+    private fun scene(tilt: Float = 0f, tiltY: Float = 1f, desk: Boolean = false, spin: Float = 0f): Scene {
         val n = nursery ?: return Scene(null, Mood.CONTENT)
         return Scene(
             species = n.activeForm,
@@ -447,6 +454,8 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             hurt = hurt,
             missedCall = PetAlerts.missedCalls > 0,
             ready = n.ready,
+            desk = desk,
+            spin = spin,
         )
     }
 
@@ -501,7 +510,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
                 l.stop()
                 motion.start()
                 // Nothing that happened in the Lab reaches the pet.
-                motion.consumeShake(); motion.consumeDrop(); motion.consumeRock(); motion.consumeKnock()
+                motion.consumeShake(); motion.consumeDrop(); motion.consumeRock(); motion.consumeKnock(); motion.consumeTwirl()
             }
             return false
         }

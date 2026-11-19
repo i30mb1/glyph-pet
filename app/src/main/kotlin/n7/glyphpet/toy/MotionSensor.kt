@@ -29,10 +29,14 @@ class MotionSensor(context: Context) : SensorEventListener {
 
         /** A shake is confirmed this long after its spike, unless the spike turned out to be a knock. */
         const val SHAKE_CONFIRM_MS = 200L
+
+        /** rad/s around the screen's axis that is [spin] 1: half a turn a second. */
+        const val SPIN_FULL = 3f
     }
 
     private val sensors = context.getSystemService(SensorManager::class.java)
     private val accelerometer = sensors?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+    private val gyroscope = sensors?.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
     private val proximity = sensors?.getDefaultSensor(Sensor.TYPE_PROXIMITY)
     private val light = sensors?.getDefaultSensor(Sensor.TYPE_LIGHT)
     private val main = Handler(Looper.getMainLooper())
@@ -51,6 +55,13 @@ class MotionSensor(context: Context) : SensorEventListener {
     @Volatile var jitter: Float = 0f
         private set
 
+    /**
+     * How fast the phone turns in the plane of its screen, -1..1 smoothed (1 = [SPIN_FULL]): lying on the desk, turned
+     * round on it. Positive turns it clockwise as seen from the back (the matrix).
+     */
+    @Volatile var spin: Float = 0f
+        private set
+
     @Volatile private var gravityZ = 0f
     @Volatile private var near: Boolean? = null
     @Volatile private var lux: Float? = null
@@ -64,6 +75,9 @@ class MotionSensor(context: Context) : SensorEventListener {
     private var shakeAt = -1L
     private var knock = 0
     private val knocks = KnockDetector()
+    private val twirls = TwirlDetector()
+    private var twirled = false
+    private var lastGyroNs = 0L
     private val drops = DropDetector()
     private val rocks = RockDetector()
     private val low = FloatArray(3)
@@ -80,6 +94,10 @@ class MotionSensor(context: Context) : SensorEventListener {
         jitter = 0f
         shakeAt = -1L
         knocks.reset()
+        twirls.reset()
+        lastGyroNs = 0L
+        spin = 0f
+        gyroscope?.let { sensors?.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
         accelerometer?.let { sensors?.registerListener(this, it, ACCEL_PERIOD_US) }
         proximity?.let { sensors?.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
         light?.let { sensors?.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
@@ -90,6 +108,7 @@ class MotionSensor(context: Context) : SensorEventListener {
         sensors?.unregisterListener(this)
         tilt = 0f
         tiltY = 1f
+        spin = 0f
         near = null
         lux = null
         readings = 0
@@ -120,6 +139,10 @@ class MotionSensor(context: Context) : SensorEventListener {
     @Synchronized
     fun consumeKnock(): Int = knock.also { knock = 0 }
 
+    /** The phone twirled round in the plane of its screen ([TwirlDetector]); once. */
+    @Synchronized
+    fun consumeTwirl(): Boolean = twirled.also { twirled = false }
+
     @Synchronized
     fun consumeRock(): Boolean = rocked.also { rocked = false }
 
@@ -132,6 +155,10 @@ class MotionSensor(context: Context) : SensorEventListener {
             }
             Sensor.TYPE_LIGHT -> {
                 lux = event.values[0]
+                return
+            }
+            Sensor.TYPE_GYROSCOPE -> {
+                onGyro(event)
                 return
             }
         }
@@ -177,6 +204,15 @@ class MotionSensor(context: Context) : SensorEventListener {
             lastShakeMs = wall
             synchronized(this) { shaken = true }
         }
+    }
+
+    private fun onGyro(event: SensorEvent) {
+        val dt = if (lastGyroNs == 0L) 0.02f else ((event.timestamp - lastGyroNs) / 1e9f).coerceIn(0.001f, 0.1f)
+        lastGyroNs = event.timestamp
+        // The gyroscope's z is counterclockwise seen from the screen, so clockwise seen from the matrix.
+        val wz = event.values[2]
+        spin += ((wz / SPIN_FULL).coerceIn(-1f, 1f) - spin) * (1f - exp(-dt / 0.25f))
+        if (twirls.feed(wz, dt, event.timestamp / 1_000_000)) synchronized(this) { twirled = true }
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
