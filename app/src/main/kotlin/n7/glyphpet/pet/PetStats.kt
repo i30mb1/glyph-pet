@@ -16,7 +16,16 @@ data class PetStats(
 
     companion object {
         const val DAY_MS: Long = 24 * 60 * 60 * 1000L
-        fun newborn(nowMs: Long): PetStats = PetStats(80f, 80f, 80f, nowMs, nowMs)
+
+        /**
+         * A newborn shows no food and no joy dots at all: it asks to be fed and played with in its very first minute,
+         * the way the toys of 1996 hatched with their meters empty. Just above [PetRules.SICK_SATIETY] and
+         * [PetRules.SICK_JOY], so an empty-looking baby is hungry and sad but never ill at birth; its energy is full,
+         * so it does not doze off before anyone has met it.
+         */
+        const val NEWBORN_NEED = 8f
+
+        fun newborn(nowMs: Long): PetStats = PetStats(NEWBORN_NEED, NEWBORN_NEED, 80f, nowMs, nowMs)
     }
 }
 
@@ -29,6 +38,37 @@ object NeedDots {
 
 /** How the pet feels, most urgent first: see [PetRules.mood]. Never saved, always worked out from the needs. */
 enum class Mood { SLEEPING, SICK, HUNGRY, TIRED, SAD, HAPPY, CONTENT }
+
+/**
+ * When the pet calls for its owner by itself: a need has run down to [CALL_DOTS] dots or fewer and nobody has come.
+ * The toy lights the matrix up and gives one soft [HapticKind.CALL] — the beep of 1996, without the noise.
+ *
+ * Deliberately rare: with needs falling at [PetRules.SATIETY_PER_HOUR] and [PetRules.JOY_PER_HOUR], a full pet reaches
+ * the threshold in seven to nine hours, so a call comes two or three times a day. A sleeping pet never calls, and
+ * [REPEAT_MS] keeps an unanswered one from asking again too soon.
+ */
+object CallRules {
+    /**
+     * A need showing no dots at all is worth calling about. Not one dot: a single meal lifts food clear of nothing but
+     * not clear of one dot, and a pet that kept calling after it had just been fed would be nagging, not asking.
+     */
+    const val CALL_DOTS = 0
+
+    /** The pet calls again no sooner than this, however hungry it stays. */
+    const val REPEAT_MS = 20 * 60_000L
+
+    /** Needs are checked this often; between checks nothing is asked. */
+    const val CHECK_MS = 5 * 60_000L
+
+    /** How many times in a row an unanswered pet keeps calling before it gives up until something changes. */
+    const val MAX_UNANSWERED = 3
+
+    /** Whether [stats] are worth a call now: some need is down to [CALL_DOTS], and the pet is awake to ask. */
+    fun wants(stats: PetStats, asleep: Boolean): Boolean {
+        if (asleep) return false
+        return NeedDots.of(stats.satiety) <= CALL_DOTS || NeedDots.of(stats.joy) <= CALL_DOTS
+    }
+}
 
 /** The rules of pet life. Pure functions: the time source is passed in, so they are easy to test. */
 object PetRules {

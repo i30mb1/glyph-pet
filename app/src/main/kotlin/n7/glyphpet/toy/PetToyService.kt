@@ -17,6 +17,7 @@ import com.nothing.ketchum.GlyphToy
 import n7.glyphpet.alerts.PetAlerts
 import n7.glyphpet.pet.ButtonAction
 import n7.glyphpet.pet.ButtonRules
+import n7.glyphpet.pet.CallRules
 import n7.glyphpet.pet.GrowResult
 import n7.glyphpet.pet.HapticEvent
 import n7.glyphpet.pet.HapticKind
@@ -118,6 +119,18 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
     /** While > 0: the live loop was started by a notification in Always-on and ends at this uptime. */
     private var burstUntil = 0L
 
+    /** When the pet last called for its owner (uptime), and how many calls in a row nobody has answered. */
+    private var calledAt = Long.MIN_VALUE / 2
+    private var unanswered = 0
+
+    /** Looks at the needs every [CallRules.CHECK_MS], live or in Always-on alike, and calls when one has run out. */
+    private val callLoop = object : Runnable {
+        override fun run() {
+            callIfNeeded()
+            main.postDelayed(this, CallRules.CHECK_MS)
+        }
+    }
+
     private val toyHandler = Handler(Looper.getMainLooper()) { msg ->
         if (msg.what != GlyphToy.MSG_GLYPH_TOY) return@Handler false
         when (msg.data.getString(GlyphToy.MSG_GLYPH_TOY_DATA)) {
@@ -147,6 +160,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
 
     override fun onUnbind(intent: Intent?): Boolean {
         PetAlerts.onNotification = null
+        main.removeCallbacks(callLoop)
         stopLive()
         store.nursery()
         if (connected) {
@@ -165,6 +179,8 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         connected = true
         sync(force = true)
         startLive()
+        main.removeCallbacks(callLoop)
+        main.postDelayed(callLoop, CallRules.CHECK_MS)
     }
 
     override fun onServiceDisconnected(name: ComponentName?) {
@@ -295,6 +311,56 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         }
         sync(force = true)
         burstUntil = SystemClock.uptimeMillis() + BURST_MS
+        startLive()
+        engine.alert()
+    }
+
+    /**
+     * The pet asks for its owner by itself ([CallRules]): a need has run out, so the matrix lights up for [BURST_MS]
+     * and the phone gives one soft [HapticKind.CALL]. Checked every [CallRules.CHECK_MS] and asked again no sooner
+     * than [CallRules.REPEAT_MS], at most [CallRules.MAX_UNANSWERED] times in a row; answering it (feeding or playing)
+     * lifts the need above the threshold and lets it call afresh later.
+     *
+     * Nothing is asked while an egg is on the matrix (the pet is away), while the owner is busy with the screen, or
+     * while nobody can see the matrix at all — a call into a pocket is only a buzz.
+     */
+    private fun callIfNeeded() {
+        val now = SystemClock.uptimeMillis()
+        if (!connected || labOn() || posture == Posture.USING_PHONE) return
+        val n = store.nursery()
+        if (n.active == null || n.eggOnMatrix != null) return
+        if (!CallRules.wants(n.stats, store.asleep(n.stats))) {
+            // The need is back up: the pet may call again as soon as one runs out.
+            unanswered = 0
+            return
+        }
+        if (now - calledAt < CallRules.REPEAT_MS || unanswered >= CallRules.MAX_UNANSWERED) return
+        // A call into a pocket is only a buzz: ask nothing while nobody can see the matrix. Live, the pose is fresh;
+        // otherwise the sensors are woken for a moment to read it, as the Always-on frame does.
+        if (running) {
+            if (hidden(now)) return
+            call(now, n)
+        } else {
+            motion.readPose { pose ->
+                if (running || (pose != null && Sight.unseen(pose))) return@readPose
+                call(SystemClock.uptimeMillis(), n)
+            }
+        }
+    }
+
+    /** The call itself: one soft buzz, and the matrix lights up with the pet looking out of it. */
+    private fun call(now: Long, n: Nursery) {
+        calledAt = now
+        unanswered++
+        Log.d(TAG, "event call unanswered=$unanswered food=%.0f joy=%.0f".format(n.stats.satiety, n.stats.joy))
+        // Before the buzz: [feel] keeps quiet for a sleeping pet, and in Always-on the mood it goes by is stale.
+        sync(force = true)
+        feel(HapticKind.CALL)
+        if (running) {
+            if (!dark) engine.alert()
+            return
+        }
+        burstUntil = now + BURST_MS
         startLive()
         engine.alert()
     }

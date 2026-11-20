@@ -26,7 +26,8 @@ class HurtTest {
 
     @Test
     fun `a drop costs some joy`() {
-        val s = PetStats.newborn(0)
+        // A cheerful pet, not the newborn: one hatches with its joy all but empty, where the drop would hit the floor.
+        val s = PetStats.newborn(0).copy(joy = 80f)
         assertEquals(s.joy - PetRules.DROP_JOY, PetRules.drop(s).joy)
         assertEquals(0f, PetRules.drop(s.copy(joy = 3f)).joy)
     }

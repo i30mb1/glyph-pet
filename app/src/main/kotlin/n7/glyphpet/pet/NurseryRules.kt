@@ -112,7 +112,8 @@ object NurseryRules {
             seen = s.seen + (egg to (s.seen[egg] ?: 0) + 1),
             hatchedAtMs = nowMs,
             hatchedId = egg,
-            growth = s.growth + (egg to GrowthRules.hatched(EggRules.dayKey(nowMs))),
+            // The first hero of all: nothing collected before it, so it hatches with a head start toward growing.
+            growth = s.growth + (egg to GrowthRules.hatched(EggRules.dayKey(nowMs), first = s.seen.none { it.value > 0 })),
         )
     }
 

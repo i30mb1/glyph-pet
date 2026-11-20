@@ -48,6 +48,13 @@ object XpRules {
     const val SIGNATURE = 3
     const val FULL_MULTIPLIER = 3
 
+    /**
+     * The very first hero of all hatches this far along toward growing, so its owner sees an evolution in the first
+     * ten minutes rather than on the third evening: feeding the hungry newborn ([FEED]), a game of ball ([BALL]) and
+     * one trick ([TRICK_MAX]) cover what is left of [BABY_TO_TEEN] between them. Every hero after it starts from 0.
+     */
+    const val FIRST_HEAD_START = 75
+
     /** Minutes together count only while the toy reports at least this often; a longer gap was time away. */
     const val MAX_GAP_MS = 3 * 60_000L
     const val MINUTE_MS = 60_000L
@@ -96,8 +103,12 @@ object GrowthRules {
     const val EVOLVE_SHAKES = 3
     const val JUST_EVOLVED_MS = 8000L
 
-    /** A hero that just hatched on game day [today]. */
-    fun hatched(today: Int): Growth = Growth(Stage.BABY, Stage.BABY, xp = 0, ready = false, sinceDay = today)
+    /**
+     * A hero that just hatched on game day [today]. The [first] one of all starts [XpRules.FIRST_HEAD_START] along,
+     * so its owner meets an evolution within minutes of hatching it.
+     */
+    fun hatched(today: Int, first: Boolean = false): Growth =
+        Growth(Stage.BABY, Stage.BABY, xp = if (first) XpRules.FIRST_HEAD_START else 0, ready = false, sinceDay = today)
 
     /** A hero collected before growth existed: a teen, as it always looked, counting from [today]. */
     fun grownUp(today: Int): Growth = Growth(Stage.TEEN, Stage.TEEN, xp = 0, ready = false, sinceDay = today)

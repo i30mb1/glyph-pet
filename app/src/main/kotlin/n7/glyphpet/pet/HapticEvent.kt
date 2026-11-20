@@ -49,6 +49,9 @@ enum class HapticKind {
 
     /** The pet greets the owner who picked the phone up: one soft tick. */
     GREET,
+
+    /** The pet calls for its owner: a need has run out. Two soft ticks, a little firmer than [GREET]. */
+    CALL,
 }
 
 /**
