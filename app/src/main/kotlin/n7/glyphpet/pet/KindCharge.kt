@@ -1,5 +1,6 @@
 package n7.glyphpet.pet
 
+import n7.glyph.ui.matrix.GlyphMatrixSpec
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.PI
 import kotlin.math.abs
@@ -12,7 +13,7 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /** The charging ways of the second batch of heroes; see [KindCharge]. */
-enum class KindWay { SPIRAL, BUBBLES, TIDE, ECHO, GILLS, PRISM, ORBIT, CAMO }
+enum class KindWay { SPIRAL, BUBBLES, TIDE, ECHO, GILLS, PRISM, ORBIT, CAMO, WASH }
 
 /**
  * How the heroes of the second batch charge, picked by kind for the teen and the adult (every baby fills up, as in
@@ -37,6 +38,7 @@ internal object KindCharge {
         "gem" to KindWay.PRISM,
         "planet" to KindWay.ORBIT,
         "chameleon" to KindWay.CAMO,
+        "raccoon" to KindWay.WASH,
     )
 
     /** The way [s] charges, or null when [ChargeRenderer] draws it by [Species.charge]. */
@@ -52,6 +54,7 @@ internal object KindCharge {
             KindWay.PRISM -> prism(f, s, st)
             KindWay.ORBIT -> orbit(f, s, st)
             KindWay.CAMO -> camo(f, s, st)
+            KindWay.WASH -> wash(f, s, st)
         }
     }
 
@@ -413,5 +416,57 @@ internal object KindCharge {
             }
         }
         finish(f, s, st)
+    }
+
+    // --- raccoon: WASH ----------------------------------------------------------------------------------------------
+
+    /** Rows the tub takes under the paws, and how far the pet stands lifted to leave room for it. */
+    private const val TUB_H = 5
+    private const val TUB_LIFT = 3
+
+    /**
+     * The raccoon washes in a tub: it stands a little higher with a tub under its paws, the water in it rises with the
+     * battery and rings spread over the surface in the charging's own time. A full tub is bright and still.
+     */
+    private fun wash(f: IntArray, s: Species, st: ChargeState) {
+        val dy = -TUB_LIFT
+        // The rim is right under the paws; the tub hangs below it, as far as the round matrix allows.
+        val rim = s.oy + dy + s.height
+        val floor = minOf(rim + TUB_H - 1, SIZE - 2)
+        val left = s.ox + 1
+        val right = s.ox + s.width - 2
+        val mid = (left + right) / 2
+        // Empty: the water is down at the floor; full: up at the rim.
+        val surface = floor - level(st) * (floor - rim)
+        val rings = if (st.live) (st.pace * 1.8) % 1.0 else -1.0
+        for (y in rim..floor) {
+            val span = GlyphMatrixSpec.rowRange(y)
+            val a = max(left, span.first)
+            val b = minOf(right, span.last)
+            if (a > b) continue
+            for (x in a..b) {
+                val wall = x == a || x == b || y == floor
+                val filled = y + 0.5f >= surface
+                val crest = filled && y - 0.5f < surface
+                val v = when {
+                    wall && st.still -> FULL / 2
+                    wall -> FULL
+                    !filled -> if (st.still) 0 else LOW
+                    st.still -> if (crest) FULL / 2 else LOW
+                    st.done -> if (crest || ((st.timeMs / 150) + x) % 7 == 0L) BRIGHT else FULL
+                    // A ring runs out from the middle of the surface, left and right, and fades as it goes.
+                    crest && rings >= 0 && abs(abs(x - mid) - rings * (b - a) / 2.0) < 0.7 -> BRIGHT
+                    crest -> FULL
+                    else -> EMPTY
+                }
+                set(f, x, y, v)
+            }
+        }
+        // The raccoon hides the tub behind it, so its face and the rings never run into each other.
+        s.rows.forEachIndexed { y, row ->
+            row.forEachIndexed { x, c -> if (c != '.') set(f, s.ox + x, s.oy + dy + y, 0) }
+        }
+        ChargeRenderer.paint(f, s, SpeciesRenderer.carve(s, calmFace(st), st.blink), dy, still = st.still)
+        finish(f, s, st, dy)
     }
 }

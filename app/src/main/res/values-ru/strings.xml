@@ -159,6 +159,8 @@
     <string name="habit_gill_wave">Колышет жабрами</string>
     <string name="habit_spin">Вращается</string>
     <string name="habit_moon_orbit">Водит луну по кругу</string>
+    <string name="habit_tail_rings">Кольца по хвосту</string>
+    <string name="habit_hide_shiny">Прячет блестяшку</string>
     <string name="matrix_title">На матрице</string>
     <string name="matrix_hide_title">Гаснуть, когда никто не видит</string>
     <string name="matrix_hide_text">Матрица гаснет, пока телефон лежит экраном вверх или в кармане, и загорается, когда берёшь его в руки.</string>
@@ -256,4 +258,6 @@
     <string name="sig_gem_about">Огранённый камень вращается в 3D и сверкает гранями</string>
     <string name="sig_planet">3D-планета</string>
     <string name="sig_planet_about">Планета с кольцом вращается в 3D</string>
+    <string name="sig_raccoon">Полоскун</string>
+    <string name="sig_raccoon_about">Полощет блестяшку в луже и прячет её</string>
 </resources>

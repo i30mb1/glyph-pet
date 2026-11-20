@@ -420,6 +420,17 @@ object SpeciesCatalog {
             charge = ChargeWay.FILL,
             habit = Habits::planet,
         ),
+        // The third batch
+        Species(
+            "raccoon", "Raccoon", Rarity.COMMON,
+            listOf(
+                ".##.....##.....", "###########....", "#ooo###ooo#..oo", "oo##ooo##oo.##o", "oo##o#o##oo.oo.",
+                "#ooo###ooo#.##.", ".####o####..oo.", "..#######..##..", "...#####..oo...", "..#######oo....",
+                ".##########....", ".###...###.....",
+            ),
+            ox = 5, oy = 7, eyes = listOf(2 to 3, 7 to 3), mouth = 4 to 7,
+            habit = Habits::raccoon,
+        ),
     )
 
     private val byId = all.associateBy { it.id }

@@ -238,6 +238,14 @@ object SpeciesForms {
             ),
             ox = 7, oy = 8, eyes = listOf(2 to 2, 7 to 2), mouth = 4 to 4,
         ),
+        // raccoon: kit, all mask and no tail yet
+        "raccoon" to Sprite(
+            listOf(
+                ".##.....##.", "###########", "#ooo###ooo#", "oo##ooo##oo", "oo##o#o##oo", "#ooo###ooo#",
+                ".####o####.", "..#######..", "...#####...",
+            ),
+            ox = 7, oy = 8, eyes = listOf(2 to 3, 7 to 3), mouth = 4 to 7,
+        ),
     )
 
     private val ADULT: Map<String, Sprite> = mapOf(
@@ -493,6 +501,15 @@ object SpeciesForms {
                 "..#############..", "..###.#########..", "...######..###...", "....#########....", "......#####......",
             ),
             ox = 4, oy = 5, eyes = listOf(4 to 4, 11 to 4), mouth = 7 to 6,
+        ),
+        // raccoon: the washer, with a full ringed tail
+        "raccoon" to Sprite(
+            listOf(
+                "..##.....##......", ".###########.....", ".#ooo###ooo#...oo", "ooo##ooo##ooo.###", "ooo##o#o##ooo.ooo",
+                ".#ooo###ooo#..###", "..####o####...ooo", "...#######....###", "....#####....ooo.", "...#######...###.",
+                "..#########.ooo..", ".###########ooo..", ".###########.....", ".###########.....", "..###....###.....",
+            ),
+            ox = 4, oy = 5, eyes = listOf(3 to 3, 8 to 3), mouth = 5 to 7,
         ),
     )
 

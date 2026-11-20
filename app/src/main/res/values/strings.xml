@@ -161,6 +161,8 @@
     <string name="habit_gill_wave">Gill wave</string>
     <string name="habit_spin">Spin</string>
     <string name="habit_moon_orbit">Moon orbit</string>
+    <string name="habit_tail_rings">Tail rings</string>
+    <string name="habit_hide_shiny">Hiding a shiny</string>
     <string name="matrix_title">On the matrix</string>
     <string name="matrix_hide_title">Dark when nobody sees it</string>
     <string name="matrix_hide_text">The matrix goes out while the phone lies screen up or is in a pocket, and lights up again when you pick it up.</string>
@@ -258,4 +260,6 @@
     <string name="sig_gem_about">A cut gem turns in 3D, its facets glinting</string>
     <string name="sig_planet">3D planet</string>
     <string name="sig_planet_about">A ringed planet turns in 3D</string>
+    <string name="sig_raccoon">Washer</string>
+    <string name="sig_raccoon_about">Rinses something shiny in a puddle and hides it away</string>
 </resources>

@@ -283,6 +283,9 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
     private var trick: Signature? = null
     private var trickMs = -1L
 
+    /** The kind whose trick is playing: swapping the pet mid-game ends it, it is not the new pet's game. */
+    private var trickKind: String? = null
+
     /** How long the trick has really played: [stopTrick] skips [trickMs] ahead, this does not. */
     private var trickPlayedMs = 0L
 
@@ -294,6 +297,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         if (!Tricks.has(kind)) return false
         react {
             trick = Tricks.of(kind)?.also { it.start() }
+            trickKind = kind
             trickMs = 0
             trickPlayedMs = 0
             ball.clear()
@@ -328,9 +332,11 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
     fun debug(species: Species?): String {
         val walk = species?.let { walkRange(it) }
         val slide = species?.let { slideRange(it) }
-        return "x=%.1f walk=%s slide=%s sliding=%b action=%s(%dms) habit=%d sig=%s@%d(in %d) moment=%s(%d) trick=%d food=%s hop=%d ball=%b pending=%d busy=%b".format(
+        return ("x=%.1f walk=%s slide=%s sliding=%b action=%s(%dms) habit=%d sig=%s@%d(in %d) moment=%s(%d) trick=%d food=%s " +
+            "feast=%d hop=%d ball=%b pending=%d busy=%b").format(
             x, walk, slide, slidingNow, action, actionLeftMs, habitMs, signatureKind, signatureMs, signatureInMs,
-            moment?.javaClass?.simpleName, momentMs, trickMs, foodY?.let { "%.1f".format(it) }, hopMs, ball.active, pending.size, busy,
+            moment?.javaClass?.simpleName, momentMs, trickMs, foodY?.let { "%.1f".format(it) }, feastMs, hopMs, ball.active,
+            pending.size, busy,
         )
     }
 
@@ -360,8 +366,8 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
      * the ball, a slide, sleep).
      */
     private fun updateSignature(dtMs: Long, sig: Signature, scene: Scene, asleep: Boolean, sliding: Boolean): Boolean {
-        val free = !asleep && !sliding && action == Action.NONE && habitMs < 0 && trickMs < 0 && foodY == null && !ball.active &&
-            (scene.mood == Mood.CONTENT || scene.mood == Mood.HAPPY)
+        val free = !asleep && !sliding && action == Action.NONE && habitMs < 0 && trickMs < 0 && foodY == null && feastMs < 0 &&
+            !ball.active && (scene.mood == Mood.CONTENT || scene.mood == Mood.HAPPY)
         if (signatureMs >= 0) {
             signatureMs += dtMs
             // Once started it plays to the end: only a drop or falling asleep stops it (tilting is part of most effects).
@@ -379,6 +385,35 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         sig.start()
         return true
     }
+
+    /**
+     * The meal of a kind that eats its own way ([Feasts]); [feastMs] >= 0 while it plays. It is kept per kind, like
+     * the signature effect, so a kind that may keep state between frames gets a fresh one when it comes on the matrix.
+     */
+    private var feast: Signature? = null
+    private var feastMs = -1L
+
+    /** The kind whose meal is playing: swapping the pet mid-meal ends it, it is not the new pet's food. */
+    private var feastKind: String? = null
+
+    /** The kind the current [feast] was made for; a new one is made when another kind comes on the matrix. */
+    private var feastMadeFor: String? = null
+
+    /**
+     * Whether the kind's own meal is on the matrix this tick. Like the signature effect, once started it plays to the
+     * end; only a drop (an action) or falling asleep cuts it short.
+     */
+    private fun updateFeast(dtMs: Long, species: Species, asleep: Boolean): Boolean {
+        val fe = feast ?: return false
+        if (feastMs < 0) return false
+        feastMs += dtMs
+        // Swapping the pet mid-meal ends it: it is not the new pet's food.
+        val mine = feastKind == null || feastKind == species.kind
+        if (mine && !asleep && action == Action.NONE && feastMs < fe.durationMs) return true
+        feastMs = -1
+        return false
+    }
+
     private var ballAsked = false
     private val weather = Weather(random)
 
@@ -429,7 +464,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
      */
     private val pending = ArrayDeque<() -> Unit>()
 
-    private val busy: Boolean get() = moment != null || habitMs >= 0 || signatureMs >= 0 || trickMs >= 0
+    private val busy: Boolean get() = moment != null || habitMs >= 0 || signatureMs >= 0 || trickMs >= 0 || feastMs >= 0
 
     private fun react(reaction: () -> Unit) {
         if (!busy) reaction() else if (pending.size < MAX_PENDING) pending.addLast(reaction)
@@ -441,7 +476,10 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         pending.removeFirstOrNull()?.invoke()
     }
 
-    /** Food drops from the top; a full pet frowns instead. A sleeper only opens one eye. */
+    /**
+     * Food drops from the top; a full pet frowns instead. A sleeper only opens one eye. For a kind that eats its own
+     * way ([Feasts]) the piece becomes its whole meal on the next tick (see [updateFood]).
+     */
     fun feed(accepted: Boolean) = react {
         if (accepted) foodY = 0f else start(Action.REFUSING, 1200)
     }
@@ -509,6 +547,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         momentMs = 0
         action = Action.NONE
         foodY = null
+        feastMs = -1
         habitMs = -1
         hopMs = -1
         ball.clear()
@@ -623,8 +662,9 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         if (tr != null && trickMs >= 0) {
             trickMs += dtMs
             trickPlayedMs += dtMs
-            // Only a drop or falling asleep cuts a trick short; the owner is playing along with it.
-            if (!asleep && action == Action.NONE && trickMs < tr.durationMs) {
+            // Only a drop, falling asleep or swapping the pet cuts a trick short; the owner is playing along with it.
+            val mine = trickKind == null || trickKind == species.kind
+            if (mine && !asleep && action == Action.NONE && trickMs < tr.durationMs) {
                 val face = face(scene.mood, asleep, false)
                 tr.draw(frame, input(species, trickMs, dtMs, scene, face))
                 if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
@@ -633,6 +673,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
             }
             report(PetEvent(PetEvent.Kind.TRICK, trickPlayedMs))
             trick = null
+            trickKind = null
             trickMs = -1
         }
 
@@ -641,7 +682,8 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
             habitMs = -1
             hopMs = -1
             trickAsked = false
-            if (foodY != null) { foodY = null; start(Action.EATING, 1800) }
+            // The charging indicator has the whole matrix: a kind's own meal does not play here either.
+            if (foodY != null || feastMs >= 0) { foodY = null; feastMs = -1; start(Action.EATING, 1800) }
             ChargeRenderer.render(species, chargeState(scene, still = asleep), plugMs.takeIf { it >= 0 }, frame)
             if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
             shown = Shown(null, charging = true)
@@ -654,6 +696,11 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
             signature = Signatures.of(species.kind)
             signatureMs = -1
             signatureInMs = nextSignatureIn()
+        }
+        if (species.kind != feastMadeFor) {
+            feastMadeFor = species.kind
+            feast = Feasts.of(species.kind)
+            feastMs = -1
         }
         val range = walkRange(species)
         val centerX = species.ox + x.roundToInt() + (species.width - 1) / 2f
@@ -671,7 +718,8 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         if (ball.hit >= BALL_FEEL_SPEED && species.kind != n7.glyphpet.pet.signature.HedgehogCurl.KIND) {
             feel(HapticEvent(HapticKind.BALL_HIT, ((ball.hit - BALL_FEEL_SPEED) / (Ball.MAX_SPEED - BALL_FEEL_SPEED)).coerceIn(0f, 1f)))
         }
-        val sliding = !asleep && action == Action.NONE && habitMs < 0 && signatureMs < 0 && trickMs < 0 && abs(scene.tilt) > SLIDE_TILT
+        val sliding = !asleep && action == Action.NONE && habitMs < 0 && signatureMs < 0 && trickMs < 0 && feastMs < 0 &&
+            abs(scene.tilt) > SLIDE_TILT
         slidingNow = sliding
         // Tipped toward the viewer: the pet comes closer with a little hop toward them.
         val wasCloser = closer
@@ -682,6 +730,16 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
         updateHop(dtMs, scene.mood, sliding)
         updateMovement(dtMs, scene, range, slideRange(species), asleep, sliding)
         updateYawn(dtMs, scene.mood)
+
+        val fe = feast
+        if (fe != null && updateFeast(dtMs, species, asleep)) {
+            // This kind eats its own way: its meal has the whole matrix until it is finished. It draws the food itself,
+            // so it is handed a plain content face, not [Face.EAT], whose badge would be a second piece beside the pet.
+            fe.draw(frame, input(species, feastMs, dtMs, scene, Face.CONTENT))
+            if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
+            shown = Shown(Face.EAT, dx = x.roundToInt())
+            return frame
+        }
 
         val sig = signature
         if (sig != null && updateSignature(dtMs, sig, scene, asleep, sliding)) {
@@ -842,8 +900,9 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
             if (action == Action.PEEK) action = Action.NONE
             return
         }
-        if (foodY != null || (action != Action.NONE && action != Action.PEEK)) {
+        if (foodY != null || feastMs >= 0 || (action != Action.NONE && action != Action.PEEK)) {
             foodY = null
+            feastMs = -1
             start(Action.PEEK, PEEK_MS)
         }
     }
@@ -869,7 +928,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
             return
         }
         val free = (mood == Mood.CONTENT || mood == Mood.HAPPY) && action == Action.NONE && !sliding && trickMs < 0 && foodY == null &&
-            !ball.active
+            feastMs < 0 && !ball.active
         if (!free) {
             trickAsked = false
             habitSpot = null
@@ -987,6 +1046,15 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
 
     private fun updateFood(dtMs: Long, species: Species) {
         val fy = foodY ?: return
+        val fe = feast
+        if (fe != null) {
+            // This kind eats its own way: the piece never falls, the whole meal plays instead.
+            foodY = null
+            feastKind = species.kind
+            feastMs = 0
+            fe.start()
+            return
+        }
         if (Face.EAT in species.replaces) {
             foodY = null
             start(Action.EATING, 2000)
@@ -1005,7 +1073,7 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
     /** [range]: where the pet walks by itself; [slide]: how far a tilt takes it, out over the edge for a big pet. */
     private fun updateMovement(dtMs: Long, scene: Scene, range: IntRange, slide: IntRange, asleep: Boolean, sliding: Boolean) {
         if (x < slide.first || x > slide.last) x = x.coerceIn(slide.first.toFloat(), slide.last.toFloat())
-        if (asleep || action != Action.NONE || habitMs >= 0 || trickMs >= 0) return
+        if (asleep || action != Action.NONE || habitMs >= 0 || trickMs >= 0 || feastMs >= 0) return
         if (sliding) {
             x = (x + scene.tilt * dtMs * 0.01f * slideSpeed(kindNow)).coerceIn(slide.first.toFloat(), slide.last.toFloat())
             targetX = x

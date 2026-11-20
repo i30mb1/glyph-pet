@@ -7,6 +7,7 @@ import n7.glyphpet.pet.signature.CommonCrabBubbles
 import n7.glyphpet.pet.signature.CommonFoxTracks
 import n7.glyphpet.pet.signature.CommonHedgehogRoll
 import n7.glyphpet.pet.signature.CommonPenguinSlide
+import n7.glyphpet.pet.signature.CommonRaccoonWash
 import n7.glyphpet.pet.signature.CommonShroomSpores
 import n7.glyphpet.pet.signature.CommonSnailTrail
 import n7.glyphpet.pet.signature.SafeSignature
@@ -27,5 +28,6 @@ object CommonSignatures {
         "snail" to { SafeSignature(CommonSnailTrail()) },
         "crab" to { SafeSignature(CommonCrabBubbles()) },
         "hedgehog" to { SafeSignature(CommonHedgehogRoll()) },
+        "raccoon" to { SafeSignature(CommonRaccoonWash()) },
     )
 }

@@ -39,6 +39,7 @@ internal object SignatureNames {
         "slime" to Texts(R.string.sig_slime, R.string.sig_slime_about),
         "gem" to Texts(R.string.sig_gem, R.string.sig_gem_about),
         "planet" to Texts(R.string.sig_planet, R.string.sig_planet_about),
+        "raccoon" to Texts(R.string.sig_raccoon, R.string.sig_raccoon_about),
     )
 
     /** The effect's name, or null for a kind not listed here. */

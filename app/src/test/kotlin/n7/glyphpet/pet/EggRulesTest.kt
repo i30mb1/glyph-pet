@@ -18,7 +18,7 @@ class EggRulesTest {
     }
 
     @Test
-    fun `rarity odds over the whole catalogue are close to 70, 25 and 5 percent`() {
+    fun `rarity odds over the whole catalogue are the tiers' own weights`() {
         val random = Random(42)
         val counts = Rarity.entries.associateWith { 0 }.toMutableMap()
         repeat(20_000) {
@@ -26,17 +26,20 @@ class EggRulesTest {
             counts[rarity] = counts.getValue(rarity) + 1
         }
         val total = counts.values.sum().toFloat()
-        assertEquals(0.70f, counts.getValue(Rarity.COMMON) / total, 0.02f)
-        assertEquals(0.25f, counts.getValue(Rarity.RARE) / total, 0.02f)
-        assertEquals(0.05f, counts.getValue(Rarity.LEGENDARY) / total, 0.01f)
+        // Each tier comes as often as it weighs, however many heroes it holds: 70 / 24.5 / 4 / 1.5 percent.
+        val weights = Rarity.entries.sumOf { it.weight }.toFloat()
+        for (tier in Rarity.entries) {
+            assertEquals(tier.name, tier.weight / weights, counts.getValue(tier) / total, 0.01f)
+        }
     }
 
     @Test
-    fun `the catalog has 18 pets in three tiers`() {
-        assertEquals(18, SpeciesCatalog.all.size)
+    fun `the catalog has 29 pets in four tiers`() {
+        assertEquals(29, SpeciesCatalog.all.size)
         assertEquals(10, SpeciesCatalog.all.count { it.rarity == Rarity.COMMON })
-        assertEquals(5, SpeciesCatalog.all.count { it.rarity == Rarity.RARE })
-        assertEquals(3, SpeciesCatalog.all.count { it.rarity == Rarity.LEGENDARY })
+        assertEquals(13, SpeciesCatalog.all.count { it.rarity == Rarity.RARE })
+        assertEquals(4, SpeciesCatalog.all.count { it.rarity == Rarity.LEGENDARY })
+        assertEquals(2, SpeciesCatalog.all.count { it.rarity == Rarity.MYTHIC })
     }
 
     private fun draw(f: (IntArray) -> Unit) = IntArray(625).also(f)

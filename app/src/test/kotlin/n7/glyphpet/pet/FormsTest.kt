@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.random.Random
 
-/** The 54 forms of [SpeciesForms]: well-formed, and every face, habit frame and charging frame is a valid frame. */
+/** Every form of [SpeciesForms]: well-formed, and every face, habit frame and charging frame is a valid frame. */
 class FormsTest {
 
     private fun assertValid(what: String, f: IntArray) {
@@ -22,8 +22,10 @@ class FormsTest {
 
     @Test
     fun `three forms per hero, the teens are the catalogue itself`() {
-        assertEquals(54, SpeciesForms.all.size)
-        assertEquals(54, SpeciesForms.all.map { it.id }.toSet().size)
+        // Three forms each, no two sharing an id.
+        val forms = SpeciesCatalog.all.size * Stage.entries.size
+        assertEquals(forms, SpeciesForms.all.size)
+        assertEquals(forms, SpeciesForms.all.map { it.id }.toSet().size)
         for (teen in SpeciesCatalog.all) {
             val forms = SpeciesForms.all(teen.id)
             assertEquals(Stage.entries, forms.map { it.stage })

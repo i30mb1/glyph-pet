@@ -231,5 +231,7 @@ internal fun habitName(habitId: String): Int? = when (habitId) {
     "gill_wave" -> R.string.habit_gill_wave
     "spin" -> R.string.habit_spin
     "moon_orbit" -> R.string.habit_moon_orbit
+    "tail_rings" -> R.string.habit_tail_rings
+    "hide_shiny" -> R.string.habit_hide_shiny
     else -> null
 }

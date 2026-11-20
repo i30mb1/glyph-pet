@@ -27,6 +27,7 @@ import n7.glyphpet.pet.trick.OwlTrick
 import n7.glyphpet.pet.trick.FoxTrick
 import n7.glyphpet.pet.trick.GhostTrick
 import n7.glyphpet.pet.trick.PenguinTrick
+import n7.glyphpet.pet.trick.RaccoonTrick
 import n7.glyphpet.pet.trick.SlimeTrick
 import n7.glyphpet.pet.trick.UfoTrick
 
@@ -61,5 +62,6 @@ object TrickList {
         "eye" to { SafeSignature(EyeTrick()) },
         "gem" to { SafeSignature(GemTrick()) },
         "planet" to { SafeSignature(PlanetTrick()) },
+        "raccoon" to { SafeSignature(RaccoonTrick()) },
     )
 }

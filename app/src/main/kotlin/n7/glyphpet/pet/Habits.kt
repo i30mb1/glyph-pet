@@ -58,6 +58,7 @@ object Habits {
         "axolotl" -> ::fanAxolotl
         "gem" -> ::sparklingGem
         "planet" -> ::moonPlanet
+        "raccoon" -> ::slyRaccoon
         else -> null
     }
 
@@ -91,6 +92,7 @@ object Habits {
         "axolotl" -> ::axolotl
         "gem" -> ::gem
         "planet" -> ::planet
+        "raccoon" -> ::raccoon
         else -> null
     }
 
@@ -1389,6 +1391,67 @@ object Habits {
             "moon_orbit",
             path.mapIndexed { i, (x, y) -> HabitFrame(120, rows = sky, over = moon(x, y, behind = i >= 6)) } +
                 HabitFrame(200, face = Face.CONTENT),
+        )
+    }
+
+    /**
+     * Raccoon: the rings of its striped tail run from the root up to the tip, over and over, while the tail itself
+     * sways. The tail is the part right of the body ([RACCOON_TAIL]), from the tip by the ear down to the root at its
+     * feet; each ring is the pair of cells across the tail at that step.
+     */
+    private val RACCOON_TAIL = listOf(
+        listOf(13 to 2, 14 to 2), listOf(12 to 3, 13 to 3), listOf(12 to 4, 13 to 4), listOf(12 to 5, 13 to 5),
+        listOf(12 to 6, 13 to 6), listOf(11 to 7, 12 to 7), listOf(10 to 8, 11 to 8), listOf(9 to 9, 10 to 9),
+    )
+
+    fun raccoon(rows: List<String>): Habit {
+        val n = RACCOON_TAIL.size
+        // Which steps of the tail are banded in the sprite, read off its own first cell.
+        val banded = RACCOON_TAIL.map { cells -> rows.getOrNull(cells[0].second)?.getOrNull(cells[0].first) == 'o' }
+        // The tail redrawn with every band moved [by] steps toward the tip, so the rings run up it.
+        fun rings(by: Int): List<String> {
+            val bright = buildSet {
+                RACCOON_TAIL.forEachIndexed { i, cells -> if (banded[(i + by).mod(n)]) addAll(cells) }
+            }
+            return rows.mapIndexed { y, row ->
+                String(CharArray(row.length) { x ->
+                    val cell = x to y
+                    when {
+                        RACCOON_TAIL.none { cell in it } -> row[x]
+                        cell in bright -> 'o'
+                        else -> '#'
+                    }
+                })
+            }
+        }
+        // From the first step on: at rest the tail is already drawn as rings(0), so that phase would not move at all.
+        return Habit(
+            "tail_rings",
+            (1 until n).map { HabitFrame(150, rows = rings(it)) } + HabitFrame(240, face = Face.CONTENT),
+        )
+    }
+
+    /**
+     * Raccoon, grown up: it holds something shiny, slips it behind its tail and puts on an innocent face, blinking,
+     * as if nothing had happened.
+     */
+    fun slyRaccoon(rows: List<String>): Habit {
+        // The chest, on the body under the head: a bright speck reads there against the dim body.
+        val chest = rows.indexOfLast { row -> row.count { it != '.' } >= row.length / 2 } - 1
+        fun shiny(x: Int, y: Int) = o(x, y, "o")
+        return Habit(
+            "hide_shiny",
+            listOf(
+                // Held up in front of it, turned to the light, then slipped across the chest toward the tail.
+                HabitFrame(160, over = listOf(shiny(5, chest))),
+                HabitFrame(140, over = listOf(shiny(5, chest - 1))),
+                HabitFrame(140, over = listOf(shiny(7, chest))),
+                HabitFrame(140, over = listOf(shiny(9, chest))),
+                HabitFrame(140, over = listOf(shiny(11, chest))),
+                // Gone behind the tail: empty paws and the most innocent face it has.
+                HabitFrame(260, face = Face.CONTENT, blink = true),
+                HabitFrame(220, face = Face.CONTENT, eyeDx = -1),
+            ),
         )
     }
 }
