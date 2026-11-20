@@ -8,9 +8,31 @@
     <string name="need_food">Food</string>
     <string name="need_joy">Joy</string>
     <string name="need_sleep">Sleep</string>
-    <string name="need_food_how">Hold the Glyph button</string>
-    <string name="need_joy_how">Rock the phone gently side to side</string>
-    <string name="need_sleep_how">Sleeps at night, rests on the charger</string>
+    <plurals name="need_food_fill">
+        <item quantity="other">Hold the button on the back to feed</item>
+    </plurals>
+    <plurals name="need_food_drain">
+        <item quantity="one">Lasts an hour</item>
+        <item quantity="other">Lasts %d hours</item>
+    </plurals>
+    <plurals name="need_joy_fill">
+        <item quantity="other">Rock the phone for a ball game</item>
+    </plurals>
+    <plurals name="need_joy_drain">
+        <item quantity="one">Lasts an hour</item>
+        <item quantity="other">Lasts %d hours</item>
+    </plurals>
+    <plurals name="need_sleep_rest">
+        <item quantity="other">It sleeps when tired</item>
+    </plurals>
+    <plurals name="need_sleep_charge">
+        <item quantity="other">Faster on the charger</item>
+    </plurals>
+    <plurals name="need_sleep_drain">
+        <item quantity="one">Lasts a minute</item>
+        <item quantity="other">Lasts %d minutes</item>
+    </plurals>
+    <string name="need_what">what it is</string>
     <string name="action_feed">Feed</string>
     <string name="activate_toy">Activate toy</string>
 
@@ -172,9 +194,6 @@
     <string name="matrix_notify_text">The pet looks up when a notification comes and shows a phone while a call is missed. Glyph Pet sees only the kind of a notification, never its text.</string>
 
     <!-- Compact main screen, forms in the collection -->
-    <string name="need_food_hint">hold the button</string>
-    <string name="need_joy_hint">rock the phone</string>
-    <string name="need_sleep_hint">at night, on the charger</string>
     <string name="egg_put_on_matrix_count">Put an egg on the matrix · %1$d</string>
     <string name="states_all">All states</string>
     <string name="settings_title">Settings</string>
@@ -190,13 +209,6 @@
     <string name="form_xp_left">%1$d XP to go</string>
     <string name="xp_progress">%1$s · %2$d/%3$d</string>
     <string name="xp_max">%1$s · max</string>
-    <string name="xp_how_title">How to grow</string>
-    <string name="xp_how_time">Together on the matrix, awake: +%1$d a minute</string>
-    <string name="xp_how_feed">Feed at %1$d food dots or fewer: +%2$d</string>
-    <string name="xp_how_ball">A new ball game (rock the phone): +%1$d, once per %2$d s</string>
-    <string name="xp_how_trick">A trick (hold the button when it is full): +%1$d per %2$d s, up to +%3$d</string>
-    <string name="xp_how_signature">Its signature watched to the end: +%1$d</string>
-    <string name="xp_how_bonus">All three needs full: ×%1$d. Hungry, sick or asleep: nothing</string>
     <string name="grow_ready">Ready to grow: shake the phone 3 times</string>
     <string name="grow_ready_pick">Ready to grow: put it on the matrix and shake the phone 3 times</string>
     <!-- Signature effects: the states card's page and the collection tiles. -->

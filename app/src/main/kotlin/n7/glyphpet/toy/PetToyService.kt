@@ -259,7 +259,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
     /** Experience from something the owner did: a spark rises above the pet, and the debug log hears of it. */
     private fun gained(source: XpSource, xp: Int) {
         if (xp <= 0) return
-        if (source != XpSource.TIME) engine.spark()
+        if (source != XpSource.TIME) engine.spark(xp)
         if (n7.glyphpet.BuildConfig.DEBUG && xpLog.length < 200) xpLog.append(source).append('+').append(xp).append(' ')
     }
 

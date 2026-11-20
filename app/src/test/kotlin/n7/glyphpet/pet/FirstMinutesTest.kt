@@ -19,7 +19,7 @@ class FirstMinutesTest {
         assertEquals(0, NeedDots.of(newborn.satiety))
         assertEquals(0, NeedDots.of(newborn.joy))
         assertEquals(Mood.HUNGRY, PetRules.mood(newborn, asleep = false))
-        assertFalse(PetRules.isAsleep(newborn, hour = 12))
+        assertFalse(PetRules.isAsleep(newborn))
     }
 
     @Test
@@ -45,7 +45,7 @@ class FirstMinutesTest {
         var s = full
         while (!CallRules.wants(s, asleep = false) && hours < 48) {
             hours++
-            s = PetRules.advance(s, hours * 60L * 60_000L, hourAt = { 12 })
+            s = PetRules.advance(s, hours * 60L * 60_000L)
         }
         assertTrue("called after $hours h, expected the better part of a day", hours in 5..12)
     }

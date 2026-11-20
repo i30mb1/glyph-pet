@@ -1,6 +1,5 @@
 package n7.glyphpet.pet
 
-import java.util.Calendar
 
 /** Needs of the pet, each 0..100. Time moves them; actions push them back up. */
 data class PetStats(
@@ -9,7 +8,7 @@ data class PetStats(
     val energy: Float,
     val bornAtMs: Long,
     val updatedAtMs: Long,
-    /** A daytime nap is on: the pet sleeps until its energy is back to [PetRules.NAP_WAKE_ENERGY]. */
+    /** The pet is asleep: it sleeps on until its energy is back to [PetRules.NAP_WAKE_ENERGY]. */
     val napping: Boolean = false,
 ) {
     fun ageDays(nowMs: Long): Int = ((nowMs - bornAtMs) / DAY_MS).toInt().coerceAtLeast(0)
@@ -74,20 +73,19 @@ object CallRules {
 object PetRules {
     const val SATIETY_PER_HOUR = 10f
     const val JOY_PER_HOUR = 8f
-    const val ENERGY_AWAKE_PER_HOUR = 6f
-    const val ENERGY_ASLEEP_PER_HOUR = 16f
+    const val ENERGY_AWAKE_PER_HOUR = 120f
 
     /**
-     * A pet that runs out of energy in the day (below [NAP_ENERGY]) takes a short nap: its energy comes back at
-     * [ENERGY_NAP_PER_HOUR] and it wakes once it reaches [NAP_WAKE_ENERGY] (from empty, about 12 minutes), so it does
-     * not doze off again right after waking.
+     * A pet that runs out of energy (below [NAP_ENERGY]) sleeps until it is nearly full again ([NAP_WAKE_ENERGY]), so
+     * it does not doze off again right after waking. Awake it spends a dot of its five every ten minutes
+     * ([ENERGY_AWAKE_PER_HOUR]) and asleep it fills one a minute, so it is awake about forty minutes and asleep four.
      */
     const val NAP_ENERGY = 10f
-    const val NAP_WAKE_ENERGY = 30f
-    const val ENERGY_NAP_PER_HOUR = 150f
+    const val NAP_WAKE_ENERGY = 90f
+    const val ENERGY_SLEEP_PER_HOUR = 1200f
 
-    /** The charger fills the pet up much faster than any sleep: from empty to full in about 3 minutes. */
-    const val ENERGY_CHARGE_PER_HOUR = 2000f
+    /** The charger fills the pet faster than its own sleep: a dot of its five every ten seconds. */
+    const val ENERGY_CHARGE_PER_HOUR = 7200f
 
     const val FEED_SATIETY = 35f
     const val FEED_JOY = 5f
@@ -104,47 +102,40 @@ object PetRules {
     private const val MAX_CATCH_UP_MS = 14 * PetStats.DAY_MS
     private const val HOUR_MS = 60 * 60 * 1000f
 
-    val localHour: (Long) -> Int = { ms -> Calendar.getInstance().apply { timeInMillis = ms }.get(Calendar.HOUR_OF_DAY) }
-
-    /** Debug builds only: no night at all, so the pet stays awake to try its behaviour (PetStore keeps it). */
-    @Volatile var nightOff: Boolean = false
-
-    /** Night sleep: from midnight to 6:00. */
-    fun isNight(hour: Int): Boolean = !nightOff && hour < 6
-
-    /** A pet on the charger stays awake during the day: it works out, see [ChargeRenderer]. */
-    fun isAsleep(stats: PetStats, hour: Int): Boolean =
-        isNight(hour) || stats.energy < NAP_ENERGY || (stats.napping && stats.energy < NAP_WAKE_ENERGY)
+    /**
+     * The pet sleeps when it is worn out, and at no hour of the clock: a night owl who wants to play at three in the
+     * morning finds it awake, as long as it has slept its [NAP_ENERGY] to [NAP_WAKE_ENERGY] some time before.
+     * A pet on the charger stays awake whatever its energy: it works out, see [ChargeRenderer].
+     */
+    fun isAsleep(stats: PetStats): Boolean =
+        stats.energy < NAP_ENERGY || (stats.napping && stats.energy < NAP_WAKE_ENERGY)
 
     /**
      * Moves [stats] forward to [nowMs] in 10-minute steps. [charging] counts only for the latest step:
      * the charger fills the pet's energy at [ENERGY_CHARGE_PER_HOUR], awake or asleep, faster than any sleep.
      */
-    fun advance(stats: PetStats, nowMs: Long, charging: Boolean = false, hourAt: (Long) -> Int = localHour): PetStats {
+    fun advance(stats: PetStats, nowMs: Long, charging: Boolean = false): PetStats {
         if (nowMs <= stats.updatedAtMs) return stats
         var s = stats.copy(updatedAtMs = maxOf(stats.updatedAtMs, nowMs - MAX_CATCH_UP_MS))
         while (s.updatedAtMs < nowMs) {
             val stepEnd = minOf(s.updatedAtMs + STEP_MS, nowMs)
             val hours = (stepEnd - s.updatedAtMs) / HOUR_MS
-            val hour = hourAt(s.updatedAtMs)
-            val asleep = isAsleep(s, hour)
-            val nap = asleep && !isNight(hour)
+            val asleep = isAsleep(s)
             val charged = charging && stepEnd == nowMs
             val hungry = s.satiety < 25f
             val gain = when {
                 charged -> ENERGY_CHARGE_PER_HOUR
-                nap -> ENERGY_NAP_PER_HOUR
-                asleep -> ENERGY_ASLEEP_PER_HOUR
+                asleep -> ENERGY_SLEEP_PER_HOUR
                 else -> -ENERGY_AWAKE_PER_HOUR
             }
-            // A nap fills only up to its waking point; the rest of the step is spent awake. The charger has no such cap.
-            val energy = (s.energy + gain * hours).let { if (nap && !charged) minOf(it, maxOf(s.energy, NAP_WAKE_ENERGY)) else it }.clamp()
+            // A sleep fills only up to its waking point; the rest of the step is spent awake. The charger has no such cap.
+            val energy = (s.energy + gain * hours).let { if (asleep && !charged) minOf(it, maxOf(s.energy, NAP_WAKE_ENERGY)) else it }.clamp()
             s = s.copy(
                 satiety = (s.satiety - SATIETY_PER_HOUR * hours * (if (asleep) 0.5f else 1f)).clamp(),
                 joy = (s.joy - JOY_PER_HOUR * hours * (if (hungry) 1.5f else 1f) * (if (asleep) 0.3f else 1f)).clamp(),
                 energy = energy,
                 updatedAtMs = stepEnd,
-                napping = !isNight(hourAt(stepEnd)) && (energy < NAP_ENERGY || (nap && energy < NAP_WAKE_ENERGY)),
+                napping = energy < NAP_ENERGY || (asleep && energy < NAP_WAKE_ENERGY),
             )
         }
         return s
@@ -158,9 +149,6 @@ object PetRules {
 
     fun play(stats: PetStats): PetStats =
         stats.copy(joy = (stats.joy + PLAY_JOY).clamp(), energy = (stats.energy - PLAY_ENERGY).clamp())
-
-    /** The hour the pet wakes at, and the night ends: see [isNight]. */
-    const val WAKE_HOUR = 6
 
     fun mood(stats: PetStats, asleep: Boolean): Mood = when {
         asleep -> Mood.SLEEPING

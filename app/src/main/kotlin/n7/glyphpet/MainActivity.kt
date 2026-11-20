@@ -23,6 +23,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -42,6 +43,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -77,11 +79,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.PopupProperties
+import androidx.compose.ui.window.Popup
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.annotation.PluralsRes
+import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import n7.glyph.ui.components.DotHeadline
 import n7.glyph.ui.components.GlyphMatrix
@@ -193,7 +200,6 @@ class MainActivity : ComponentActivity() {
 private const val UI_PREFS = "ui"
 private const val KEY_INTRO_SEEN = "intro_seen"
 private const val KEY_TOY_OPENED = "toy_opened"
-private const val KEY_XP_HOW_OPEN = "xp_how_open"
 
 @Composable
 private fun Root(
@@ -495,14 +501,6 @@ private fun PetScreen(
             if (BuildConfig.DEBUG) {
                 // Debug builds only: one button that opens every hero and every form.
                 N7Button("Unlock all", { store.unlockAll(); refresh() }, Modifier.fillMaxWidth(), N7ButtonVariant.Secondary)
-                // Debug builds only: no night sleep, to try the pet's behaviour at any hour.
-                var nightOff by remember { mutableStateOf(store.nightOff) }
-                N7Button(
-                    if (nightOff) "Night sleep: off" else "Night sleep: on (0-6)",
-                    { store.nightOff = !nightOff; nightOff = store.nightOff; refresh() },
-                    Modifier.fillMaxWidth(),
-                    N7ButtonVariant.Secondary,
-                )
                 // Debug builds only: every need full or empty at once, to try the moods, weather and tricks.
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     N7Button(
@@ -537,17 +535,115 @@ private fun PetScreen(
     }
 }
 
-/** The three needs side by side, each with its LED dots and the few words that say how to fill it. */
+/** Which need a tap opened: the needs say nothing by themselves, a tap on one says what fills it and how fast. */
+private enum class Need { FOOD, JOY, SLEEP }
+
+/**
+ * The three needs side by side, their LED dots and nothing else; a tap on one opens a few words under the card, with
+ * an arrow up at the need they are about.
+ */
 @Composable
 private fun NeedsCard(stats: PetStats) {
-    N7Card(Modifier.fillMaxWidth()) {
+    var open by remember { mutableStateOf<Need?>(null) }
+    // The note is as wide as the card, so its lines never wrap, and it floats over the page rather than pushing it
+    // down: the card measures itself for it.
+    var cardWidth by remember { mutableStateOf(0) }
+    N7Card(Modifier.fillMaxWidth().onSizeChanged { cardWidth = it.width }) {
         Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            NeedMeter(stringResource(R.string.need_food), stats.satiety, stringResource(R.string.need_food_hint), Modifier.weight(1f))
-            NeedMeter(stringResource(R.string.need_joy), stats.joy, stringResource(R.string.need_joy_hint), Modifier.weight(1f))
-            NeedMeter(stringResource(R.string.need_sleep), stats.energy, stringResource(R.string.need_sleep_hint), Modifier.weight(1f))
+            for ((i, need) in Need.entries.withIndex()) {
+                NeedMeter(
+                    need = need,
+                    value = when (need) {
+                        Need.FOOD -> stats.satiety
+                        Need.JOY -> stats.joy
+                        Need.SLEEP -> stats.energy
+                    },
+                    open = open == need,
+                    cardWidth = cardWidth,
+                    column = i,
+                    onToggle = { open = if (open == need) null else need },
+                    onDismiss = { open = null },
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
     }
 }
+
+/**
+ * The few words a tapped need says, floating just under the card: what to do about it, and how long it lasts, in words
+ * a child can read. An arrow points up at the need they are about. The figures come from [PetRules], so they cannot
+ * drift away from the pet's real pace.
+ *
+ * @param cardWidth the whole card's width, which the note takes so its lines fit on one line each.
+ * @param column which of the three needs this is, 0 to 2: the arrow goes over the middle of that one.
+ */
+@Composable
+private fun NeedNote(need: Need, cardWidth: Int, column: Int, onDismiss: () -> Unit) {
+    /** How long a need takes to lose one dot of [NeedDots.MAX], in whole minutes. */
+    fun minutesPerDot(perHour: Float): Int = (100f / NeedDots.MAX / perHour * 60f).roundToInt()
+    // Plurals, so every figure reads right in every language whatever these constants become.
+    @Composable
+    fun line(@PluralsRes id: Int, n: Int) = pluralStringResource(id, n, n)
+    // How long a whole meter of five dots lasts: that is what the owner feels, not the pace of one dot.
+    fun hours(perHour: Float) = minutesPerDot(perHour) * NeedDots.MAX / 60
+    val lines = when (need) {
+        Need.FOOD -> listOf(line(R.plurals.need_food_fill, 1), line(R.plurals.need_food_drain, hours(PetRules.SATIETY_PER_HOUR)))
+        Need.JOY -> listOf(line(R.plurals.need_joy_fill, 1), line(R.plurals.need_joy_drain, hours(PetRules.JOY_PER_HOUR)))
+        Need.SLEEP -> listOf(
+            line(R.plurals.need_sleep_rest, 1),
+            line(R.plurals.need_sleep_charge, 1),
+            line(R.plurals.need_sleep_drain, minutesPerDot(PetRules.ENERGY_AWAKE_PER_HOUR) * NeedDots.MAX),
+        )
+    }
+    // Hung under the meter that was tapped, then slid sideways so the note spans the whole card: its middle goes from
+    // over that meter to over the card. The arrow then goes back over the meter.
+    val across = (column + 0.5f) / Need.entries.size
+    val shift = (cardWidth * (0.5f - across)).roundToInt()
+    Popup(
+        alignment = Alignment.BottomCenter,
+        offset = IntOffset(shift, with(LocalDensity.current) { 6.dp.roundToPx() }),
+        onDismissRequest = onDismiss,
+        properties = PopupProperties(focusable = true),
+    ) {
+        Column(Modifier.width(with(LocalDensity.current) { cardWidth.toDp() })) {
+            Box(Modifier.fillMaxWidth().height(ARROW.dp)) {
+                Box(
+                    Modifier
+                        .layout { measurable, constraints ->
+                            val placeable = measurable.measure(constraints)
+                            layout(constraints.maxWidth, placeable.height) {
+                                placeable.place((constraints.maxWidth * across - placeable.width / 2f).roundToInt(), 0)
+                            }
+                        }
+                        .size(ARROW.dp)
+                        .rotate(45f)
+                        .background(N7Colors.Ground)
+                        .border(1.dp, N7Colors.ControlBorder),
+                )
+            }
+            Surface(
+                color = N7Colors.Ground,
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, N7Colors.ControlBorder),
+                shadowElevation = 12.dp,
+                modifier = Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onDismiss),
+            ) {
+                Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    lines.forEach { text ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(4.dp).clip(CircleShape).background(N7Colors.InkSubtle))
+                            Text(text, style = N7Type.Caption, color = N7Colors.Ink, maxLines = 1, softWrap = false, overflow = TextOverflow.Visible)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** The side of the little square turned 45 degrees that points from the note up at its need. */
+private const val ARROW = 10
 
 /**
  * The one thing to read: what is happening, then one line with what the Glyph button does now (with the presses of
@@ -590,7 +686,6 @@ private fun NowCard(nursery: Nursery, mood: Mood, action: ButtonAction, onPutOnM
                     growing -> Text(stringResource(R.string.grow_ready), style = N7Type.Caption, color = N7Colors.Ink)
                     growth.threshold == null -> NextLine(nursery)
                 }
-                if (growth.threshold != null) HowToGrow()
             }
 
             EggOnMatrixAction(nursery, onPutOnMatrix)
@@ -640,41 +735,6 @@ private fun XpBar(kind: String, growth: Growth) {
 }
 
 private const val XP_PLUS_MS = 2000L
-
-/** How to grow a pet, in five short lines and the bonus, with the numbers of [XpRules]; folds away with a tap. */
-@Composable
-private fun HowToGrow() {
-    val context = LocalContext.current
-    val ui = remember { context.getSharedPreferences(UI_PREFS, Context.MODE_PRIVATE) }
-    var open by remember { mutableStateOf(ui.getBoolean(KEY_XP_HOW_OPEN, true)) }
-    val state = stringResource(if (open) R.string.section_open else R.string.section_closed)
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Row(
-            Modifier
-                .clickable(role = Role.Button) {
-                    open = !open
-                    ui.edit().putBoolean(KEY_XP_HOW_OPEN, open).apply()
-                }
-                .semantics(mergeDescendants = true) { stateDescription = state }
-                .padding(vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Text(stringResource(R.string.xp_how_title).uppercase(), style = N7Type.Label, color = N7Colors.InkSubtle)
-            Text("›", style = N7Type.Caption, color = N7Colors.InkSubtle, modifier = Modifier.rotate(if (open) 90f else 0f))
-        }
-        if (open) {
-            listOf(
-                stringResource(R.string.xp_how_time, XpRules.PER_MINUTE),
-                stringResource(R.string.xp_how_feed, XpRules.FEED_MAX_DOTS, XpRules.FEED),
-                stringResource(R.string.xp_how_ball, XpRules.BALL, XpRules.BALL_COOLDOWN_MS / 1000),
-                stringResource(R.string.xp_how_trick, XpRules.TRICK_PER, XpRules.TRICK_EVERY_MS / 1000, XpRules.TRICK_MAX),
-                stringResource(R.string.xp_how_signature, XpRules.SIGNATURE),
-                stringResource(R.string.xp_how_bonus, XpRules.FULL_MULTIPLIER),
-            ).forEach { Text("· $it", style = N7Type.Caption, color = N7Colors.InkMuted) }
-        }
-    }
-}
 
 /**
  * Putting an egg on the matrix, for now one plain button: with the pet on the matrix it puts the oldest waiting egg
@@ -1187,15 +1247,38 @@ private fun Dots(lit: Int, count: Int = 10, dot: Dp = 10.dp, gap: Dp = 5.dp) {
 
 /** A need as a column: its label, five LED dots (lit dots are how full it is) and how to fill it, in a few words. */
 @Composable
-private fun NeedMeter(label: String, value: Float, how: String, modifier: Modifier = Modifier) {
-    Column(
-        modifier.semantics(mergeDescendants = true) { contentDescription = "$label ${value.toInt()}%. $how" },
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Text(label.uppercase(), style = N7Type.Label, color = N7Colors.InkSubtle, maxLines = 1)
-        Dots(lit = NeedDots.of(value), count = NeedDots.MAX, dot = 8.dp, gap = 4.dp)
-        Text(how, style = N7Type.Caption, color = N7Colors.InkMuted, textAlign = TextAlign.Center)
+private fun NeedMeter(
+    need: Need,
+    value: Float,
+    open: Boolean,
+    cardWidth: Int,
+    column: Int,
+    onToggle: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val label = stringResource(
+        when (need) {
+            Need.FOOD -> R.string.need_food
+            Need.JOY -> R.string.need_joy
+            Need.SLEEP -> R.string.need_sleep
+        },
+    )
+    Box(modifier) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .clickable(role = Role.Button, onClickLabel = stringResource(R.string.need_what), onClick = onToggle)
+                .semantics(mergeDescendants = true) { contentDescription = "$label ${NeedDots.of(value)} / ${NeedDots.MAX}" }
+                .padding(vertical = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(label.uppercase(), style = N7Type.Label, color = if (open) N7Colors.Ink else N7Colors.InkSubtle, maxLines = 1)
+            Dots(lit = NeedDots.of(value), count = NeedDots.MAX, dot = 8.dp, gap = 4.dp)
+        }
+        if (open) NeedNote(need, cardWidth, column, onDismiss)
     }
 }
 

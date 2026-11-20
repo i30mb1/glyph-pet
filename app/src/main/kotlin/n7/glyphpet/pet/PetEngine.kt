@@ -127,23 +127,37 @@ class PetEngine(
         /** Events kept for the toy to feel ([haptics]); more than this between two drains and the newest are dropped. */
         private const val MAX_HAPTICS = 16
 
-        /** The spark of gained experience ([spark]): how long it rises above the pet, and how many rows. */
-        const val SPARK_MS = 600L
-        private const val SPARK_RISE = 3
+        /** The number of gained experience ([spark]): how long it shows over the pet before it fades out. */
+        const val SPARK_MS = 1100L
+
+        /** Three cells wide, five tall: the smallest digits that still read at a glance on the matrix. */
+        private const val SPARK_DIGIT_W = 3
+
+        private val SPARK_DIGIT = listOf(
+            listOf("ooo", "o.o", "o.o", "o.o", "ooo"),
+            listOf("..o", "..o", "..o", "..o", "..o"),
+            listOf("ooo", "..o", "ooo", "o..", "ooo"),
+            listOf("ooo", "..o", "ooo", "..o", "ooo"),
+            listOf("o.o", "o.o", "ooo", "..o", "..o"),
+            listOf("ooo", "o..", "ooo", "..o", "ooo"),
+            listOf("ooo", "o..", "ooo", "o.o", "ooo"),
+            listOf("ooo", "..o", "..o", "..o", "..o"),
+            listOf("ooo", "o.o", "ooo", "o.o", "ooo"),
+            listOf("ooo", "o.o", "ooo", "..o", "ooo"),
+        )
 
         /** Turning the phone on the desk faster than this ([Scene.spin]) turns the pet's eyes and head with it. */
         const val SPIN_LOOK = 0.12f
 
         /**
          * How far the phone leans sideways (about 20 degrees) before the pet slides or crawls that way ("wheee");
-         * a smaller lean ([LEAN_TILT] and more) only makes it look and lean that way.
+         * a smaller lean ([LEAN_TILT] and more) only makes it look that way.
          */
         const val SLIDE_TILT = 0.35f
         const val LEAN_TILT = 0.12f
 
-        /** The phone turned round in the hand ([Scene.yaw], radians) past this turns flat pets' eyes; the lean is a part of it. */
+        /** The phone turned round in the hand ([Scene.yaw], radians) past this turns flat pets' eyes. */
         const val YAW_LOOK = 0.1f
-        const val YAW_LEAN = 0.5f
 
         /** [Scene.toward] past this: the pet comes closer, or shrinks back to [BACK_DIM] of its brightness. */
         const val TOWARD = 0.45f
@@ -188,21 +202,6 @@ class PetEngine(
                 (0..1).all { a -> (0..1).all { b -> GlyphMatrixSpec.isVisible(s.ox + ex + a + dx, s.oy + ey + b) } }
             }
             return eyes && seen * 4 >= total * 3
-        }
-
-        private val leanCache = java.util.concurrent.ConcurrentHashMap<Pair<String, Int>, HabitFrame>()
-
-        /**
-         * A big pet leaning with the phone: the rows down to just under its eyes (never its mouth) shift [lean] cells
-         * sideways and the eyes go with them, the rest stays where it stands.
-         */
-        fun leanFrame(species: Species, lean: Int): HabitFrame = leanCache.getOrPut(species.id to lean) {
-            val split = minOf(species.eyes.maxOf { it.second } + 2, species.mouth?.second ?: species.height)
-                .coerceIn(1, species.height)
-            val rows = species.rows.mapIndexed { y, row ->
-                if (y >= split) row else String(CharArray(row.length) { x -> row.getOrNull(x - lean) ?: '.' })
-            }
-            HabitFrame(0, rows = rows, eyeDx = lean)
         }
 
         private val habitSpotCache = java.util.concurrent.ConcurrentHashMap<String, Set<Int>>()
@@ -455,15 +454,19 @@ class PetEngine(
     }
 
     /** A spark is waiting to rise above the pet ([spark]); [sparkMs] >= 0 while it does. */
-    private var sparkAsked = false
+    private var sparkAsked = 0
     private var sparkMs = -1L
 
+    /** The experience the rising spark shows, 1..99. */
+    private var sparkXp = 0
+
     /**
-     * The pet gained experience from something the owner did: a small bright spark rises above it for [SPARK_MS].
-     * It waits for a moment or a trick (or a signature) to end and shows in the plain pet frame only.
+     * The pet gained [xp] experience from something the owner did: that many points rise above it as a small number
+     * for [SPARK_MS]. It waits for a moment or a trick (or a signature) to end and shows in the plain pet frame only;
+     * points gained while it waits are added up into one number.
      */
-    fun spark() {
-        sparkAsked = true
+    fun spark(xp: Int) {
+        if (xp > 0) sparkAsked += xp
     }
 
     /** What the last [tick] showed. */
@@ -767,19 +770,9 @@ class PetEngine(
         }
         curl.clear()
 
+        // The frame of the species' habit playing now, if one is. The pet answers a tilted or turned phone with its
+        // eyes alone ([look]): shifting the top of its body sideways read as a glitch of the sprite, not as a lean.
         val own = if (habitMs >= 0) species.habit.frameAt(habitMs) else null
-        // The pet leans its head with the phone tilted a little (a big pet, with little room to slide, also when
-        // tilted more); on the desk it turns its head with the phone turned round instead.
-        val leanBy = when {
-            abs(scene.spin) > SPIN_LOOK -> scene.spin
-            abs(scene.tilt) > LEAN_TILT -> scene.tilt
-            else -> scene.yaw * YAW_LEAN
-        }
-        val big = range.last <= 1
-        val leaning = own == null && !asleep && abs(leanBy) > LEAN_TILT && (big || !sliding) &&
-            (action == Action.NONE || action == Action.LOVED)
-        val leanCells = if (big) (leanBy * 2.2f).roundToInt().coerceIn(-2, 2) else (if (leanBy > 0) 1 else -1)
-        val habit = own ?: if (leaning && leanCells != 0) leanFrame(species, leanCells) else null
         val face = own?.face ?: face(scene.mood, asleep, sliding)
         val lift = if (hopMs >= 0) HOP.getOrElse((hopMs / 80).toInt()) { 0 } else 0
         val shudder = action == Action.REFUSING || action == Action.SURGE || action == Action.TICKLE
@@ -801,7 +794,7 @@ class PetEngine(
         }
         SpeciesRenderer.render(
             species, face, blink = blinkLeftMs > 0, dx = dx, frame = frame, timeMs = time, lift = lift,
-            habit = if (painter != null) living.habitFor(species, own, habit) else habit,
+            habit = if (painter != null) living.habitFor(species, own) else own,
             eyeDx = look(centerX, scene, asleep), shadow = true, cover = cover, painter = painter,
         )
         // Tipped away from the viewer: the pet shrinks back, a little dimmer.
@@ -847,25 +840,39 @@ class PetEngine(
         else -> 0
     }
 
-    /** The spark of gained experience: a bright dot with a dim tail rising [SPARK_RISE] rows above the pet's head. */
+    /**
+     * The experience just gained, as a small number rising [SPARK_RISE] rows above the pet's head and fading out: the
+     * pet's own "+10" for a meal, "+5" for a game of ball. Drawn over whatever is there, so it reads on any body.
+     */
     private fun xpSpark(frame: IntArray, dtMs: Long, species: Species, dx: Int, lift: Int) {
         if (sparkMs < 0) {
-            if (!sparkAsked) return
-            sparkAsked = false
+            if (sparkAsked <= 0) return
+            sparkXp = sparkAsked.coerceAtMost(99)
+            sparkAsked = 0
             sparkMs = 0
         } else {
             sparkMs += dtMs
         }
         if (sparkMs >= SPARK_MS) { sparkMs = -1; return }
+        // Full bright at first, fading over the last third of the rise.
+        val fade = ((SPARK_MS - sparkMs).toFloat() / (SPARK_MS / 3f)).coerceIn(0f, 1f)
         val cx = species.ox + dx + (species.width - 1) / 2
-        val y = species.oy - lift - 2 - (SPARK_RISE * sparkMs / SPARK_MS).toInt()
-        fun lit(px: Int, py: Int, v: Int) {
-            if (px in 0 until SIZE && py in 0 until SIZE) frame[py * SIZE + px] = maxOf(frame[py * SIZE + px], v)
+        // Over the pet's head, as high as its own height leaves room for: a tall one wears its number on the forehead.
+        val top = (species.oy - lift - 1 - SPARK_DIGIT.first().size).coerceAtLeast(0)
+        val text = sparkXp.toString()
+        val width = text.length * (SPARK_DIGIT_W + 1) - 1
+        val left = cx - width / 2
+        text.forEachIndexed { i, ch ->
+            val digit = SPARK_DIGIT[ch - '0']
+            for (row in digit.indices) for (col in 0 until SPARK_DIGIT_W) {
+                if (digit[row][col] != 'o') continue
+                val px = left + i * (SPARK_DIGIT_W + 1) + col
+                val py = top + row
+                if (px in 0 until SIZE && py in 0 until SIZE && GlyphMatrixSpec.isVisible(px, py)) {
+                    frame[py * SIZE + px] = maxOf(frame[py * SIZE + px], (BRIGHT * fade).toInt())
+                }
+            }
         }
-        lit(cx, y, BRIGHT)
-        lit(cx, y + 1, BRIGHT / 3)
-        // A twinkle in the middle of the rise.
-        if (sparkMs in SPARK_MS / 3..SPARK_MS * 2 / 3) { lit(cx - 1, y, BRIGHT / 2); lit(cx + 1, y, BRIGHT / 2) }
     }
 
     /** A shake toward growing: everything lit flares up to full brightness and fades back over [SURGE_MS]. */

@@ -6,9 +6,37 @@
     <string name="need_food">Еда</string>
     <string name="need_joy">Радость</string>
     <string name="need_sleep">Сон</string>
-    <string name="need_food_how">Зажми кнопку Glyph</string>
-    <string name="need_joy_how">Покачай телефон из стороны в сторону</string>
-    <string name="need_sleep_how">Спит ночью, отдыхает на зарядке</string>
+    <plurals name="need_food_fill">
+        <item quantity="other">Зажми кнопку сзади — поест</item>
+    </plurals>
+    <plurals name="need_food_drain">
+        <item quantity="one">Хватает на час</item>
+        <item quantity="few">Хватает на %d часа</item>
+        <item quantity="many">Хватает на %d часов</item>
+        <item quantity="other">Хватает на %d часа</item>
+    </plurals>
+    <plurals name="need_joy_fill">
+        <item quantity="other">Покачай телефон — мячик</item>
+    </plurals>
+    <plurals name="need_joy_drain">
+        <item quantity="one">Хватает на час</item>
+        <item quantity="few">Хватает на %d часа</item>
+        <item quantity="many">Хватает на %d часов</item>
+        <item quantity="other">Хватает на %d часа</item>
+    </plurals>
+    <plurals name="need_sleep_rest">
+        <item quantity="other">Устанет — поспит сам</item>
+    </plurals>
+    <plurals name="need_sleep_charge">
+        <item quantity="other">На зарядке быстрее</item>
+    </plurals>
+    <plurals name="need_sleep_drain">
+        <item quantity="one">Хватает на минуту</item>
+        <item quantity="few">Хватает на %d минуты</item>
+        <item quantity="many">Хватает на %d минут</item>
+        <item quantity="other">Хватает на %d минуты</item>
+    </plurals>
+    <string name="need_what">что это</string>
     <string name="action_feed">Покормить</string>
     <string name="activate_toy">Активировать игрушку</string>
 
@@ -170,9 +198,6 @@
     <string name="matrix_notify_text">Питомец поднимает голову на уведомление и показывает трубку, пока висит пропущенный звонок. Glyph Pet видит только тип уведомления, текст не читает.</string>
 
     <!-- Compact main screen, forms in the collection -->
-    <string name="need_food_hint">зажми кнопку</string>
-    <string name="need_joy_hint">покачай</string>
-    <string name="need_sleep_hint">ночью и на зарядке</string>
     <string name="egg_put_on_matrix_count">Положить яйцо на матрицу · %1$d</string>
     <string name="states_all">Все состояния</string>
     <string name="settings_title">Настройки</string>
@@ -188,13 +213,6 @@
     <string name="form_xp_left">ещё %1$d XP</string>
     <string name="xp_progress">%1$s · %2$d/%3$d</string>
     <string name="xp_max">%1$s · макс.</string>
-    <string name="xp_how_title">Как растить</string>
-    <string name="xp_how_time">Вместе на матрице, не спит: +%1$d в минуту</string>
-    <string name="xp_how_feed">Покорми, когда еды %1$d точки или меньше: +%2$d</string>
-    <string name="xp_how_ball">Новая игра в мяч (покачай телефон): +%1$d, раз в %2$d с</string>
-    <string name="xp_how_trick">Трюк (зажми кнопку, когда сыт): +%1$d за %2$d с, до +%3$d</string>
-    <string name="xp_how_signature">Фишка, досмотренная до конца: +%1$d</string>
-    <string name="xp_how_bonus">Все три шкалы полные: ×%1$d. Голодный, больной или спит: ничего</string>
     <string name="grow_ready">Готов расти: потряси телефон 3 раза</string>
     <string name="grow_ready_pick">Готов расти: положи его на матрицу и потряси телефон 3 раза</string>
     <!-- Signature effects: the states card's page and the collection tiles. -->

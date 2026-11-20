@@ -8,31 +8,43 @@ import org.junit.Test
 class PetRulesTest {
 
     private val hour = 60 * 60 * 1000L
-    private val noon: (Long) -> Int = { 12 }
-    private val midnight: (Long) -> Int = { 0 }
-
     @Test
-    fun `awake pet gets hungry, bored and tired over time`() {
+    fun `awake pet gets hungry and bored over time`() {
+        // Sleep runs on its own, much faster clock (a dot every ten minutes, see the cycle test below): over two hours
+        // the pet has slept more than once, so only food and joy fall the whole way.
         val start = PetStats(80f, 80f, 80f, 0, 0)
-        val later = PetRules.advance(start, 2 * hour, hourAt = noon)
-        assertEquals(60f, later.satiety, 0.01f)
-        assertEquals(64f, later.joy, 0.01f)
-        assertEquals(68f, later.energy, 0.01f)
+        val later = PetRules.advance(start, 2 * hour)
+        // Food and joy only fall; asleep they fall slower, so two hours cost a little less than two hours awake.
+        assertTrue("food fell: ${later.satiety}", later.satiety in 55f..75f)
+        assertTrue("joy fell: ${later.joy}", later.joy in 58f..78f)
         assertEquals(2 * hour, later.updatedAtMs)
     }
 
     @Test
-    fun `sleeping pet restores energy and loses needs slower`() {
-        val start = PetStats(80f, 80f, 20f, 0, 0)
-        val later = PetRules.advance(start, 3 * hour, hourAt = midnight)
-        assertEquals(68f, later.energy, 0.01f)
-        assertEquals(65f, later.satiety, 0.01f)
+    fun `the pet spends a dot of sleep every ten minutes and fills one a minute`() {
+        val perDot = 100f / NeedDots.MAX
+        assertEquals("a dot spent every 10 min", 10f, perDot / PetRules.ENERGY_AWAKE_PER_HOUR * 60f, 0.01f)
+        assertEquals("a dot filled every minute", 1f, perDot / PetRules.ENERGY_SLEEP_PER_HOUR * 60f, 0.01f)
+        assertEquals("a dot filled every 10 s on the charger", 10f, perDot / PetRules.ENERGY_CHARGE_PER_HOUR * 3600f, 0.01f)
+    }
+
+    @Test
+    fun `a worn-out pet sleeps itself nearly full again, a few minutes at a time`() {
+        // Below NAP_ENERGY it is asleep: its energy climbs to NAP_WAKE_ENERGY and it wakes there.
+        val start = PetStats(80f, 80f, 5f, 0, 0)
+        val minutes = 10 * 60_000L
+        val slept = PetRules.advance(start, minutes)
+        assertEquals("nearly full after ten minutes", PetRules.NAP_WAKE_ENERGY, slept.energy, 0.01f)
+        assertFalse("and awake again", PetRules.isAsleep(slept))
+        // Asleep its other needs fall slower than awake.
+        val awake = PetRules.advance(start.copy(energy = 100f), minutes)
+        assertTrue("joy is spared while it sleeps", slept.joy > awake.joy)
     }
 
     @Test
     fun `needs never leave 0 to 100 even after weeks away`() {
         val start = PetStats(50f, 50f, 50f, 0, 0)
-        val later = PetRules.advance(start, 60 * PetStats.DAY_MS, hourAt = noon)
+        val later = PetRules.advance(start, 60 * PetStats.DAY_MS)
         assertTrue(later.satiety in 0f..100f && later.joy in 0f..100f && later.energy in 0f..100f)
         assertEquals(0f, later.satiety, 0.01f)
     }
@@ -40,7 +52,7 @@ class PetRulesTest {
     @Test
     fun `time going backwards changes nothing`() {
         val start = PetStats(50f, 50f, 50f, 0, 10 * hour)
-        assertEquals(start, PetRules.advance(start, 5 * hour, hourAt = noon))
+        assertEquals(start, PetRules.advance(start, 5 * hour))
     }
 
     @Test
@@ -75,7 +87,7 @@ class PetRulesTest {
     @Test
     fun `half a day without care makes the pet sick and one meal cures it`() {
         val start = PetStats(60f, 50f, 90f, 0, 0)
-        val later = PetRules.advance(start, 9 * hour, hourAt = noon)
+        val later = PetRules.advance(start, 9 * hour)
         assertEquals(Mood.SICK, PetRules.mood(later, asleep = false))
         val (fed, ate) = PetRules.feed(later)
         assertTrue(ate)
@@ -83,23 +95,23 @@ class PetRulesTest {
     }
 
     @Test
-    fun `night or exhaustion put the pet to sleep`() {
+    fun `only being worn out puts the pet to sleep, at any hour of the night or the day`() {
         val rested = PetStats(50f, 50f, 50f, 0, 0)
-        // Night is from midnight to 6 (PetRules.isNight): 23:00 is still evening.
-        assertTrue(PetRules.isAsleep(rested, 1))
-        assertTrue(PetRules.isAsleep(rested, 5))
-        assertFalse(PetRules.isAsleep(rested, 23))
-        assertFalse(PetRules.isAsleep(rested, PetRules.WAKE_HOUR))
-        assertTrue(PetRules.isAsleep(rested.copy(energy = 5f), 12))
-        assertFalse(PetRules.isAsleep(rested, 12))
+        assertFalse(rested.napping)
+        assertFalse("a rested pet is awake whatever the clock says", PetRules.isAsleep(rested))
+        assertTrue(PetRules.isAsleep(rested.copy(energy = PetRules.NAP_ENERGY - 1f)))
+        // Once asleep it sleeps on until it is nearly full, so it does not doze off again right after waking.
+        val dozing = rested.copy(energy = PetRules.NAP_WAKE_ENERGY - 1f, napping = true)
+        assertTrue(PetRules.isAsleep(dozing))
+        assertFalse(PetRules.isAsleep(dozing.copy(energy = PetRules.NAP_WAKE_ENERGY)))
     }
 
     @Test
     fun `the charger fills energy while the pet stays awake`() {
         val start = PetStats(80f, 80f, 50f, 0, 0)
         val tenMinutes = hour / 6
-        val charged = PetRules.advance(start, tenMinutes, charging = true, hourAt = noon)
-        val unplugged = PetRules.advance(start, tenMinutes, charging = false, hourAt = noon)
+        val charged = PetRules.advance(start, tenMinutes, charging = true)
+        val unplugged = PetRules.advance(start, tenMinutes, charging = false)
         assertTrue(charged.energy > start.energy)
         assertTrue(unplugged.energy < start.energy)
         // Awake either way: hunger grows at the same pace.

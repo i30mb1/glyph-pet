@@ -107,13 +107,13 @@ internal class Living3D {
     private fun painter(species: Species): BodyPainter = if (species.rarity == Rarity.MYTHIC) mythic else hologram
 
     /**
-     * The habit frame to hand [SpeciesRenderer.render] on the 3D path. A legendary pet's habit (or lean) redraws the
-     * rows, and those rows become the volume, so it is kept as is. A mythic pet is ray-cast from its own shape: the
-     * habit's redrawn rows (ring tilts, squeezed spins, orbiting moon dots) are dropped and played in 3D instead (see
-     * [Mythic3D]); its moves, face, blink, brightness and other overlays stay. A lean is dropped: the tilt turns the view.
+     * The habit frame to hand [SpeciesRenderer.render] on the 3D path. A legendary pet's habit redraws the rows, and
+     * those rows become the volume, so it is kept as is. A mythic pet is ray-cast from its own shape: the habit's
+     * redrawn rows (ring tilts, squeezed spins, orbiting moon dots) are dropped and played in 3D instead (see
+     * [Mythic3D]); its moves, face, blink, brightness and other overlays stay.
      */
-    fun habitFor(species: Species, own: HabitFrame?, drawn: HabitFrame?): HabitFrame? {
-        if (species.rarity != Rarity.MYTHIC) return drawn
+    fun habitFor(species: Species, own: HabitFrame?): HabitFrame? {
+        if (species.rarity != Rarity.MYTHIC) return own
         if (own == null) return null
         val over = if (species.kind == "planet") emptyList() else own.over
         return HabitFrame(own.ms, rows = null, over = over, dx = own.dx, dy = own.dy, body = own.body, face = own.face, blink = own.blink)
