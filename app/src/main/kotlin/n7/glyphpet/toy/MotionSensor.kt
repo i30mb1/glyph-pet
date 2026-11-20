@@ -13,8 +13,8 @@ import kotlin.math.sqrt
 /**
  * Reads the accelerometer: [tilt] is the sideways lean (-1..1, positive = the pet slides to the right
  * of the matrix as seen from the back), [tiltY] the forward/back lean (-1..1, positive = the phone stands upright, so
- * down on the matrix is down), [consumeShake] reports a shake once, [consumeDrop] a drop once,
- * [consumeRock] a gentle rock from side to side once ([RockDetector]). Together, ([tilt], [tiltY]) is the way "down"
+ * down on the matrix is down), [consumeShake] reports a shake once, [consumeRock] a gentle rock from side to
+ * side once ([RockDetector]). Together, ([tilt], [tiltY]) is the way "down"
  * points on the matrix as seen from the back: where things fall and roll.
  * With the proximity and light sensors it also tells how the phone lies ([pose]): screen up, in a pocket.
  */
@@ -81,7 +81,6 @@ class MotionSensor(context: Context) : SensorEventListener {
 
     private var running = false
     private var shaken = false
-    private var dropped = false
     private var rocked = false
     private var lastShakeMs = 0L
     private var shakeAt = -1L
@@ -93,7 +92,6 @@ class MotionSensor(context: Context) : SensorEventListener {
     private val twirls = TwirlDetector()
     private var twirled = false
     private var lastGyroNs = 0L
-    private val drops = DropDetector()
     private val rocks = RockDetector()
     private val low = FloatArray(3)
     private var lastAccelNs = 0L
@@ -147,9 +145,6 @@ class MotionSensor(context: Context) : SensorEventListener {
 
     @Synchronized
     fun consumeShake(): Boolean = shaken.also { shaken = false }
-
-    @Synchronized
-    fun consumeDrop(): Boolean = dropped.also { dropped = false }
 
     /** A knock on the desk or the back of the phone ([KnockDetector]): 1 single, 2 double, 0 none; once. */
     @Synchronized
@@ -205,8 +200,6 @@ class MotionSensor(context: Context) : SensorEventListener {
 
         val magnitude = sqrt(ax * ax + ay * ay + az * az)
         val now = event.timestamp / 1_000_000
-        if (drops.feed(magnitude, now)) synchronized(this) { dropped = true }
-
         val force = magnitude - SensorManager.GRAVITY_EARTH
         if (rocks.feed(tilt, force, now)) synchronized(this) { rocked = true }
         val knocked = knocks.feed(high, magnitude, dt, now)

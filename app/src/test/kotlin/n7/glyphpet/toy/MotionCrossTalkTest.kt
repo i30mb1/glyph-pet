@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * One motion of the phone, read by several detectors at once: a knock must not be a drop, a shake must not be a rock.
+ * One motion of the phone, read by several detectors at once: a shake must not be a rock, a shove must not be a knock.
  * The readings are synthetic, at the 100 Hz the accelerometer really runs at ([MotionSensor.ACCEL_PERIOD_US]).
  */
 class MotionCrossTalkTest {
@@ -81,10 +81,10 @@ class MotionCrossTalkTest {
     }
 
     @Test
-    fun `free fall in the middle of a spike is no knock`() {
+    fun `a weightless moment in the middle of a spike is no knock`() {
         val d = KnockDetector()
         d.quiet(0, 1000)
-        // The spike of a fall: the whole vector drops below FREE_FALL while the high-passed reading is high.
+        // The phone thrown about: the whole vector drops below FREE_FALL while the high-passed reading is high.
         assertEquals(0, d.tap(1000, 3f, magnitude = KnockDetector.FREE_FALL - 1f))
     }
 
@@ -183,45 +183,12 @@ class MotionCrossTalkTest {
     }
 
     @Test
-    fun `a drop in the middle of a rock starts the swinging over`() {
+    fun `a jolt in the middle of a rock starts the swinging over`() {
         val d = RockDetector()
         assertEquals(0, d.swing(swings = RockDetector.SWINGS, halfMs = 400, lean = 0.3f))
-        // The hit of a drop, far over MAX_FORCE.
+        // A knock against the desk, far over MAX_FORCE.
         assertFalse(d.feed(0f, 40f, 1600))
         assertEquals("the swings before it do not count", 0, d.swing(swings = RockDetector.SWINGS, halfMs = 400, lean = 0.3f, startMs = 1620))
-    }
-
-    // --- A drop, and what is not one -----------------------------------------------------------------
-
-    /** Feeds [ms] of a constant [magnitude] at 50 Hz from [from]; true if a drop was reported. */
-    private fun DropDetector.run(magnitude: Float, from: Long, ms: Long): Boolean {
-        var hit = false
-        var t = from
-        while (t < from + ms) { hit = feed(magnitude, t) || hit; t += 20 }
-        return hit
-    }
-
-    @Test
-    fun `the weightless moments of a shake are far too short to be a fall`() {
-        val d = DropDetector()
-        // A shake throws the phone about: near weightless for a moment, then a hard reading, over and over.
-        var dropped = false
-        var t = 0L
-        repeat(10) {
-            dropped = d.run(0.5f, t, 60) || dropped
-            dropped = d.run(30f, t + 60, 60) || dropped
-            t += 120
-        }
-        assertFalse(dropped)
-    }
-
-    @Test
-    fun `a knock on the back of a phone lying still is no drop`() {
-        val d = DropDetector()
-        d.run(gravity, 0, 1000)
-        // The tap itself: a short reading over gravity, with no fall before it.
-        assertFalse(d.run(14f, 1000, 40))
-        assertFalse(d.run(gravity, 1040, 500))
     }
 
     // --- A twirl -------------------------------------------------------------------------------------

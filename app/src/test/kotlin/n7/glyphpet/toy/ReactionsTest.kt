@@ -28,22 +28,16 @@ class ReactionsTest {
     }
 
     @Test
-    fun `while an egg is on the matrix the pet is away, and only the drop still hurts it`() {
+    fun `while an egg is on the matrix the pet is away, and nothing reaches it`() {
         val away = Attention(hasPet = true, eggOnMatrix = true, ready = true)
-        for (g in everyGesture()) {
-            val expected = if (g.drop) listOf(Reaction.Hurt) else emptyList()
-            assertEquals("$g", expected, one(g, away))
-        }
+        for (g in everyGesture()) assertEquals("$g", emptyList<Reaction>(), one(g, away))
     }
 
     @Test
     fun `busy with the screen in another app, the phone moves with the hand and none of it is play`() {
         val using = awake.copy(posture = Posture.USING_PHONE, ready = true)
-        for (g in everyGesture()) {
-            // Only a drop still counts: it is no gesture of the hand. The knock needs the desk or the hand too.
-            val expected = if (g.drop) listOf(Reaction.Hurt) else emptyList()
-            assertEquals("$g", expected, one(g, using))
-        }
+        // The knock needs the desk or the hand too, so nothing at all gets through.
+        for (g in everyGesture()) assertEquals("$g", emptyList<Reaction>(), one(g, using))
     }
 
     @Test
@@ -157,11 +151,10 @@ class ReactionsTest {
     // --- Gestures that arrive together ---------------------------------------------------------------
 
     @Test
-    fun `the pet notices the gestures of one frame in its own order, drop first and knock last`() {
-        val all = Gestures(drop = true, shake = true, twirl = true, rock = true, knocks = 2, pickedUp = true)
+    fun `the pet notices the gestures of one frame in its own order, the knock last`() {
+        val all = Gestures(shake = true, twirl = true, rock = true, knocks = 2, pickedUp = true)
         assertEquals(
             listOf(
-                Reaction.Hurt,
                 Reaction.Grow,
                 Reaction.Dizzy,
                 Reaction.Play(freshGame = true, xp = true),
@@ -178,14 +171,6 @@ class ReactionsTest {
         // takes both (the engine plays them one after another, see PetEngine.react).
         val both = one(Gestures(shake = true, twirl = true), awake.copy(ready = true))
         assertEquals(listOf(Reaction.Grow, Reaction.Dizzy), both)
-    }
-
-    @Test
-    fun `a tumble that both drops and twirls the phone hurts and makes it dizzy`() {
-        assertEquals(
-            listOf(Reaction.Hurt, Reaction.Dizzy, Reaction.Play(freshGame = true, xp = true)),
-            one(Gestures(drop = true, twirl = true, rock = true)),
-        )
     }
 
     @Test
@@ -293,7 +278,6 @@ class ReactionsTest {
     // --- The gesture list the tests above sweep ------------------------------------------------------
 
     private fun everyGesture(): List<Gestures> = listOf(
-        Gestures(drop = true),
         Gestures(shake = true),
         Gestures(twirl = true),
         Gestures(rock = true),

@@ -41,7 +41,6 @@ import n7.glyphpet.pet.XpSource
  * On the charger the pet shows the battery level and the charging speed in its own way.
  * Always-on: one calm frame per EVENT_AOD (once a minute); a notification wakes the pet for a moment.
  * Nobody sees the matrix while the phone lies screen up or is in a pocket: then it stays dark (a setting, on by default).
- * A drop hurts: "ouch!" and a plaster until tomorrow.
  * The phone answers with short, soft vibrations ([Haptics], a setting, on by default): never for a sleeping pet (only its
  * egg and hatch), never in Always-on frames or the Lab.
  */
@@ -83,7 +82,6 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
     private var power = Power.NONE
     private var celebratedId: String? = null
     private var celebratedForm: String? = null
-    private var hurt = false
     private var hideUnseen = true
     private val hideGate = HideGate()
     private var posture = Posture.HAND
@@ -378,12 +376,10 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             return
         }
         updatePosture(now)
-        // The drop is read before the hide check: the pet is hurt by a fall nobody was watching too. The hit of a drop
-        // also reads as a shake, so that shake is dropped with it.
-        val dropped = motion.consumeDrop()
-        if (dropped) motion.consumeShake()
         if (hideUnseen && hidden(now)) {
-            if (dropped && nursery?.active != null) react(listOf(Reaction.Hurt), now)
+            // Nobody can see the matrix: whatever the phone did, the pet does nothing about it.
+            motion.consumeShake()
+            motion.consumeRock()
             motion.consumeKnock()
             motion.consumeTwirl()
             sendDark()
@@ -391,7 +387,6 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         }
         dark = false
         val gestures = Gestures(
-            drop = dropped,
             shake = motion.consumeShake(),
             twirl = motion.consumeTwirl(),
             rock = motion.consumeRock(),
@@ -442,7 +437,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             Log.d(
                 TAG,
                 "  egg=${n?.eggOnMatrix?.id} eggs=${n?.eggs?.size} | power plugged=${power.plugged} ${power.watts}W level=${power.level} | " +
-                    "pose gz=${pose?.gravityZ} near=${pose?.near} lux=${pose?.lux} unseen=${pose?.let { Sight.unseen(it) }} dark=$dark hideUnseen=$hideUnseen hurt=$hurt",
+                    "pose gz=${pose?.gravityZ} near=${pose?.near} lux=${pose?.lux} unseen=${pose?.let { Sight.unseen(it) }} dark=$dark hideUnseen=$hideUnseen",
             )
         }
         feelEngine()
@@ -450,16 +445,10 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
 
     /**
      * Plays what [Reactions.frame] decided, in its order: the store first where a reaction changes the pet, then the
-     * matrix and the hand. A [Reaction.Hurt] or a [Reaction.Grow] changes the save, so the toy reads it back at once.
+     * matrix and the hand. A [Reaction.Grow] changes the save, so the toy reads it back at once.
      */
     private fun react(list: List<Reaction>, now: Long) {
         for (r in list) when (r) {
-            Reaction.Hurt -> {
-                Log.d(TAG, "event drop")
-                store.drop()
-                engine.drop()
-                sync(force = true)
-            }
             // The evolution plays through sync(), by justEvolved; each shake before it makes the pet flare up.
             Reaction.Grow -> {
                 Log.d(TAG, "event shake -> grow")
@@ -562,7 +551,6 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             egg = n.eggView,
             watts = power.watts,
             battery = power.level,
-            hurt = hurt,
             missedCall = PetAlerts.missedCalls > 0,
             ready = n.ready,
             desk = desk,
@@ -582,7 +570,6 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         nursery = n
         mood = PetRules.mood(n.stats, store.asleep(n.stats))
         power = store.power()
-        hurt = store.hurt()
         hideUnseen = store.hideWhenUnseen
         haptics.enabled = store.vibration
         val hatched = n.justHatched
@@ -623,7 +610,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
                 l.stop()
                 motion.start()
                 // Nothing that happened in the Lab reaches the pet.
-                motion.consumeShake(); motion.consumeDrop(); motion.consumeRock(); motion.consumeKnock(); motion.consumeTwirl()
+                motion.consumeShake(); motion.consumeRock(); motion.consumeKnock(); motion.consumeTwirl()
             }
             return false
         }

@@ -50,19 +50,6 @@ class EngineOverridesTest {
     }
 
     @Test
-    fun `nothing interrupts the pet that was just dropped`() {
-        val e = engine()
-        e.drop()
-        e.tick(80, busyFree)
-        assertEquals("HURT", e.action())
-        // A shake toward growing is the one reaction that steps aside for the hurt.
-        e.surge()
-        e.tick(80, busyFree)
-        assertEquals("HURT", e.action())
-        assertEquals(Face.SCARED, e.shown.face)
-    }
-
-    @Test
     fun `a knock, a notification and a greeting all wait for a reaction that is already playing`() {
         for (quiet in listOf<(PetEngine) -> Unit>({ it.notice() }, { it.alert() }, { it.greet() })) {
             val e = engine()
@@ -122,16 +109,14 @@ class EngineOverridesTest {
     }
 
     @Test
-    fun `a drop jumps the queue of a hatch, and the big moment still plays to its end`() {
+    fun `a hatch plays to its end, whatever the owner does during it`() {
         val e = engine()
         val baby = SpeciesForms.of("cat", Stage.BABY)
         e.hatch(baby, golden = false)
         e.tick(80, Scene(baby, Mood.CONTENT))
         assertTrue(e.playingMoment)
         repeat(3) { e.pet() }
-        e.drop()
-        assertEquals("the drop is the fifth, and still gets in", 4, e.pending())
-        // The hatch is not cut short by any of it.
+        assertEquals(3, e.pending())
         var t = 80L
         while (e.playingMoment && t < 10_000) {
             assertNull("nothing but the hatch while it plays", e.shown.face)
@@ -139,7 +124,7 @@ class EngineOverridesTest {
             t += 80
         }
         e.tick(80, Scene(baby, Mood.CONTENT))
-        assertEquals("the hurt is first out", "HURT", e.action())
+        assertEquals("the strokes come out after it", Face.LOVE, e.shown.face)
     }
 
     // --- The trick, and what cuts it short --------------------------------------------------------------
@@ -158,21 +143,6 @@ class EngineOverridesTest {
         assertTrue("the trick plays on", e.playingTrick)
         assertEquals("nothing of theirs showed", "NONE", e.action())
         assertEquals(4, e.pending())
-    }
-
-    @Test
-    fun `a drop cuts a trick short, and the toy hears how long it played`() {
-        val e = engine()
-        e.events = mutableListOf()
-        assertTrue(e.trick(cat.kind))
-        repeat(10) { e.tick(80, busyFree) }
-        assertTrue(e.playingTrick)
-        e.drop()
-        e.tick(80, busyFree)
-        assertFalse(e.playingTrick)
-        val done = e.events!!.single()
-        assertEquals(PetEvent.Kind.TRICK, done.kind)
-        assertTrue("played ${done.ms} ms", done.ms in 800L..1000L)
     }
 
     @Test
@@ -250,7 +220,7 @@ class EngineOverridesTest {
         cut.events = mutableListOf()
         cut.signatureNow(seed = 1)
         repeat(5) { cut.tick(80, calm) }
-        cut.drop()
+        cut.tick(80, Scene(cat, Mood.SLEEPING))
         repeat(3) { cut.tick(80, calm) }
         assertTrue("a signature cut short is never reported", cut.events!!.isEmpty())
     }
@@ -316,16 +286,6 @@ class EngineOverridesTest {
             assertEquals("$what for ${t}ms", Face.SLEEP, e.shown.face)
             assertTrue("$what peeked ${t}ms", t in 800L..1200L)
         }
-    }
-
-    @Test
-    fun `a drop wakes a sleeper no further than its one eye either`() {
-        val asleep = Scene(cat, Mood.SLEEPING)
-        val e = engine()
-        repeat(3) { e.tick(80, asleep) }
-        e.drop()
-        e.tick(80, asleep)
-        assertEquals(Face.PEEK, e.shown.face)
     }
 
     // --- An egg on the matrix, and the charger -----------------------------------------------------------

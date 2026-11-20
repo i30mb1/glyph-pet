@@ -86,12 +86,11 @@ class FormsTest {
                 assertEquals(s.height, grid.size)
                 for (dx in PetEngine.walkRange(s)) for (lift in 0..2) for (step in 0 until 5) {
                     val f = SpeciesRenderer.render(
-                        s, face, blink = blink, dx = dx, lift = lift, timeMs = step * SpeciesRenderer.TEAR_STEP_MS, hurt = step == 1,
+                        s, face, blink = blink, dx = dx, lift = lift, timeMs = step * SpeciesRenderer.TEAR_STEP_MS,
                     )
                     assertValid("${s.id} $face dx=$dx lift=$lift step=$step", f)
                 }
             }
-            SpeciesRenderer.plasterSpot(s)
             SpeciesRenderer.thoughtSpot(s, 0)
         }
     }
@@ -129,7 +128,7 @@ class FormsTest {
         for (s in SpeciesForms.all) {
             for (mood in Mood.entries) for (egg in listOf(null, EggView(EggStage.CRACKED, golden = true))) for (charging in listOf(false, true)) {
                 val engine = PetEngine(Random(s.id.hashCode() + mood.ordinal))
-                val scene = Scene(s, mood, charging = charging, egg = egg, watts = 20f, battery = 0.5f, hurt = mood == Mood.SAD)
+                val scene = Scene(s, mood, charging = charging, egg = egg, watts = 20f, battery = 0.5f)
                 var t = 0L
                 while (t < 6000) {
                     t += 80
@@ -139,7 +138,7 @@ class FormsTest {
                         2800L -> engine.shake()
                         3600L -> engine.surge()
                         4400L -> engine.trick()
-                        5200L -> engine.drop()
+                        5200L -> engine.alert()
                     }
                     assertValid("${s.id} $mood egg=${egg != null} charging=$charging t=$t", engine.tick(80, scene.copy(tilt = if (t in 1000L..1500L) 0.8f else 0f)))
                 }

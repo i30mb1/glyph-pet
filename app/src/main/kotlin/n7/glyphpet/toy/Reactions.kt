@@ -5,11 +5,10 @@ import n7.glyphpet.pet.Mood
 import n7.glyphpet.pet.ShakeAction
 
 /**
- * What the sensors saw in one frame, already read off [MotionSensor]: a drop, a shake, a twirl, a gentle rock, and how
- * many knocks (0 none, 1 single, 2 double).
+ * What the sensors saw in one frame, already read off [MotionSensor]: a shake, a twirl, a gentle rock, and how many
+ * knocks (0 none, 1 single, 2 double).
  */
 data class Gestures(
-    val drop: Boolean = false,
     val shake: Boolean = false,
     val twirl: Boolean = false,
     val rock: Boolean = false,
@@ -34,9 +33,6 @@ data class Attention(
  * they come: that order is what [Reactions.frame] decides.
  */
 sealed interface Reaction {
-    /** The phone was dropped: "ouch!", some joy gone and a plaster until tomorrow. */
-    data object Hurt : Reaction
-
     /** A shake while the pet is ready to grow: one shake toward its evolution. */
     data object Grow : Reaction
 
@@ -61,9 +57,8 @@ sealed interface Reaction {
  * it joy or experience. Pure, so the toy's whole way of reading the owner can be tried without a phone ([PetToyService]
  * keeps the sensors, the store and the matrix).
  *
- * The order is the order the pet notices things in: a drop first (it hurts), then a shake, a twirl, a rock, a greeting,
- * and the knock last. Several of them in one frame all count: the pet plays them one after another (see
- * [n7.glyphpet.pet.PetEngine.react]).
+ * The order is the order the pet notices things in: a shake, then a twirl, a rock, a greeting, and the knock last.
+ * Several of them in one frame all count: the pet plays them one after another (see [n7.glyphpet.pet.PetEngine.react]).
  */
 class Reactions {
 
@@ -142,8 +137,6 @@ class Reactions {
      */
     fun frame(now: Long, gestures: Gestures, at: Attention): List<Reaction> {
         val out = mutableListOf<Reaction>()
-        // The drop is first: it hurts, whatever else the same tumble looked like.
-        if (gestures.drop && at.hasPet) out += Reaction.Hurt
         // Busy with the screen in another app: the phone moves with the hand, and none of it is play.
         val using = at.posture == Posture.USING_PHONE
         if (gestures.shake && !using) {

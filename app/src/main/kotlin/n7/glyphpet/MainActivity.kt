@@ -288,7 +288,6 @@ private fun PetScreen(
     var celebratedId by remember { mutableStateOf<String?>(null) }
     var celebratedForm by remember { mutableStateOf<String?>(null) }
     var toyOpened by remember { mutableStateOf(ui.getBoolean(KEY_TOY_OPENED, false)) }
-    var hurt by remember { mutableStateOf(store.hurt()) }
     var hideUnseen by remember { mutableStateOf(store.hideWhenUnseen) }
     var vibration by remember { mutableStateOf(store.vibration) }
     var notifications by remember { mutableStateOf(PetAlerts.hasAccess(context)) }
@@ -298,7 +297,6 @@ private fun PetScreen(
         power = store.power()
         now = GameClock.now()
         toyOpened = ui.getBoolean(KEY_TOY_OPENED, false)
-        hurt = store.hurt()
         notifications = PetAlerts.hasAccess(context)
         // The preview plays the big moments too: the hatch and the evolution.
         val hatched = nursery.justHatched
@@ -327,7 +325,6 @@ private fun PetScreen(
                     egg = nursery.eggView,
                     watts = power.watts,
                     battery = power.level,
-                    hurt = hurt,
                     missedCall = notifications && PetAlerts.missedCalls > 0,
                     ready = nursery.ready,
                 )
@@ -484,7 +481,6 @@ private fun PetScreen(
                 onVibration = { store.vibration = it; vibration = it },
                 notifications = notifications,
                 onNotifications = { context.startActivity(PetAlerts.settingsIntent(context)) },
-                hurt = hurt,
             )
 
             if (toyOpened) {
@@ -1024,8 +1020,8 @@ private fun Lock(modifier: Modifier = Modifier) {
 }
 
 /**
- * One folded section: how the pet behaves on the back of the phone (dark when nobody sees it, vibration, notifications,
- * the plaster after a drop). Folded by default; the header row opens it.
+ * One folded section: how the pet behaves on the back of the phone (dark when nobody sees it, vibration,
+ * notifications). Folded by default; the header row opens it.
  */
 @Composable
 private fun SettingsCard(
@@ -1035,7 +1031,6 @@ private fun SettingsCard(
     onVibration: (Boolean) -> Unit,
     notifications: Boolean,
     onNotifications: () -> Unit,
-    hurt: Boolean,
 ) {
     var open by rememberSaveable { mutableStateOf(false) }
     N7Card(Modifier.fillMaxWidth()) {
@@ -1063,12 +1058,6 @@ private fun SettingsCard(
                     text = stringResource(R.string.matrix_notify_text),
                     checked = notifications,
                     onChange = { onNotifications() },
-                )
-                N7Divider()
-                Text(
-                    stringResource(if (hurt) R.string.matrix_drop_hurt else R.string.matrix_drop_text),
-                    style = N7Type.BodyS,
-                    color = if (hurt) N7Colors.Ink else N7Colors.InkMuted,
                 )
             }
         }

@@ -45,48 +45,4 @@ class SightTest {
         assertFalse(gate.update(true, 2600))
         assertTrue(gate.update(true, 2700))
     }
-
-    /** Feeds [ms] of a constant [magnitude] at 50 Hz from [from]; true if a drop was reported. */
-    private fun DropDetector.run(magnitude: Float, from: Long, ms: Long): Boolean {
-        var hit = false
-        var t = from
-        while (t < from + ms) { hit = feed(magnitude, t) || hit; t += 20 }
-        return hit
-    }
-
-    @Test
-    fun `a fall and a hard hit is a drop, reported once`() {
-        val d = DropDetector()
-        assertFalse(d.run(9.8f, 0, 500))
-        assertFalse(d.run(0.5f, 500, 300))
-        assertTrue(d.feed(40f, 800))
-        assertFalse(d.feed(40f, 820))
-    }
-
-    @Test
-    fun `a soft landing, a short weightless moment of a shake or a late hit are not drops`() {
-        val soft = DropDetector()
-        soft.run(0.5f, 0, 300)
-        assertFalse(soft.run(14f, 300, 1000))
-
-        val shake = DropDetector()
-        shake.run(1f, 0, 80)
-        assertFalse(shake.feed(40f, 80))
-
-        val late = DropDetector()
-        late.run(0.5f, 0, 300)
-        late.run(9.8f, 300, 900)
-        assertFalse(late.feed(40f, 1200))
-    }
-
-    @Test
-    fun `a second drop right after the first is ignored`() {
-        val d = DropDetector(cooldownMs = 4000)
-        d.run(0.5f, 0, 300)
-        assertTrue(d.feed(40f, 300))
-        d.run(0.5f, 400, 300)
-        assertFalse(d.feed(40f, 700))
-        d.run(0.5f, 5000, 300)
-        assertTrue(d.feed(40f, 5300))
-    }
 }

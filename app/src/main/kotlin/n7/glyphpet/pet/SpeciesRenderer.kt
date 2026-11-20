@@ -164,7 +164,6 @@ object SpeciesRenderer {
         lift: Int = 0,
         habit: HabitFrame? = null,
         clipped: MutableCollection<Pair<Int, Int>>? = null,
-        hurt: Boolean = false,
         eyeDx: Int = 0,
         shadow: Boolean = false,
         cover: ByteArray? = null,
@@ -201,12 +200,6 @@ object SpeciesRenderer {
                     'o' -> put(frame, ox + x, oy + y, bright)
                 }
             }
-        }
-
-        // On the body, under the tear, stars and hearts. A habit that redraws the silhouette may leave the spot:
-        // the plaster goes only where the pet still has body.
-        if (hurt && habit?.rows == null) plasterSpot(species)?.let { (px, py) ->
-            overlay(frame, Overlay(PLASTER, px, py), ox, oy, body, null)
         }
 
         // A sleeper's opened eye is the one thing at full brightness on its dimmed body, so the peek reads at a glance.
@@ -356,55 +349,6 @@ object SpeciesRenderer {
         val value = v.toInt().coerceIn(0, BRIGHT)
         if (value > frame[i]) frame[i] = value
     }
-
-    /**
-     * A plaster after a drop, on the body: dark corners cut out, a bright pad in the middle. Cut out, so it shows in
-     * the app too, which draws body and bright parts alike in white.
-     */
-    val PLASTER = listOf("x#x", "#o#", "x#x")
-
-    private val plasterCache = java.util.concurrent.ConcurrentHashMap<String, Pair<Int, Int>>()
-
-    /**
-     * Where the plaster goes on [species], in sprite coordinates (its top left cell): on plain body, off the eye and
-     * mouth slots, its dark corners not right beside them (they would run into one long hole), as near as possible to
-     * the top right of the head (above the second eye). The Bot, all screen and frame, wears it over the top right
-     * corner of its frame. Null for a species with no such spot.
-     */
-    /** The sprite cells a plaster may cover: plain body only, or body with its shell or mask lines ('o') as a fallback. */
-    private fun bodyCells(plain: Boolean): Set<Char> = if (plain) setOf('#') else setOf('#', 'o')
-
-    fun plasterSpot(species: Species): Pair<Int, Int>? = plasterCache.getOrPut(species.id) {
-        if (species.inverted) {
-            // Over the corner of the frame, sticking out above it, clear of the lit eyes.
-            val top = species.rows.indexOfFirst { row -> row.all { it == '#' } }
-            return@getOrPut if (top >= 1) species.width - 3 to top - 1 else -99 to -99
-        }
-        val face = buildSet {
-            species.eyes.forEach { (ex, ey) -> for (a in 0..1) for (b in 0..1) add(ex + a to ey + b) }
-            species.mouth?.let { (mx, my) -> for (a in 0..2) for (b in 0..1) add(mx + a to my + b) }
-        }
-        fun besideFace(x: Int, y: Int) = listOf(x - 1 to y, x + 1 to y, x to y - 1, x to y + 1).any { it in face }
-        val (tx, ty) = species.eyes.lastOrNull()?.let { (ex, ey) -> ex + 2 to ey - 3 } ?: (species.width - 4 to 1)
-        // Every spot on plain body, scored: first by how many dark corners touch the face (a cramped head like the
-        // Cat's has no spot where none do), then by the distance from the top right of the head.
-        fun spots(plain: Boolean): List<Triple<Int, Int, Int>> =
-            (0..species.height - 3).flatMap { y -> (0..species.width - 3).map { x -> x to y } }.mapNotNull { (x, y) ->
-                var touching = 0
-                var decorated = 0
-                for (a in 0..2) for (b in 0..2) {
-                    val cx = x + a
-                    val cy = y + b
-                    // A plain spot is all body '#'. A shell or a mask ('o') takes it only where no plain one is left.
-                    if (species.rows[cy][cx] !in bodyCells(plain) || (cx to cy) in face) return@mapNotNull null
-                    if (species.rows[cy][cx] == 'o') decorated++
-                    if (!GlyphMatrixSpec.isVisible(species.ox + cx, species.oy + cy)) return@mapNotNull null
-                    if (PLASTER[b][a] == 'x' && besideFace(cx, cy)) touching++
-                }
-                Triple(x, y, decorated * 10_000 + touching * 1000 + (x - tx) * (x - tx) + (y - ty) * (y - ty))
-            }
-        (spots(plain = true).ifEmpty { spots(plain = false) }).minByOrNull { it.third }?.let { it.first to it.second } ?: (-99 to -99)
-    }.takeIf { it.first != -99 }
 
     /**
      * A missed call: a little handset at the top of the matrix, over everything. Blinks once a second unless [still]

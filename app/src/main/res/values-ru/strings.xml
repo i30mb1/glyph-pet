@@ -168,8 +168,6 @@
     <string name="matrix_vibration_text">Телефон отвечает лёгким толчком, когда кормишь питомца, раскалываешь яйцо, играешь или он растёт. Пока он спит, не вибрирует. Учитывает системную настройку вибрации при касании.</string>
     <string name="matrix_notify_title">Просыпаться на уведомления</string>
     <string name="matrix_notify_text">Питомец поднимает голову на уведомление и показывает трубку, пока висит пропущенный звонок. Glyph Pet видит только тип уведомления, текст не читает.</string>
-    <string name="matrix_drop_text">Уронил телефон? Питомец скажет «ай» и до завтра будет с пластырем.</string>
-    <string name="matrix_drop_hurt">Телефон уронили: питомец с пластырем до завтрашнего утра.</string>
 
     <!-- Compact main screen, forms in the collection -->
     <string name="need_food_hint">зажми кнопку</string>

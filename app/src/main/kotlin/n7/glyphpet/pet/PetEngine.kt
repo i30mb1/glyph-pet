@@ -25,8 +25,6 @@ data class Scene(
     /** While [charging]: how fast, and how full the battery is (0..1). */
     val watts: Float = 0f,
     val battery: Float = 1f,
-    /** The phone was dropped: the pet wears a plaster until tomorrow. */
-    val hurt: Boolean = false,
     /** A missed call waits: a handset blinks at the top. */
     val missedCall: Boolean = false,
     /** The pet may grow now: a sparkle runs over it every few seconds. */
@@ -91,8 +89,6 @@ class PetEngine(
         private val HOP = intArrayOf(1, 2, 2, 1)
         const val HOP_MS = 320L
 
-        const val HURT_MS = 2200L
-        const val OUCH_MS = 700L
         const val ALERT_MS = 1400L
 
         /** A knock: the pet looks up at the viewer and hops once. */
@@ -243,7 +239,7 @@ class PetEngine(
         }
     }
 
-    private enum class Action { NONE, EATING, REFUSING, LOVED, DIZZY, PEEK, HURT, ALERT, SURGE, NOTICE, TICKLE, GREET }
+    private enum class Action { NONE, EATING, REFUSING, LOVED, DIZZY, PEEK, ALERT, SURGE, NOTICE, TICKLE, GREET }
 
     /** A big moment that takes over the whole matrix for a few seconds. */
     private sealed class Moment(val durationMs: Long)
@@ -571,17 +567,7 @@ class PetEngine(
     }
 
     /** A shake toward growing, not the last one: the pet flashes bright for a moment and trembles. */
-    fun surge() = react {
-        if (action != Action.HURT) start(Action.SURGE, SURGE_MS)
-    }
-
-    /**
-     * The phone was dropped: "ouch!" (wide eyes, "!", a shudder), then dizzy stars. A sleeper only opens one eye. It
-     * cuts a habit or a signature short at once; a hatch or an evolution plays to the end first.
-     */
-    fun drop() {
-        if (moment != null) pending.addFirst { start(Action.HURT, HURT_MS) } else start(Action.HURT, HURT_MS)
-    }
+    fun surge() = react { start(Action.SURGE, SURGE_MS) }
 
     /** A notification came: the pet looks up with a "!". A sleeper only opens one eye. */
     fun alert() = react {
@@ -622,7 +608,7 @@ class PetEngine(
             ChargeRenderer.render(species, chargeState(scene, still = true), frame = frame)
         } else {
             val painter = if (Living3D.handles(species)) runCatching { living.still(species) }.getOrNull() else null
-            SpeciesRenderer.render(species, face, frame = frame, hurt = scene.hurt, shadow = true, painter = painter)
+            SpeciesRenderer.render(species, face, frame = frame, shadow = true, painter = painter)
         }
         if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = true)
         return frame
@@ -796,8 +782,8 @@ class PetEngine(
         val habit = own ?: if (leaning && leanCells != 0) leanFrame(species, leanCells) else null
         val face = own?.face ?: face(scene.mood, asleep, sliding)
         val lift = if (hopMs >= 0) HOP.getOrElse((hopMs / 80).toInt()) { 0 } else 0
-        val shudder = action == Action.REFUSING || action == Action.SURGE || action == Action.TICKLE || (action == Action.HURT && ouch())
-        // A refusal sways slowly, "no, thanks"; a surge or an ouch trembles; a tickle wiggles fast.
+        val shudder = action == Action.REFUSING || action == Action.SURGE || action == Action.TICKLE
+        // A refusal sways slowly, "no, thanks"; a surge trembles; a tickle wiggles fast.
         val jitterMs = when (action) {
             Action.REFUSING -> 300L
             Action.TICKLE -> 60L
@@ -815,7 +801,7 @@ class PetEngine(
         }
         SpeciesRenderer.render(
             species, face, blink = blinkLeftMs > 0, dx = dx, frame = frame, timeMs = time, lift = lift,
-            habit = if (painter != null) living.habitFor(species, own, habit) else habit, hurt = scene.hurt,
+            habit = if (painter != null) living.habitFor(species, own, habit) else habit,
             eyeDx = look(centerX, scene, asleep), shadow = true, cover = cover, painter = painter,
         )
         // Tipped away from the viewer: the pet shrinks back, a little dimmer.
@@ -1042,16 +1028,12 @@ class PetEngine(
         // Full: a content "no, thanks", not anger.
         Action.REFUSING -> Face.CONTENT
         Action.PEEK -> Face.PEEK
-        Action.HURT -> if (ouch()) Face.SCARED else Face.DIZZY
         Action.ALERT -> Face.SCARED
         Action.SURGE -> Face.IDLE
         Action.NOTICE -> Face.CONTENT
         Action.TICKLE -> Face.HAPPY
         Action.GREET -> Face.HAPPY
     }
-
-    /** The first moment of a drop: the "ouch!". */
-    private fun ouch(): Boolean = action == Action.HURT && actionLeftMs > HURT_MS - OUCH_MS
 
     private fun start(next: Action, durationMs: Long) {
         action = next

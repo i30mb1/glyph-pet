@@ -257,16 +257,6 @@ class PetStore(context: Context) {
         saveState(NurseryRules.setActive(loadState(nowMs), speciesId))
     }
 
-    /** The phone was dropped: the pet loses some joy and wears a plaster until tomorrow morning. */
-    @Synchronized
-    fun drop(nowMs: Long = GameClock.now()) {
-        update(nowMs) { PetRules.drop(it) }
-        prefs.edit().putLong(KEY_HURT_UNTIL, PetRules.hurtUntil(nowMs)).apply()
-    }
-
-    /** Whether the pet still wears the plaster from a drop. */
-    fun hurt(nowMs: Long = GameClock.now()): Boolean = nowMs < prefs.getLong(KEY_HURT_UNTIL, 0)
-
     /** Setting: the matrix goes dark while the phone lies screen up or is in a pocket. On by default. */
     var hideWhenUnseen: Boolean
         get() = prefs.getBoolean(KEY_HIDE_UNSEEN, true)
@@ -430,7 +420,6 @@ class PetStore(context: Context) {
         /** The egg on the matrix. Saves without it have none: the pet stays on the matrix. */
         const val KEY_ON_MATRIX = "egg_on_matrix"
         const val KEY_GRANT_DAY = "grant_day"
-        const val KEY_HURT_UNTIL = "hurt_until"
         const val KEY_HIDE_UNSEEN = "hide_unseen"
         const val KEY_VIBRATION = "vibration"
         const val KEY_GROWTH = "growth"
@@ -448,6 +437,8 @@ class PetStore(context: Context) {
             "egg_selected",
             // Before growth by experience: the care of the day.
             "care_day", "care_fed", "care_sick",
+            // Before the drop was dropped: the plaster the pet wore until the next morning.
+            "hurt_until",
         )
 
         /** Any of these means 1.1 ran and saved its nursery. */

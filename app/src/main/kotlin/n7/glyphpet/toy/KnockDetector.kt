@@ -24,7 +24,7 @@ class KnockDetector {
         const val MAX_SPIKE_MS = 80L
         const val QUIET_AFTER_MS = 100L
 
-        /** m/s², the whole vector: lower is free fall (a drop or a shake), never a knock. */
+        /** m/s², the whole vector: lower is free fall (the phone thrown about or shaken), never a knock. */
         const val FREE_FALL = 5f
         const val DOUBLE_MS = 550L
 
