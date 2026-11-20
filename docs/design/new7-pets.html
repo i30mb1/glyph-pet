@@ -1,0 +1,470 @@
+<title>Ещё 7 питомцев</title>
+<style>
+/* 7 новых видов × 3 стадии на круглой матрице 25×25, идеи и демо уникальной еды */
+:root{
+  --bg:#0d0e10; --panel:#15171a; --line:#2a2d32; --fg:#eceef0; --muted:#8f949b; --accent:#f0d36b;
+  --common:#9fb4c7; --rare:#8fd3a8; --legend:#f0d36b; --myth:#c9a3f5;
+  --display:"Space Grotesk",system-ui,sans-serif; --body:"Inter",system-ui,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);margin:0;line-height:1.5}
+.wrap{max-width:900px;margin:0 auto;padding:28px 16px 56px}
+h1{font-family:var(--display);font-size:2rem;margin:0;letter-spacing:-.01em;text-wrap:balance}
+.lead{color:var(--muted);margin:8px 0 0;max-width:65ch}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding:14px 0 12px;margin-top:18px;border-bottom:1px solid var(--line);display:flex;gap:6px;flex-wrap:wrap}
+.bar button,.ctl button{font:500 .85rem var(--body);color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 12px;cursor:pointer}
+.bar button[aria-pressed="true"],.ctl button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+.bar button:hover,.ctl button:hover{border-color:var(--muted)}
+.bar button:focus-visible,.ctl button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.head{display:grid;grid-template-columns:120px repeat(3,minmax(0,1fr));gap:12px;padding:14px 0 4px;color:var(--muted);font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;text-align:center}
+.head span:first-child{text-align:left}
+.pet{border-bottom:1px solid var(--line);padding:12px 0}
+.row{display:grid;grid-template-columns:120px repeat(3,minmax(0,1fr));gap:12px;align-items:center}
+.name b{font-family:var(--display);font-size:1.1rem;display:block}
+.name span{font-size:.8rem}
+.name .r-обычный{color:var(--common)} .name .r-редкий{color:var(--rare)} .name .r-легендарный{color:var(--legend)}
+.row figure{margin:0;display:grid;gap:4px;justify-items:center;text-align:center}
+.row canvas{width:100%;max-width:170px;aspect-ratio:1;display:block}
+.row figcaption{font-size:.78rem;color:var(--muted);min-height:1.2em}
+details{margin-top:8px;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+summary{cursor:pointer;padding:10px 14px;font-size:.9rem;color:var(--fg);list-style-position:inside}
+.info{padding:0 14px 12px;display:grid;gap:6px;font-size:.88rem;color:var(--muted)}
+.info b{color:var(--fg);font-weight:600}
+.info ul{margin:0;padding-left:18px}
+@media (max-width:560px){
+  .head{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .head span:first-child{display:none}
+  .row{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .name{grid-column:1/-1}
+}
+.name .r-мифический{color:var(--myth)}
+.info p{margin:0}
+.food{display:grid;grid-template-columns:minmax(0,180px) minmax(0,1fr);gap:14px;align-items:start;margin-top:4px;padding-top:10px;border-top:1px solid var(--line)}
+.food canvas{width:100%;aspect-ratio:1;display:block}
+.food ol{margin:0;padding-left:18px}
+.food li{margin-bottom:4px}
+@media (max-width:560px){ .food{grid-template-columns:minmax(0,1fr)} .food canvas{max-width:220px;justify-self:center} }
+.foot{color:var(--muted);margin-top:22px;max-width:65ch;font-size:.9rem}
+.foot li{margin-bottom:6px}
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&display=swap">
+<div class="wrap">
+  <h1>Ещё 7 питомцев</h1>
+  <p class="lead">Кубоид, Маяк, Тессеракт, Чёрная дыра, Енот, Муравьед и Мухоловка — по три стадии на круглой матрице 25×25. Переключай лицо сверху; под каждым — привычки, фирменный номер, трюк, зарядка и эволюция. У Енота, Муравьеда и Мухоловки — своя анимация еды с живым демо.</p>
+  <div class="bar" id="faces" role="group" aria-label="Лицо"></div>
+  <div class="head"><span>Питомец</span><span>Малыш</span><span>Подросток</span><span>Взрослый</span></div>
+  <div id="grid"></div>
+  <ul class="foot">
+    <li>У Муравьеда один глаз (вид сбоку) и нет рта — его «рот» это язык из кончика носа; у Мухоловки рот — сама пасть между челюстями, поэтому слота рта нет.</li>
+    <li>У Енота маска яркая, а глаза — дырки в ней: на тусклой матрице тёмная маска на тусклой морде не читалась бы.</li>
+    <li>Способы зарядки (FACES, BEAM, HYPER, ACCRETION, WASH, TRAIL, SUN) — предложения, в коде их пока нет.</li>
+  </ul>
+</div>
+<script>
+// 7 новых видов, три стадии. Собрано build.js из src.js: ox/oy ставят каждую форму в центр матрицы.
+const SPECIES = [
+{ id:'cuboid', name:'Кубоид', rarity:'легендарный', charge:"FACES (новый)",
+  about:"Живой кубик: на каждой грани своё настроение, а показывает он ту, что сейчас смотрит на тебя.",
+  habits:{"baby":"подпрыгивает на ребре и шлёпается обратно — верхняя грань мигает","teen":"перекатывается на соседнюю грань и смотрит оттуда другим лицом, потом возвращается","adult":"на боковой грани проступает второе лицо и подмигивает, пока главное спит"},
+  signature:{"name":"Кубик-рубик","idea":"верхний пояс куба проворачивается на четверть оборота (сдвиг светлых рядов вправо по 1 LED за кадр), грани меняются лицами, щелчок — и пояс встаёт на место"},
+  trick:{"name":"Найди лицо","control":"поворот телефона","idea":"сверху на краю матрицы — значок нужной эмоции; поворот телефона влево-вправо перекатывает куб на соседнюю грань (порог 25°, одна грань за поворот), наклон вперёд-назад — на верхнюю или нижнюю. Попал на грань с нужным лицом — куб подпрыгивает, искры; три промаха — кубик дуется"},
+  chargeNote:"грани заливаются по очереди: каждые 25% — ещё одна грань вспыхивает и лицо на ней улыбается; при быстрой зарядке куб медленно крутится вокруг вертикали",
+  evolve:"катится по кругу матрицы, на каждом ребре вспышка; на четвёртом перекате грани раздвигаются — внутри куб побольше, с перспективой поглубже",
+  baby:{ note:"кубик", ox:8, oy:8, eyes:[[1,3],[4,3]], mouth:[2,6], rows:[
+    "..ooooooo.", ".ooooooo.#", "#######.##", "#######.##", "#######.##",
+    "#######.##", "#######.##", "#######.##", "#######.#."
+  ]},
+  teen:{ note:"куб с гранями", ox:6, oy:7, eyes:[[2,5],[5,5]], mouth:[3,8], rows:[
+    "...ooooooooo#", "..ooooooooo##", ".ooooooooo###", "#########.###", "#########.#o#",
+    "#########.###", "#########.#o#", "#########.###", "#########.###", "#########.##.",
+    "#########.#..", "#########...."
+  ]},
+  adult:{ note:"кубоид, грани с лицами", ox:5, oy:5, eyes:[[2,7],[7,7]], mouth:[4,10], rows:[
+    "....ooooooooooo#", "...ooooooooooo##", "..ooo..ooo..oo##", ".ooooooooooo####", "###########.####",
+    "###########.##o#", "###########.#o##", "###########.####", "###########.####", "###########.#oo#",
+    "###########.####", "###########.###.", "###########.##..", "###########.#...", "###########....."
+  ]}
+},
+{ id:'lighthouse', name:'Маяк', rarity:'легендарный', charge:"BEAM (новый)",
+  about:"Смотритель берега: ночью не спит, крутит огонь и ждёт, кого бы проводить домой.",
+  habits:{"baby":"огонёк на макушке мигает азбукой Морзе: короткая-длинная","teen":"луч обходит круг матрицы, как стрелка; на кого упал — тот моргает","adult":"на волнах у подножия качается кораблик, маяк провожает его взглядом"},
+  signature:{"name":"Туманный горн","idea":"маяк набирает воздух (башня на 1 LED выше), и от него по матрице расходятся три кольца звука; туман-рябь на краю разгоняется"},
+  trick:{"name":"Проводи лодку","control":"поворот телефона (рыскание) / вращение на столе","idea":"край матрицы в тумане — мерцающие тусклые точки; где-то в нём лодка (3 LED). Луч — яркий сектор 30° от фонаря; поворот телефона ведёт луч. Держишь луч на лодке 2 секунды — она подплывает к маяку и причаливает; уводишь — лодку уносит, туман гуще"},
+  chargeNote:"луч крутится по кругу, его скорость — мощность зарядки; заряд — сколько этажей башни горит снизу вверх, при 100% фонарь горит ровно, без вращения",
+  evolve:"фонарь разгорается до вспышки на всю матрицу, тьма — и из неё проступает высокий маяк с лучами и волнами",
+  baby:{ note:"маячок", ox:8, oy:7, eyes:[[2,4],[5,4]], mouth:[3,6], rows:[
+    "....o....", "...ooo...", "..#ooo#..", "#########", ".#######.",
+    ".#######.", ".#######.", ".#######.", ".ooooooo.", ".#######.",
+    "#########"
+  ]},
+  teen:{ note:"полосатый маяк", ox:7, oy:6, eyes:[[3,5],[6,5]], mouth:[4,7], rows:[
+    ".....o.....", "....ooo....", "...#ooo#...", "..#######..", "...#####...",
+    "..#######..", "..#######..", "..#######..", "..#######..", "..ooooooo..",
+    ".#########.", ".ooooooooo.", "###########"
+  ]},
+  adult:{ note:"маяк с лучами", ox:4, oy:5, eyes:[[6,5],[9,5]], mouth:[7,7], rows:[
+    "........o........", "ooo....ooo....ooo", "...oo.#ooo#.oo...", ".....#######.....", "......#####......",
+    ".....#######.....", ".....#######.....", ".....#######.....", ".....#######.....", ".....ooooooo.....",
+    "....#########....", "....ooooooooo....", "...###########...", "..#############..", "oo.oo.oo.oo.oo.oo"
+  ]}
+},
+{ id:'tesseract', name:'Тессеракт', rarity:'мифический', charge:"HYPER (новый)",
+  about:"Гость из четвёртого измерения: в нашем мире виден только его срез, и с каждым ростом — на одно измерение больше.",
+  habits:{"baby":"квадратик мерцает рёбрами по кругу, будто пробует, где у него край","teen":"задняя грань куба плавно уезжает и возвращается — куб «дышит» перспективой","adult":"внутренний куб медленно меняется местами с внешним и обратно"},
+  signature:{"name":"Наизнанку","idea":"внутренний куб растёт, внешний сжимается; на середине они совпадают в один квадрат (вспышка), потом бывший внешний оказывается внутри — тессеракт вывернулся через четвёртое измерение. 24 кадра по 60 мс: 0–10 растяжение, 11–12 совпадение, 13–23 обмен"},
+  trick:{"name":"Поворот в 4D","control":"наклон + вращение на столе","idea":"наклон вращает проекцию в двух обычных плоскостях, вращение телефона на столе — в «четвёртой» (XW): кубы перетекают друг в друга. Цель — совместить тессеракт с пунктирным контуром-подсказкой; совпало — он гудит и светится"},
+  chargeNote:"рёбра загораются по одному, всего 32 ребра — каждое ≈3%; на 100% весь каркас горит и медленно выворачивается",
+  evolve:"квадрат вытягивает из себя заднюю грань и становится кубом; куб — вытягивает куб из себя же: каждый раз вспышка и строгий щелчок",
+  baby:{ note:"квадрат", ox:8, oy:8, eyes:[[2,3],[5,3]], mouth:[3,6], rows:[
+    "ooooooooo", "o#######o", "o#######o", "o#######o", "o#######o",
+    "o#######o", "o#######o", "o#######o", "ooooooooo"
+  ]},
+  teen:{ note:"куб", ox:6, oy:6, eyes:[[2,6],[5,6]], mouth:[3,9], rows:[
+    "....ooooooooo", "...oo.......o", "..o.o.....o.o", ".o..o....o..o", "#########...o",
+    "#########...o", "#########...o", "#########...o", "#########oooo", "#########..o.",
+    "#########.o..", "#########o...", "#########...."
+  ]},
+  adult:{ note:"тессеракт", ox:5, oy:5, eyes:[[5,5],[8,5]], mouth:[6,8], rows:[
+    "ooooooooooooooo", "oo...........oo", "o.o.........o.o", "o..o.......o..o", "o...#######...o",
+    "o...#######...o", "o...#######...o", "o...#######...o", "o...#######...o", "o...#######...o",
+    "o...#######...o", "o..o.......o..o", "o.o.........o.o", "oo...........oo", "ooooooooooooooo"
+  ]}
+},
+{ id:'blackhole', name:'Чёрная дыра', rarity:'мифический', charge:"ACCRETION (новый)",
+  about:"Тяжёлый характер: всё вокруг притягивает к себе, даже свет. Но очень любит, когда его кормят.",
+  habits:{"baby":"искорка пульсирует, лучи то вытягиваются, то втягиваются","teen":"по диску бежит яркий сгусток, огибает ядро и скрывается за ним","adult":"из полюсов бьют джеты — короткие толчки света вверх и вниз, как дыхание"},
+  signature:{"name":"Горизонт событий","idea":"вся матрица медленно стягивается к центру: точки края ползут по спирали внутрь и гаснут у ядра, на секунду — полная тьма, потом диск вспыхивает вновь"},
+  trick:{"name":"Подбрось еду","control":"наклон","idea":"наклон задаёт, с какой стороны края влетает кусочек и с какой скоростью; кусочек ложится на спираль (радиус уменьшается на 3% за кадр, угол растёт быстрее у центра) и падает в ядро. Слишком быстро — он пролетает мимо и вылетает с другой стороны; точно — диск вспыхивает, дыра растёт на волосок"},
+  chargeNote:"диск — индикатор: яркая дуга вокруг ядра длиной в процент заряда, крутится со скоростью зарядки; джеты включаются при быстрой зарядке",
+  evolve:"втягивает всё вокруг до точки, полная тьма на полсекунды — и взрыв света, из которого вырастает новый диск",
+  baby:{ note:"искорка", ox:7, oy:7, eyes:[[3,4],[6,4]], mouth:[4,6], rows:[
+    ".....o.....", ".o.......o.", "...#####...", "..#######..", "..#######..",
+    "o.#######.o", "..#######..", "..#######..", "...#####...", ".o.......o.",
+    ".....o....."
+  ]},
+  teen:{ note:"маленький диск", ox:5, oy:7, eyes:[[5,3],[8,3]], mouth:[6,5], rows:[
+    ".....#####.....", "...#########...", "..###########..", "..###########..", ".o###########o.",
+    "o.###########.o", "o.###########.o", ".oo#########oo.", "...ooooooooo...", "....#######....",
+    "......###......"
+  ]},
+  adult:{ note:"диск с джетами", ox:4, oy:5, eyes:[[6,6],[9,6]], mouth:[7,8], rows:[
+    "........o........", "........o........", "........o........", "......#####......", ".....#######.....",
+    "..oo#########oo..", ".o..#########..o.", "o...#########...o", "o...#########...o", ".oo.#########.oo.",
+    "...ooooooooooo...", ".....#######.....", "......#####......", "........o........", "........o........"
+  ]}
+},
+{ id:'raccoon', name:'Енот', rarity:'обычный', charge:"WASH (новый)",
+  about:"Маленький бандит в маске: всё трогает лапками и ничего не съест, пока не прополощет.",
+  habits:{"baby":"трёт лапки друг о друга, маска морщится","teen":"крутит полосатым хвостом, кольца бегут от основания к кончику","adult":"прячет что-то блестящее за спину и делает невинное лицо"},
+  signature:{"name":"Полоскун","idea":"достаёт из воздуха блестяшку, полощет её в луже, рассматривает на свет (яркая точка у глаза) и прячет в хвост"},
+  trick:{"name":"Поймай рыбку","control":"наклон","idea":"внизу — лужа; в ней мелькает рыбка (2 LED). Наклон ведёт лапку енота над водой, резкий кивок телефона вниз — хвать. Поймал — полощет и ест"},
+  chargeNote:"стирает в тазике: вода в луже поднимается снизу вверх по уровню заряда, по поверхности бегут круги в темпе зарядки",
+  evolve:"залезает в лужу с головой, брызги по всему кругу — и выныривает взрослым, отряхиваясь",
+  food:{"title":"Сначала помыть","spec":["Кадр 0–3 (4×80 мс): еда (3×3, яркая) падает сверху на 2 LED за кадр, ложится перед лапами.","Кадр 4–5 (2×120 мс): енот хватает её лапами — еда поднимается на 1 LED к морде, глаза HAPPY.","Кадр 6–17 (12×90 мс): под лапами лужа — тусклая полоса 7 LED; еда окунается вниз-вверх 3 раза (вниз 1 LED, 2 кадра; вверх, 2 кадра); на каждом окунании от точки входа расходятся кольца: радиус 1, 2, 3 по кадру, яркость 100→60→30%.","Кадр 18–21 (4×100 мс): капли — 2–3 одиночные точки летят вниз от еды и гаснут; лужа исчезает.","Кадр 22–27 (6×110 мс): трёт лапки — две яркие точки лап сходятся и расходятся на 1 LED, 3 раза; еда меж ними уже блестит (мигает через кадр).","Кадр 28–33 (6×120 мс): ест — еда уменьшается 3×3 → 2×2 → 1 → 0, рот OPEN/SMALL по очереди. Итого ≈3,2 с, затем лицо CONTENT."]},
+  baby:{ note:"енотик", ox:7, oy:8, eyes:[[2,3],[7,3]], mouth:[4,7], rows:[
+    ".##.....##.", "###########", "#ooo###ooo#", "oo##ooo##oo", "oo##o#o##oo",
+    "#ooo###ooo#", ".####o####.", "..#######..", "...#####..."
+  ]},
+  teen:{ note:"енот с хвостом", ox:5, oy:7, eyes:[[2,3],[7,3]], mouth:[4,7], rows:[
+    ".##.....##.....", "###########....", "#ooo###ooo#..oo", "oo##ooo##oo.##o", "oo##o#o##oo.oo.",
+    "#ooo###ooo#.##.", ".####o####..oo.", "..#######..##..", "...#####..oo...", "..#######oo....",
+    ".##########....", ".###...###....."
+  ]},
+  adult:{ note:"енот-полоскун", ox:4, oy:5, eyes:[[3,3],[8,3]], mouth:[5,7], rows:[
+    "..##.....##......", ".###########.....", ".#ooo###ooo#...oo", "ooo##ooo##ooo.###", "ooo##o#o##ooo.ooo",
+    ".#ooo###ooo#..###", "..####o####...ooo", "...#######....###", "....#####....ooo.", "...#######...###.",
+    "..#########.ooo..", ".###########ooo..", ".###########.....", ".###########.....", "..###....###....."
+  ]}
+},
+{ id:'anteater', name:'Муравьед', rarity:'редкий', charge:"TRAIL (новый)",
+  about:"Неторопливый гурман с самым длинным носом в округе; язык ещё длиннее.",
+  habits:{"baby":"сопит: кончик носа мигает и чуть подрагивает","teen":"роет носом землю — под мордой подскакивают тусклые крошки","adult":"обмахивается огромным хвостом, как веером, и зевает, высунув язык"},
+  signature:{"name":"Язык-лассо","idea":"язык выстреливает из носа длинной яркой линией, описывает круг по краю матрицы и со щелчком втягивается обратно"},
+  trick:{"name":"Муравейник","control":"вращение на столе","idea":"вокруг по краю — кольцо муравейника с ходами; вращение телефона на столе поворачивает кольцо, наводя открытый ход на кончик носа. Совпал ход — язык ныряет внутрь и вытаскивает муравья; мимо — нос упирается и чихает"},
+  chargeNote:"по краю матрицы бежит цепочка муравьёв, их число — заряд (1 муравей = 5%), скорость — мощность; при 100% муравьед их провожает взглядом и не ест",
+  evolve:"зарывается носом в землю, по кругу бегут муравьи, хвост растёт веером — встаёт взрослым",
+  food:{"title":"Муравьиная дорожка","spec":["Кадр 0–5 (6×100 мс): вдоль края матрицы появляется цепочка из 8 муравьёв — по одному яркому LED через 1 пустой, ползут по кругу к морде со скоростью 1 позиция за кадр.","Цикл на каждого муравья (×8, по 5 кадров × 70 мс): ближайший муравей останавливается у кончика носа; язык — яркая линия из ноздри растёт на 2 LED за кадр (2 кадра) до муравья; муравей гаснет; язык втягивается за 2 кадра; 1 кадр — рот SMALL, «чмок». Остальные муравьи за это время сдвигаются на 1 позицию.","Каждый третий муравей — пауза 2 кадра: глаз HAPPY, нос подрагивает вверх на 1 LED.","После последнего (кадр ≈51): язык облизывает нос — 1 LED вверх-вниз, 3 кадра по 90 мс. Итого ≈3,6 с, затем CONTENT."]},
+  baby:{ note:"муравьедик", ox:7, oy:10, eyes:[[3,1]], mouth:null, rows:[
+    "...##......", "..####..oo.", "..######ooo", "o#########o", ".....#####.",
+    ".....##.##."
+  ]},
+  teen:{ note:"муравьед", ox:5, oy:9, eyes:[[3,1]], mouth:null, rows:[
+    "...##....ooo...", "..####..ooooo..", "..######oooooo.", "o###########ooo", ".....#######oo.",
+    ".....########o.", ".....########..", ".....##....##.."
+  ]},
+  adult:{ note:"гигантский муравьед", ox:4, oy:7, eyes:[[3,2]], mouth:null, rows:[
+    "..........oooo...", "...##....oooooo..", "..####..oooooooo.", "..######oooooooo.", "o##############oo",
+    "....##o########oo", "....#o#########o.", "....o##########o.", "....###########..", "....###.....###..",
+    "....###.....###.."
+  ]}
+},
+{ id:'flytrap', name:'Мухоловка', rarity:'редкий', charge:"SUN (новый)",
+  about:"Хищное растение с хорошими манерами: ждёт с открытым ртом, щёлкает быстро, жуёт долго.",
+  habits:{"baby":"росток тянется к свету и качается на стебле","teen":"приоткрывает и захлопывает челюсти, зубчики-реснички дрожат","adult":"листья у горшка покачиваются в такт, и она напевает с закрытым ртом"},
+  signature:{"name":"Щелчок","idea":"внезапно захлопывает пасть с яркой вспышкой по зубцам и подскоком на 1 LED, потом удивлённо открывает — пусто, муха увернулась (точка улетает зигзагом)"},
+  trick:{"name":"Ловля мух","control":"наклон","idea":"вокруг жужжит муха — точка летит зигзагом; наклон поворачивает голову на стебле влево-вправо (±3 LED), когда муха в пасти — нажать или резко качнуть телефон: щёлк. Поймала — жуёт; промах — зубцы дрожат от досады"},
+  chargeNote:"фотосинтез: сверху солнце — дуга лучей; листья наливаются светом снизу вверх по заряду, при быстрой зарядке мухоловка раскрывается шире",
+  evolve:"захлопывается бутоном, бутон раскрывается цветком, а из цветка — новая большая пасть",
+  food:{"title":"Щёлк и жевать","spec":["Кадр 0–2 (3×120 мс): пасть раскрывается шире — верхняя челюсть поднимается на 1 LED, зубцы-реснички (яркие точки по краям) торчат.","Кадр 3–7 (5×70 мс): еда (2×2, яркая) влетает с левого края невысокой дугой прямо в щель пасти, 2 LED за кадр.","Кадр 8 (1×40 мс): еда касается нижней челюсти.","Кадр 9–10 (2×40 мс): ЩЁЛК — верхняя челюсть падает на нижнюю за 2 кадра, зубцы смыкаются в зигзаг; вспышка всех зубцов 100%; вся голова дёргается вниз на 1 LED.","Кадр 11–22 (12×110 мс): жуёт — челюсти разжимаются на 1 LED и снова смыкаются, 6 раз; щёки (края пасти) раздуваются на 1 LED на каждом смыкании; глаза CLOSED/HAPPY.","Кадр 23–25 (3×150 мс): глоток — яркая точка сползает по стеблю вниз и гаснет у листьев.","Кадр 26–29 (4×120 мс): пасть медленно открывается обратно, по 1 LED за кадр. Итого ≈3 с, затем CONTENT."]},
+  baby:{ note:"росток", ox:8, oy:7, eyes:[[2,2],[5,2]], mouth:null, rows:[
+    ".o.o.o.o.", ".#######.", "#########", "#########", "o.o.o.o.o",
+    ".........", "o.o.o.o.o", ".#######.", "....#....", "oo..#..oo",
+    ".oo.#.oo."
+  ]},
+  teen:{ note:"мухоловка", ox:6, oy:6, eyes:[[3,2],[8,2]], mouth:null, rows:[
+    "o..o..o..o..o", ".o#########o.", "#############", "#############", ".###########.",
+    "o.o.o.o.o.o.o", ".............", "o.o.o.o.o.o.o", ".###########.", "...#######...",
+    "......#......", ".ooo..#..ooo.", "..ooo.#.ooo.."
+  ]},
+  adult:{ note:"мухоловка в горшке", ox:5, oy:5, eyes:[[4,2],[9,2]], mouth:null, rows:[
+    "o...o...o...o..", ".o.#########.o.", "..###########..", ".#############.", ".#############.",
+    "..###########..", "o.o.o.o.o.o.o.o", "...............", "o.o.o.o.o.o.o.o", "..###########..",
+    "....#######....", ".oo....#....oo.", "..ooo..#..ooo..", "..###########..", "...#########..."
+  ]}
+},
+];
+
+// ---------- Порт SpeciesRenderer.carve: те же глаза, рты и правила ----------
+const N = 25, C = 12;
+const BODY = 1200/4000*255, BRIGHT = 255;
+const LOOKS = {
+  IDLE:['OPEN','NEUTRAL',1], CONTENT:['OPEN','SMILE',1], HAPPY:['HAPPY','GRIN',1], LOVE:['LOVE','SMILE',1],
+  EAT:['HAPPY','OPEN',1], SLEEP:['CLOSED','SMALL',.5], HUNGRY:['OPEN','OPEN',1], ANGRY:['ANGRY','TEETH',1],
+  SCARED:['SCARED','OPEN',1], DIZZY:['DIZZY','WAVY',1], SICK:['SICK','WAVY',.65], SAD:['SAD','FROWN',1],
+  TIRED:['CLOSED','NEUTRAL',.75],
+};
+const FACE_NAMES = [['IDLE','Обычное'],['CONTENT','Доволен'],['HAPPY','Радость'],['LOVE','Любовь'],['EAT','Ест'],
+  ['HUNGRY','Голоден'],['SLEEP','Спит'],['TIRED','Устал'],['SAD','Грустит'],['ANGRY','Злится'],['SCARED','Испуган'],
+  ['DIZZY','Кружится'],['SICK','Болеет']];
+const EYES = {
+  OPEN:[[0,0],[1,0],[0,1],[1,1]], CLOSED:[[0,1],[1,1]], HAPPY:[[0,0],[1,0]], SAD:[[1,0],[0,1],[1,1]],
+  ANGRY:[[0,0],[0,1],[1,1]], DIZZY:[[0,0],[1,1]], SICK:[[0,1],[1,0]],
+};
+const MOUTHS = {
+  NEUTRAL:[[0,0],[1,0],[2,0]], SMILE:[[0,0],[2,0],[1,1]], GRIN:[[0,0],[1,0],[2,0],[1,1]], FROWN:[[1,0],[0,1],[2,1]],
+  OPEN:[[0,0],[1,0],[2,0],[0,1],[1,1],[2,1]], SMALL:[[1,0]], TEETH:[[0,0],[1,0],[2,0],[0,1],[2,1]], WAVY:[[0,1],[1,0],[2,0]],
+};
+
+function showsMouth(sp, d){
+  if(!d.mouth) return false;
+  if(sp.inverted) return true;
+  const [mx,my] = d.mouth; let on = 0;
+  for(let a=0;a<3;a++) for(let b=0;b<2;b++) if((d.rows[my+b]||'')[mx+a]==='#') on++;
+  return on >= 4;
+}
+
+function carve(sp, d, face, blink){
+  const [lookEyes, lookMouth] = LOOKS[face];
+  let eyes = lookEyes;
+  if(face==='CONTENT' && !showsMouth(sp,d)) eyes = 'HAPPY';
+  else if(blink && eyes==='OPEN') eyes = 'CLOSED';
+  const g = d.rows.map(r=>[...r]);
+  const cell = (x,y,c)=>{ if(g[y] && x>=0 && x<g[y].length) g[y][x]=c; };
+  const hole = sp.inverted ? 'o' : '.';
+  d.eyes.forEach(([ex,ey],i)=>{
+    const mirror = i===1 && eyes!=='SICK';
+    if(eyes==='LOVE') EYES.OPEN.forEach(([a,b])=>cell(ex+a,ey+b,'o'));
+    else if(eyes==='SCARED'){
+      EYES.OPEN.forEach(([a,b])=>cell(ex+a,ey+b,hole));
+      cell(ex+(mirror?1:0), ey, sp.inverted?'.':'o');
+    } else EYES[eyes].forEach(([a,b])=>cell(ex+(mirror?1-a:a), ey+b, hole));
+  });
+  if(d.mouth){
+    const [mx,my] = d.mouth;
+    MOUTHS[lookMouth].forEach(([a,b])=>cell(mx+a,my+b,hole));
+    if(lookMouth==='TEETH') cell(mx+1,my+1, sp.inverted?'.':'o');
+  }
+  return g;
+}
+
+function frame(sp, d, face, blink){
+  const body = LOOKS[face][2];
+  const asleep = face==='SLEEP';
+  const grid = carve(sp, d, face, blink);
+  const out = new Float32Array(N*N);
+  grid.forEach((row,y)=>row.forEach((c,x)=>{
+    const X=d.ox+x, Y=d.oy+y;
+    if(X<0||Y<0||X>=N||Y>=N) return;
+    out[Y*N+X] = c==='#' ? BODY*body : c==='o' ? BRIGHT*(asleep?.5:1) : 0;
+  }));
+  return out;
+}
+
+const inMask = (x,y) => Math.hypot(x-C,y-C) <= 12.5;
+function draw(canvas, g){
+  const ctx = canvas.getContext('2d'), W = canvas.width, cell = W/N;
+  ctx.clearRect(0,0,W,W);
+  ctx.fillStyle = '#050506';
+  ctx.beginPath(); ctx.arc(W/2,W/2,W/2,0,Math.PI*2); ctx.fill();
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+    if(!inMask(x,y)) continue;
+    const v = Math.min(1, g[y*N+x]/255), px=(x+.5)*cell, py=(y+.5)*cell;
+    if(v>0.02){
+      ctx.fillStyle = `rgba(255,255,255,${.22*v})`;
+      ctx.beginPath(); ctx.arc(px,py,cell*.52,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle = `rgba(255,255,255,${.15+.85*v})`;
+    } else ctx.fillStyle = '#1b1c1f';
+    ctx.beginPath(); ctx.arc(px,py,cell*.38,0,Math.PI*2); ctx.fill();
+  }
+}
+
+// ---------- Демо уникальной еды ----------
+const put = (g,x,y,v)=>{ x=Math.round(x); y=Math.round(y); if(x>=0&&y>=0&&x<N&&y<N&&inMask(x,y)) g[y*N+x]=v; };
+const box = (g,x,y,s,v)=>{ for(let a=0;a<s;a++) for(let b=0;b<s;b++) put(g,x+a,y+b,v); };
+const ease = p=>p<0?0:p>1?1:p*p*(3-2*p);
+// раскладка по фазам: [[имя, длительность]...] → {n:имя, p:0..1}
+function phase(t, list){ for(const [n,dur] of list){ if(t<dur) return {n, p:t/dur}; t-=dur; } const l=list[list.length-1]; return {n:l[0], p:1}; }
+const sum = list=>list.reduce((s,x)=>s+x[1],0);
+
+const RACCOON = [['fall',.32],['grab',.24],['wash',1.08],['drip',.4],['rub',.66],['eat',.72],['rest',.8]];
+const ANTEATER = [['in',.6],['lick',2.8],['nose',.3],['rest',.8]];
+const FLYTRAP = [['open',.36],['fall',.35],['touch',.04],['snap',.08],['chew',1.32],['swallow',.45],['reopen',.48],['rest',.7]];
+
+const FOOD = {
+  raccoon(sp, t){
+    const d = sp.adult, {n,p} = phase(t % sum(RACCOON), RACCOON);
+    const face = n==='fall'||n==='grab'||n==='rub' ? 'HAPPY' : n==='eat' ? (Math.floor(p*6)%2?'CONTENT':'EAT') : n==='rest' ? 'CONTENT' : 'IDLE';
+    const g = frame(sp, d, face, false), X = 10;
+    if(n==='wash'||n==='drip'){ const fade = n==='drip' ? 1-p : 1; for(let x=6;x<=14;x++) put(g,x,21,BODY*1.1*fade); }
+    if(n==='fall') box(g, X-1, Math.round(-1+18*ease(p)), 3, BRIGHT);
+    else if(n==='grab') box(g, X-1, 17, 3, BRIGHT);
+    else if(n==='wash'){
+      const k = Math.min(2, Math.floor(p*3)), q = p*3-k;      // три окунания
+      const dip = q<.5 ? 1 : 0;
+      box(g, X-1, 17+dip, 3, BRIGHT);
+      if(q>=.5){ const r = Math.min(2, Math.floor((q-.5)*6)); const v=[1,.6,.3][r]*BRIGHT; put(g,X-2-r,21,v); put(g,X+2+r,21,v); }
+    } else if(n==='drip'){
+      box(g, X-1, 17, 3, BRIGHT);
+      const y = 20 + Math.floor(p*4); if(y<23){ put(g,X-1,y,BRIGHT*(1-p)); put(g,X+1,y+1,BRIGHT*(1-p)); }
+    } else if(n==='rub'){
+      const k = Math.floor(p*6)%2;
+      box(g, X-1, 17, 3, k ? BRIGHT : BRIGHT*.55);
+      put(g, X-2-k, 18, BRIGHT); put(g, X+2+k, 18, BRIGHT);
+    } else if(n==='eat'){
+      const s = [3,2,1,0][Math.min(3, Math.floor(p*4))];
+      if(s) box(g, X-Math.floor(s/2), 14, s, BRIGHT);
+    }
+    return g;
+  },
+  anteater(sp, t){
+    const d = sp.adult, {n,p} = phase(t % sum(ANTEATER), ANTEATER);
+    const th0 = 2.45, step = .2, S = [d.ox, d.oy+5];
+    const at = th => [12+11*Math.cos(th), 12+11*Math.sin(th)];
+    let face = n==='rest' ? 'CONTENT' : 'IDLE', ants = [], tongue = 0;
+    if(n==='in') for(let k=0;k<8;k++) ants.push(th0 - k*step - (1-ease(p))*1.4);
+    else if(n==='lick'){
+      const c = Math.min(7, Math.floor(p*8)), q = p*8-c;
+      tongue = q<.35 ? q/.35 : q<.55 ? 1 : (1-q)/.45;
+      const slide = ease((q-.4)/.6);
+      for(let k=c;k<8;k++){ if(k===c && q>=.4) continue; ants.push(th0 - (k-c)*step + (k>c?slide*step:0)); }
+      if(c%3===2 && q>.5) face = 'HAPPY';
+      if(q>.55 && q<.7) face = 'EAT';
+    }
+    const g = frame(sp, d, face, false);
+    ants.forEach(th=>{ const [x,y]=at(th); put(g,x,y,BRIGHT); });
+    if(tongue>0){
+      const [tx,ty] = at(th0), len = Math.hypot(tx-S[0], ty-S[1]), m = Math.ceil(len*tongue);
+      for(let i=1;i<=m;i++){ const f=i/len; put(g, S[0]+(tx-S[0])*f, S[1]+(ty-S[1])*f, BRIGHT); }
+    }
+    if(n==='nose'){ const k=Math.floor(p*3)%2; put(g, S[0], S[1]-1-k, BRIGHT); }
+    return g;
+  },
+  flytrap(sp, t){
+    const d = sp.adult, {n,p} = phase(t % sum(FLYTRAP), FLYTRAP);
+    let dy = 0, jerk = 0, face = 'IDLE', food = null, seam = false, dot = null;
+    if(n==='open') dy = p<.5 ? 0 : -1;
+    else if(n==='fall'){ dy = -1; food = [1+10*p, p<.35 ? 11-2*Math.sin(Math.PI*p/.35) : 11]; }
+    else if(n==='touch'){ dy = -1; food = [11,11]; }
+    else if(n==='snap'){ dy = p<.5 ? 0 : 1; jerk = 1; seam = true; }
+    else if(n==='chew'){ const k=Math.floor(p*12); dy = k%2 ? 0 : 1; seam = dy===1; face = k%4<2 ? 'TIRED' : 'HAPPY'; }
+    else if(n==='swallow'){ dy = 1; face = 'HAPPY'; dot = [12, 15+Math.floor(p*4)]; }
+    else if(n==='reopen'){ dy = p<.5 ? 1 : 0; face = 'HAPPY'; }
+    else face = 'CONTENT';
+    const gr = carve(sp, d, face, false), g = new Float32Array(N*N), body = LOOKS[face][2];
+    gr.forEach((row,y)=>row.forEach((c,x)=>{
+      if(y===7 || c==='.') return;
+      const Y = d.oy + y + (y<7?dy:0) + (y<=10?jerk:0);
+      put(g, d.ox+x, Y, c==='#' ? BODY*body : BRIGHT);
+    }));
+    if(seam){ const Y=d.oy+7+jerk; put(g,d.ox,Y,BRIGHT); put(g,d.ox+14,Y,BRIGHT); }   // щёки раздуваются
+    if(food) box(g, Math.round(food[0]), Math.round(food[1]), 2, BRIGHT);
+    if(dot && dot[1]<19) put(g, dot[0], dot[1], BRIGHT*(1-(dot[1]-15)/4));
+    return g;
+  },
+};
+// ---------- Таблица питомцев ----------
+
+// ---------- Таблица питомцев ----------
+const STAGE_RU = {baby:'малыш', teen:'подросток', adult:'взрослый'};
+const gridEl = document.getElementById('grid');
+const cells = [], demos = [];
+SPECIES.forEach((sp,si)=>{
+  const pet = document.createElement('div'); pet.className = 'pet';
+  const row = document.createElement('div'); row.className = 'row';
+  const name = document.createElement('div'); name.className = 'name';
+  name.innerHTML = `<b>${sp.name}</b><span class="r-${sp.rarity}">${sp.rarity}</span>`;
+  row.append(name);
+  ['baby','teen','adult'].forEach((st,k)=>{
+    const fig = document.createElement('figure');
+    const c = document.createElement('canvas'); c.width = c.height = 340;
+    const d = sp[st];
+    c.setAttribute('role','img');
+    c.setAttribute('aria-label', `${sp.name}, ${STAGE_RU[st]}: ${d.note}`);
+    const cap = document.createElement('figcaption'); cap.textContent = d.note;
+    fig.append(c, cap); row.append(fig);
+    cells.push({sp, d, c, phase: (si*3+k)*370});
+  });
+  const det = document.createElement('details');
+  det.innerHTML = `<summary>${sp.about}</summary><div class="info">
+    <div><b>Привычки.</b><ul><li>Малыш: ${sp.habits.baby}</li><li>Подросток: ${sp.habits.teen}</li><li>Взрослый: ${sp.habits.adult}</li></ul></div>
+    <p><b>Фирменный номер — «${sp.signature.name}».</b> ${sp.signature.idea}</p>
+    <p><b>Трюк — «${sp.trick.name}»</b> (${sp.trick.control}). ${sp.trick.idea}</p>
+    <p><b>Зарядка — ${sp.charge}.</b> ${sp.chargeNote}</p>
+    <p><b>Эволюция.</b> ${sp.evolve}</p></div>`;
+  if(sp.food){
+    const f = document.createElement('div'); f.className = 'food';
+    const c = document.createElement('canvas'); c.width = c.height = 400;
+    c.setAttribute('role','img'); c.setAttribute('aria-label', `${sp.name} ест: ${sp.food.title}`);
+    const txt = document.createElement('div');
+    txt.innerHTML = `<b>Еда — «${sp.food.title}».</b><ol>${sp.food.spec.map(s=>`<li>${s}</li>`).join('')}</ol>`;
+    f.append(c, txt); det.querySelector('.info').append(f);
+    demos.push({sp, c, det, fn: FOOD[sp.id]});
+  }
+  pet.append(row, det);
+  gridEl.append(pet);
+});
+
+let face = 'IDLE';
+const facesEl = document.getElementById('faces');
+FACE_NAMES.forEach(([id,label])=>{
+  const b = document.createElement('button'); b.type='button'; b.textContent=label;
+  b.setAttribute('aria-pressed', id===face);
+  b.onclick = ()=>{ face=id; facesEl.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed', x===b)); renderPets(performance.now(), true); };
+  facesEl.append(b);
+});
+
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const lastBlink = new Map();
+function renderPets(now, force){
+  cells.forEach(cell=>{
+    const blink = !reduce && face==='IDLE' && ((now + cell.phase) % 3600) > 3420;
+    if(!force && lastBlink.get(cell) === blink) return;
+    lastBlink.set(cell, blink);
+    draw(cell.c, frame(cell.sp, cell.d, face, blink));
+  });
+}
+renderPets(0, true);
+
+// демо еды: живут только в раскрытой карточке; без анимации — один показательный кадр
+const STILL = {raccoon:1.0, anteater:1.55, flytrap:1.2};
+demos.forEach(m=>m.det.addEventListener('toggle', ()=>{ if(m.det.open) draw(m.c, m.fn(m.sp, STILL[m.sp.id])); }));
+let lastDemo = 0;
+function loop(now){
+  renderPets(now, false);
+  if(!reduce && now-lastDemo >= 33){ lastDemo = now; demos.forEach(m=>{ if(m.det.open) draw(m.c, m.fn(m.sp, now/1000)); }); }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
