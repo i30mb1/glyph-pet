@@ -6,7 +6,7 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 /** What the preview does to the pet on its own, again and again, to keep a short reaction on screen. */
-enum class Cue { FEED, PET, SHAKE, TRICK, SIGNATURE }
+enum class Cue { FEED, PET, SHAKE, TRICK, SIGNATURE, ALERT }
 
 /**
  * How a state is staged for the preview: the scene the real [PetEngine] is given, and the [cue] repeated every
@@ -71,7 +71,8 @@ enum class PetState(val id: String, val stage: Staging) {
     DIZZY("dizzy", Staging(Mood.CONTENT, Face.DIZZY, Cue.SHAKE, cueFirstMs = 200, cueEveryMs = 3300)),
 
     /** The phone is tilted: it slides to the low side. */
-    SCARED("scared", Staging(Mood.CONTENT, Face.SCARED, tiltEveryMs = 1500)),
+    /** The phone is tilted and a notification comes in: the pet slides to the low side and looks up, startled. */
+    SCARED("scared", Staging(Mood.CONTENT, Face.SCARED, Cue.ALERT, cueFirstMs = 600, cueEveryMs = 4200, tiltEveryMs = 1500)),
 
     /** Every 6-12 s while calm or happy: the species' own habit, named by [Habit.id]. */
     TRICK("trick", Staging(Mood.CONTENT, null, Cue.TRICK, cueFirstMs = 400, cueEveryMs = 3200)),
@@ -126,7 +127,7 @@ class StatePreview(val species: Species, val state: PetState) {
 
     /** Starts the preview over, as if its page had just come on screen. */
     fun reset() {
-        engine = PetEngine(Random(31 * state.ordinal + species.id.hashCode()), autoHabits = false)
+        engine = PetEngine(Random(31 * state.ordinal + species.id.hashCode()), autoHabits = false, autoSignatures = false)
         timeMs = 0
         cueMs = -1
         nextCueMs = state.stage.cueFirstMs
@@ -142,7 +143,9 @@ class StatePreview(val species: Species, val state: PetState) {
                 Cue.PET -> engine.pet()
                 Cue.SHAKE -> engine.shake()
                 Cue.TRICK -> engine.trick()
-                Cue.SIGNATURE -> engine.signatureNow()
+                Cue.ALERT -> engine.alert()
+                // A fixed seed: the same preview always plays the same effect, frame for frame.
+                Cue.SIGNATURE -> engine.signatureNow(seed = state.ordinal * 31L + species.id.hashCode())
             }
             cueMs = timeMs
             nextCueMs += loopMs
@@ -178,14 +181,26 @@ class StatePreview(val species: Species, val state: PetState) {
     fun still(): IntArray {
         val copy = StatePreview(species, state)
         if (state == PetState.SIGNATURE) {
-            // The engine does not tell when the effect is on: a frame well into it.
+            // The engine does not tell when the effect is on: the frame that shows it best, the one changing the most
+            // from the pet just before it, among the frames where the pet itself is drawn whole.
             var frame = copy.tick(FRAME_MS)
             var t = FRAME_MS
-            while (t < state.stage.cueFirstMs + signatureMs * 2 / 5) {
+            while (t < state.stage.cueFirstMs) {
                 frame = copy.tick(FRAME_MS)
                 t += FRAME_MS
             }
-            return frame
+            val before = frame
+            fun whole(f: IntArray) = f.count { it >= PetEngine.BODY / 2 } >= 20
+            var best = frame
+            var bestScore = -1
+            while (t < state.stage.cueFirstMs + signatureMs + STILL_HOLD_MS) {
+                frame = copy.tick(FRAME_MS)
+                t += FRAME_MS
+                if (!whole(frame)) continue
+                val score = changed(before, frame)
+                if (score > bestScore) { best = frame; bestScore = score }
+            }
+            return best
         }
         val limit = maxOf(loopMs, STILL_SEARCH_MS)
         var before = copy.tick(FRAME_MS)

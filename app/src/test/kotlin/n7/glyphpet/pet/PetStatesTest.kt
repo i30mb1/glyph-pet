@@ -25,6 +25,7 @@ class PetStatesTest {
     /** Whether a frame that showed [s] shows what [state] claims. */
     private fun shows(state: PetState, s: Shown): Boolean = when (state) {
         PetState.TRICK -> s.habit
+        PetState.SIGNATURE -> true
         PetState.CHARGING -> s.charging
         PetState.HAPPY -> s.face == Face.CONTENT
         PetState.ASLEEP -> s.face == Face.SLEEP || s.face == Face.PEEK
@@ -36,7 +37,7 @@ class PetStatesTest {
     @Test
     fun `the states come in the order the app shows them, with stable ids`() {
         assertEquals(
-            listOf("calm", "happy", "hungry", "sad", "tired", "sick", "asleep", "eating", "loved", "dizzy", "scared", "trick", "charging"),
+            listOf("calm", "signature", "happy", "hungry", "sad", "tired", "sick", "asleep", "eating", "loved", "dizzy", "scared", "trick", "charging"),
             PetState.entries.map { it.id },
         )
     }
@@ -63,7 +64,8 @@ class PetStatesTest {
             val run = play(p, span(p))
             val share = run.shown.count { shows(st, it) }.toFloat() / run.shown.size
             val least = when (st) {
-                PetState.CALM, PetState.HUNGRY, PetState.SAD, PetState.SICK, PetState.CHARGING, PetState.SCARED -> 0.95f
+                PetState.SIGNATURE -> 1f
+                PetState.CALM, PetState.HUNGRY, PetState.SAD, PetState.SICK, PetState.CHARGING -> 0.95f
                 PetState.HAPPY, PetState.TIRED, PetState.ASLEEP -> 0.8f
                 else -> 0.15f
             }
@@ -84,7 +86,10 @@ class PetStatesTest {
     @Test
     fun `short reactions are triggered again every loop and end in between`() {
         val cued = PetState.entries.filter { it.stage.cue != null }
-        assertEquals(listOf(PetState.ASLEEP, PetState.EATING, PetState.LOVED, PetState.DIZZY, PetState.TRICK), cued)
+        assertEquals(
+            listOf(PetState.SIGNATURE, PetState.ASLEEP, PetState.EATING, PetState.LOVED, PetState.DIZZY, PetState.SCARED, PetState.TRICK),
+            cued,
+        )
         for (s in SpeciesCatalog.all) for (st in cued) {
             val p = StatePreview(s, st)
             assertTrue(p.loopMs >= 2000)
@@ -96,11 +101,15 @@ class PetStatesTest {
                     else -> x.face == st.stage.face
                 }
             }
+            // The signature effect has the whole matrix, and the engine does not report it: it plays on its own clock.
+            val effect = if (st == PetState.SIGNATURE) Signatures.of(s.kind)?.durationMs ?: 0L else 0L
             val perLoop = (p.loopMs / dt).toInt()
+            fun showsIt(indexInLoop: Int, x: Shown): Boolean =
+                if (st == PetState.SIGNATURE) indexInLoop * dt in st.stage.cueFirstMs until (st.stage.cueFirstMs + effect) else signature(x)
             for (loop in 0 until 4) {
                 val window = run.shown.subList(loop * perLoop, minOf((loop + 1) * perLoop, run.shown.size))
-                assertTrue("${s.id} ${st.id} loop $loop shows it", window.any(signature))
-                assertTrue("${s.id} ${st.id} loop $loop rests", window.any { !signature(it) })
+                assertTrue("${s.id} ${st.id} loop $loop shows it", window.indices.any { showsIt(it, window[it]) })
+                assertTrue("${s.id} ${st.id} loop $loop rests", window.indices.any { !showsIt(it, window[it]) })
             }
         }
     }
@@ -140,14 +149,15 @@ class PetStatesTest {
     private fun appLook(frame: IntArray) = PetEngine.toCells(frame).associate { (it.x to it.y) to it.level }
 
     @Test
-    fun `every still tells its state apart from calm, in the app's look`() {
+    fun `every still tells its state apart from calm on the matrix`() {
         val problems = mutableListOf<String>()
         for (s in SpeciesCatalog.all) {
-            val calm = appLook(StatePreview(s, PetState.CALM).still())
+            val calmRaw = StatePreview(s, PetState.CALM).still()
             for (st in PetState.entries - PetState.CALM) {
                 val still = StatePreview(s, st).still()
-                val look = appLook(still)
-                val differ = (calm.keys + look.keys).count { calm[it] != look[it] }
+                // What the matrix draws: the player's real view. (The app's look clamps everything at body brightness
+                // or more to one white, so a habit that only recolours the body would read as no change there.)
+                val differ = still.indices.count { still[it] != calmRaw[it] }
                 // The closest left (4-6): the frog's tongue (the app draws the part over its body white on white), a
                 // one-eyed or mouthless pet's tear, the bot's scan line, the eye's open mouth.
                 if (differ < 4) problems += "${s.id} ${st.id}: $differ LEDs differ from calm"

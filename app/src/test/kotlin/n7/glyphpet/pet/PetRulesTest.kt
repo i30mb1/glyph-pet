@@ -85,7 +85,11 @@ class PetRulesTest {
     @Test
     fun `night or exhaustion put the pet to sleep`() {
         val rested = PetStats(50f, 50f, 50f, 0, 0)
-        assertTrue(PetRules.isAsleep(rested, 23))
+        // Night is from midnight to 6 (PetRules.isNight): 23:00 is still evening.
+        assertTrue(PetRules.isAsleep(rested, 1))
+        assertTrue(PetRules.isAsleep(rested, 5))
+        assertFalse(PetRules.isAsleep(rested, 23))
+        assertFalse(PetRules.isAsleep(rested, PetRules.WAKE_HOUR))
         assertTrue(PetRules.isAsleep(rested.copy(energy = 5f), 12))
         assertFalse(PetRules.isAsleep(rested, 12))
     }

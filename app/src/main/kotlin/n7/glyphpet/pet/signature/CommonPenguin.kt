@@ -47,9 +47,10 @@ internal class CommonPenguinSlide : Signature {
     private val svy = FloatArray(SNOW_MAX)
     private val sage = FloatArray(SNOW_MAX) { 99f }
     private var nextSnow = 0
-    private val random = Random(System.nanoTime())
+    private var random = Random(System.nanoTime())
 
-    override fun start() {
+    override fun start(seed: Long) {
+        random = Random(seed)
         x = 0f; vx = 0f; homeFrom = 0f; started = false; nextSnow = 0
         sage.fill(99f)
     }

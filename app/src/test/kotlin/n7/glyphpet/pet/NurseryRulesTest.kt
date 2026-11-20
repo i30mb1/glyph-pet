@@ -84,17 +84,17 @@ class NurseryRulesTest {
     }
 
     @Test
-    fun `once all 18 are collected there are no more eggs`() {
+    fun `once every hero is collected there are no more eggs`() {
         var s = NurseryState()
         var day = 1
-        while (s.seen.size < 18) {
+        while (s.seen.size < all.size) {
             val today = s.at(at(day, 8))
             s = today.press(5, NurseryRules.available(today).first(), at(day, 9))
             day++
         }
-        assertEquals(19, day)
+        assertEquals(all.size + 1, day)
         assertEquals(all.toSet(), s.seen.keys)
-        for (d in 19..31) s = s.at(at(d, 8))
+        for (d in day..(day + 12)) s = s.at(at(d, 8))
         assertTrue(NurseryRules.available(s).isEmpty())
         assertNull(NurseryRules.onMatrix(s))
         assertNull(NurseryRules.press(s, at(31, 9)))
@@ -121,11 +121,16 @@ class NurseryRulesTest {
         val counts = HashMap<String, Int>()
         repeat(30_000) { counts.merge(SpeciesCatalog.roll(r, missing).id, 1, Int::plus) }
         val total = counts.values.sum().toFloat()
-        // per pet: common 70/10 = 7, rare 25/5 = 5, legendary 5/3
-        val w = 7f + 5f + 5f / 3
-        assertEquals(7f / w, counts.getValue("jelly") / total, 0.015f)
-        assertEquals(5f / w, counts.getValue("cat") / total, 0.015f)
-        assertEquals(5f / 3 / w, counts.getValue("eye") / total, 0.01f)
+        // Each tier's weight is split evenly over its whole tier (SpeciesCatalog.roll), not over the pool drawn from.
+        val tier = SpeciesCatalog.all.groupingBy { it.rarity }.eachCount()
+        fun share(id: String): Float {
+            val rarity = SpeciesCatalog.get(id)!!.rarity
+            return rarity.weight.toFloat() / tier.getValue(rarity)
+        }
+        val w = listOf("cat", "jelly", "eye").sumOf { share(it).toDouble() }.toFloat()
+        assertEquals(share("jelly") / w, counts.getValue("jelly") / total, 0.02f)
+        assertEquals(share("cat") / w, counts.getValue("cat") / total, 0.02f)
+        assertEquals(share("eye") / w, counts.getValue("eye") / total, 0.02f)
     }
 
     // --- Five presses --------------------------------------------------------------------------------
@@ -211,12 +216,14 @@ class NurseryRulesTest {
     fun `a supporter has every missing pet as an egg at once, golden`() {
         val s = withFirstPet().copy(supporter = true)
         val eggs = NurseryRules.available(s)
-        assertEquals(17, eggs.size)
+        assertEquals(all.size - 1, eggs.size)
         assertEquals(all.toSet() - s.active!!, eggs.toSet())
-        // Opening them all, one after the other, the same day.
+        // Opening them all, one after the other, the same day: each egg is put on the matrix before its presses.
         var t = s
-        repeat(17) { t = t.press(5, ms = at(1, 13)) }
-        assertEquals(18, t.seen.size)
+        repeat(all.size - 1) {
+            t = t.press(5, id = NurseryRules.available(t).first(), ms = at(1, 13))
+        }
+        assertEquals(all.size, t.seen.size)
         assertTrue(NurseryRules.available(t).isEmpty())
     }
 
@@ -226,7 +233,7 @@ class NurseryRulesTest {
         val daily = NurseryRules.available(free)
         val sup = free.copy(supporter = true)
         assertEquals(daily, NurseryRules.available(sup).take(2))
-        assertEquals(17, NurseryRules.available(sup).size)
+        assertEquals(all.size - 1, NurseryRules.available(sup).size)
     }
 
     @Test

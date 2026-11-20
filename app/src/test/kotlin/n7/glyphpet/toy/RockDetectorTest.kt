@@ -23,7 +23,9 @@ class RockDetectorTest {
 
     @Test
     fun `a gentle rock left and right plays once`() {
-        assertEquals(1, RockDetector().swing(swings = 4, halfMs = 500, lean = 0.3f))
+        // Four changes of side (RockDetector.SWINGS), the first swing only setting the side.
+        assertEquals(1, RockDetector().swing(swings = RockDetector.SWINGS + 1, halfMs = 500, lean = 0.3f))
+        assertEquals("three changes of side are not enough", 0, RockDetector().swing(swings = RockDetector.SWINGS, halfMs = 500, lean = 0.3f))
     }
 
     @Test
@@ -41,7 +43,7 @@ class RockDetectorTest {
 
     @Test
     fun `swings too slow for the window are no rock`() {
-        assertEquals(0, RockDetector().swing(swings = 4, halfMs = 1600, lean = 0.4f))
+        assertEquals(0, RockDetector().swing(swings = RockDetector.SWINGS + 1, halfMs = 1600, lean = 0.4f))
     }
 
     @Test

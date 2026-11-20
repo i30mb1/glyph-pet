@@ -62,11 +62,11 @@ class SaveMigrationTest {
         val eggs = NurseryRules.available(s)
         assertEquals("eye", eggs.first())
         assertEquals(all.toSet() - setOf("cat", "bot"), eggs.toSet())
-        assertEquals(16, eggs.size)
+        assertEquals(all.size - 2, eggs.size)
     }
 
     @Test
-    fun `a 1_1 player who has all 18 loses the waiting egg and gets no more`() {
+    fun `a 1_1 player who has every hero loses the waiting egg and gets no more`() {
         val every = all.associateWith { 1 } + ("cat" to 4)
         val s = SaveMigration.from11(old(egg = "ufo", seen = every, supporter = true), Random(1))
         assertTrue(s.eggs.isEmpty())

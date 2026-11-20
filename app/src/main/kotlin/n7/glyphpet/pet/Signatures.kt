@@ -33,6 +33,12 @@ interface Signature {
     /** The effect starts again from the beginning. */
     fun start() {}
 
+    /**
+     * The same, every random part seeded for [seed]: a preview passes a fixed one so its frames always repeat
+     * (see [StatePreview]); the toy lets it seed from the clock, as an effect that scatters on its own does.
+     */
+    fun start(seed: Long) = start()
+
     /** How long its ending takes (a trick's way home); stopping it early jumps to that ending. */
     val outroMs: Long get() = 0L
 

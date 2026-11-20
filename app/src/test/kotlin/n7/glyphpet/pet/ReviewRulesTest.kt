@@ -72,7 +72,7 @@ class ReviewRulesTest {
             val cases = mapOf<String, Pair<Mood, (Long, PetEngine) -> Unit>>(
                 "eating" to (Mood.CONTENT to { t, e -> if (t % 1600 == 80L) e.feed(accepted = true) }),
                 "refusing" to (Mood.HAPPY to { t, e -> if (t % 1120 == 80L) e.feed(accepted = false) }),
-                "surging" to (Mood.HAPPY to { t, e -> if (t % 2800 == 80L) e.surge() }),
+                "surging" to (Mood.HAPPY to { t, e -> if (t % 400 == 80L) e.surge() }),
                 "tired" to (Mood.TIRED to { _, _ -> }),
                 "sad" to (Mood.SAD to { _, _ -> }),
                 "peek" to (Mood.SLEEPING to { t, e -> if (t % 800 == 80L) e.pet() }),
@@ -123,15 +123,20 @@ class ReviewRulesTest {
             val scene = Scene(s, Mood.SLEEPING, charging = charging, watts = 10f, battery = 0.5f)
             for (poke in listOf<(PetEngine) -> Unit>({ it.pet() }, { it.shake() }, { it.feed(true) }, { it.feed(false) }, { it.surge() })) {
                 val engine = PetEngine(Random(43))
-                repeat(3) { engine.tick(80, scene) }
+                // A twin that is never poked: on the charger the frames move on their own, so the peek is over when
+                // the two run in step again.
+                val twin = PetEngine(Random(43))
+                repeat(3) { engine.tick(80, scene); twin.tick(80, scene) }
                 val asleepFrame = engine.tick(80, scene)
+                twin.tick(80, scene)
                 poke(engine)
                 var ms = 0L
                 var first: IntArray? = null
                 while (ms < 3000) {
                     val f = engine.tick(80, scene)
+                    val t = twin.tick(80, scene)
                     if (first == null) first = f
-                    if (!charging) { if (engine.shown.face != Face.PEEK) break } else if (f.contentEquals(asleepFrame)) break
+                    if (!charging) { if (engine.shown.face != Face.PEEK) break } else if (f.contentEquals(t)) break
                     ms += 80
                 }
                 assertFalse("${s.id} charging=$charging peek changed nothing", first!!.contentEquals(asleepFrame))
@@ -174,11 +179,18 @@ class ReviewRulesTest {
                 assertTrue("$what nothing lit", f.count { it > 0 } > 15)
                 val sh = engine.shown
                 if (charging) {
-                    assertTrue(what, sh.charging && !sh.habit && sh.lift == 0)
+                    // An egg on the matrix sends the pet away, and a trick plays on the charger too: the owner asked
+                    // for it (see PetEngine.tick).
+                    assertTrue("$what egg or trick on the charger", sh.charging || engine.playingTrick || egg != null)
+                    assertTrue(what, !sh.habit && sh.lift == 0)
                 } else {
                     if (sh.habit) assertTrue("$what habit in $mood", mood == Mood.CONTENT || mood == Mood.HAPPY)
                     if (sh.lift > 0) assertEquals("$what hop", Mood.HAPPY, mood)
-                    if (mood == Mood.SLEEPING) assertTrue("$what ${sh.face}", sh.face == Face.SLEEP || sh.face == Face.PEEK)
+                    if (mood == Mood.SLEEPING && egg == null) assertTrue("$what ${sh.face}", sh.face == Face.SLEEP || sh.face == Face.PEEK)
+                    // A reaction that waited in the queue pokes the sleeper again when it finally runs, so the eye
+                    // stays open; only an eye open with nothing left waiting is held to its second (plus one 250 ms step).
+                    val waiting = !engine.debug(s).contains("pending=0")
+                    if (waiting) peekMs = 0
                     if (sh.face == Face.PEEK) { peekMs += dt; assertTrue("$what peek $peekMs", peekMs <= 1000 + 250) } else peekMs = 0
                     if (mood != Mood.SLEEPING) assertTrue("$what peek awake", sh.face != Face.PEEK)
                 }

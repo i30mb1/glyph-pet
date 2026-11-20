@@ -67,13 +67,16 @@ class HabitsTest {
             val engine = PetEngine(Random(21))
             val starts = mutableListOf<Long>()
             var was = false
-            habitFrames(engine, 40_000, { Scene(s, mood) }) { t, e ->
+            habitFrames(engine, 60_000, { Scene(s, mood) }) { t, e ->
                 if (e.shown.habit && !was) starts += t
                 was = e.shown.habit
             }
             assertTrue("${s.id} $mood: ${starts.size} habits", starts.size >= 3)
+            // A kind with its own signature shares the quiet moments with it (each waits for the other to end),
+            // so its habits may come further apart: by one signature at most between two habits.
+            val signature = Signatures.of(s.kind)?.durationMs ?: 0L
             starts.zipWithNext().forEach { (a, b) ->
-                assertTrue("${s.id} $mood gap ${b - a}", b - a in 6000L..(12_000L + s.habit.durationMs + PetEngine.HOP_MS + 160))
+                assertTrue("${s.id} $mood gap ${b - a}", b - a in 6000L..(12_000L + s.habit.durationMs + PetEngine.HOP_MS + 160 + signature))
             }
         }
     }
@@ -158,15 +161,21 @@ class HabitsTest {
     }
 
     @Test
-    fun `a reaction stops a habit at once`() {
+    fun `a reaction waits for the habit to end, then plays at once`() {
         val frog = SpeciesCatalog.get("frog")!!
         val engine = PetEngine(Random(23))
         engine.trick()
         engine.tick(80, Scene(frog, Mood.CONTENT))
         assertTrue(engine.shown.habit)
         engine.pet()
+        // The habit is always seen to its end: the stroke waits in the queue (see PetEngine.react).
+        var t = 0L
+        while (engine.shown.habit && t < 5000) {
+            engine.tick(80, Scene(frog, Mood.CONTENT))
+            t += 80
+        }
+        assertTrue("the habit ended in ${t}ms", t in frog.habit.durationMs..(frog.habit.durationMs + 500))
         engine.tick(80, Scene(frog, Mood.CONTENT))
-        assertFalse(engine.shown.habit)
         assertEquals(Face.LOVE, engine.shown.face)
     }
 }

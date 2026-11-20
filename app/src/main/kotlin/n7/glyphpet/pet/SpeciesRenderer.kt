@@ -371,6 +371,9 @@ object SpeciesRenderer {
      * the top right of the head (above the second eye). The Bot, all screen and frame, wears it over the top right
      * corner of its frame. Null for a species with no such spot.
      */
+    /** The sprite cells a plaster may cover: plain body only, or body with its shell or mask lines ('o') as a fallback. */
+    private fun bodyCells(plain: Boolean): Set<Char> = if (plain) setOf('#') else setOf('#', 'o')
+
     fun plasterSpot(species: Species): Pair<Int, Int>? = plasterCache.getOrPut(species.id) {
         if (species.inverted) {
             // Over the corner of the frame, sticking out above it, clear of the lit eyes.
@@ -385,18 +388,22 @@ object SpeciesRenderer {
         val (tx, ty) = species.eyes.lastOrNull()?.let { (ex, ey) -> ex + 2 to ey - 3 } ?: (species.width - 4 to 1)
         // Every spot on plain body, scored: first by how many dark corners touch the face (a cramped head like the
         // Cat's has no spot where none do), then by the distance from the top right of the head.
-        val scored = (0..species.height - 3).flatMap { y -> (0..species.width - 3).map { x -> x to y } }.mapNotNull { (x, y) ->
-            var touching = 0
-            for (a in 0..2) for (b in 0..2) {
-                val cx = x + a
-                val cy = y + b
-                if (species.rows[cy][cx] != '#' || (cx to cy) in face) return@mapNotNull null
-                if (!GlyphMatrixSpec.isVisible(species.ox + cx, species.oy + cy)) return@mapNotNull null
-                if (PLASTER[b][a] == 'x' && besideFace(cx, cy)) touching++
+        fun spots(plain: Boolean): List<Triple<Int, Int, Int>> =
+            (0..species.height - 3).flatMap { y -> (0..species.width - 3).map { x -> x to y } }.mapNotNull { (x, y) ->
+                var touching = 0
+                var decorated = 0
+                for (a in 0..2) for (b in 0..2) {
+                    val cx = x + a
+                    val cy = y + b
+                    // A plain spot is all body '#'. A shell or a mask ('o') takes it only where no plain one is left.
+                    if (species.rows[cy][cx] !in bodyCells(plain) || (cx to cy) in face) return@mapNotNull null
+                    if (species.rows[cy][cx] == 'o') decorated++
+                    if (!GlyphMatrixSpec.isVisible(species.ox + cx, species.oy + cy)) return@mapNotNull null
+                    if (PLASTER[b][a] == 'x' && besideFace(cx, cy)) touching++
+                }
+                Triple(x, y, decorated * 10_000 + touching * 1000 + (x - tx) * (x - tx) + (y - ty) * (y - ty))
             }
-            Triple(x, y, touching * 1000 + (x - tx) * (x - tx) + (y - ty) * (y - ty))
-        }
-        scored.minByOrNull { it.third }?.let { it.first to it.second } ?: (-99 to -99)
+        (spots(plain = true).ifEmpty { spots(plain = false) }).minByOrNull { it.third }?.let { it.first to it.second } ?: (-99 to -99)
     }.takeIf { it.first != -99 }
 
     /**

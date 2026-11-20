@@ -29,7 +29,6 @@ import n7.glyphpet.pet.PetRules
 import n7.glyphpet.pet.PetStore
 import n7.glyphpet.pet.Power
 import n7.glyphpet.pet.PressResult
-import n7.glyphpet.pet.ShakeAction
 import n7.glyphpet.pet.Scene
 import n7.glyphpet.pet.XpRules
 import n7.glyphpet.pet.XpSource
@@ -56,19 +55,9 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         /** A notification in Always-on wakes the pet for this long, then the calm frame comes back. */
         const val BURST_MS = 2600L
 
-        /** A double knock cheers the pet up by [TICKLE_JOY] at most this often. */
-        const val TICKLE_JOY_MS = 3000L
-        const val TICKLE_JOY = 1f
-
         /** Tipping the phone this far (radians, about 25 degrees) from how it is held is [Scene.toward] 1. */
         const val TOWARD_FULL = 0.45f
         const val HELD_TAU_S = 4f
-
-        /** The pet greets the owner who picks the phone up at most this often. */
-        const val GREET_EVERY_MS = 120_000L
-
-        /** A pose must have lasted this long before leaving it for the hand counts as being picked up. */
-        const val GREET_AFTER_MS = 3000L
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -78,11 +67,8 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
     private lateinit var haptics: Haptics
     private val engine = PetEngine().apply { haptics = mutableListOf(); events = mutableListOf() }
 
-    /** When a new ball game last brought experience (uptime): at most once per [XpRules.BALL_COOLDOWN_MS]. */
-    private var ballXpAt = Long.MIN_VALUE / 2
-
-    /** When a double knock last cheered the pet up (uptime): at most once per [TICKLE_JOY_MS]. */
-    private var tickleJoyAt = Long.MIN_VALUE / 2
+    /** What the pet does about the gestures of each frame, and how often each may bring it joy or experience. */
+    private val reactions = Reactions()
 
     /** Experience gained since the last debug log line, e.g. "FEED+10 TIME+1". */
     private val xpLog = StringBuilder()
@@ -100,18 +86,15 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
     private var hurt = false
     private var hideUnseen = true
     private val hideGate = HideGate()
-    private val postures = PostureTracker()
     private var posture = Posture.HAND
     private var screenOn = true
     private var unlocked = false
     private var screenCheckedAt = Long.MIN_VALUE / 2
 
-    /** In the hand: the forward/back angle the phone is usually held at (radians, adapting over seconds). */
-    private var greetedAt = Long.MIN_VALUE / 2
-    private var postureSince = 0L
-    private var greetCheckAt = 0L
+    /** The owner just picked the phone up: the pet greets them on this frame (see [Reactions.posture]). */
     private var greetWanted = false
 
+    /** In the hand: the forward/back angle the phone is usually held at (radians, adapting over seconds). */
     private var heldPitch = Float.NaN
     private var toward = 0f
     private var dark = false
@@ -370,7 +353,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         running = true
         dark = false
         hideGate.reset()
-        postures.reset()
+        reactions.reset()
         motion.start()
         lastFrameAt = SystemClock.uptimeMillis()
         main.post(frameLoop)
@@ -395,58 +378,47 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             return
         }
         updatePosture(now)
-        if (motion.consumeDrop() && nursery?.active != null) {
-            Log.d(TAG, "event drop")
-            // The hit of a drop also reads as a shake: it is the drop that counts.
-            motion.consumeShake()
-            store.drop()
-            engine.drop()
-            sync(force = true)
-        }
+        // The drop is read before the hide check: the pet is hurt by a fall nobody was watching too. The hit of a drop
+        // also reads as a shake, so that shake is dropped with it.
+        val dropped = motion.consumeDrop()
+        if (dropped) motion.consumeShake()
         if (hideUnseen && hidden(now)) {
+            if (dropped && nursery?.active != null) react(listOf(Reaction.Hurt), now)
             motion.consumeKnock()
             motion.consumeTwirl()
             sendDark()
             return
         }
         dark = false
-        // Busy with the screen in another app: the phone moves with the hand, and none of it is play.
-        val using = posture == Posture.USING_PHONE
-        if (motion.consumeShake() && !using) {
-            val n = nursery
-            val shake = ButtonRules.shake(hasPet = n?.active != null, eggOnMatrix = n?.eggOnMatrix != null, petReady = n?.ready == true)
-            Log.d(TAG, "event shake -> $shake")
-            when (shake) {
-                // The evolution plays through sync(), by justEvolved; each shake before it makes the pet flare up.
-                ShakeAction.GROW -> {
-                    if (store.growShake() == GrowResult.SHOOK) { engine.surge(); feel(HapticKind.GROW_SHAKE) }
-                    sync(force = true)
-                }
-                // Shaking is no game, and it only grows a pet that is ready: dizzy stars come from twirling the phone.
-                ShakeAction.DIZZY -> Unit
-                ShakeAction.NOTHING -> Unit
-            }
-        }
-        if (motion.consumeTwirl() && !using && nursery?.active != null && nursery?.eggOnMatrix == null) {
-            // Turned round and round (on the desk, or in the hand in the plane of the screen): dizzy stars.
-            Log.d(TAG, "event twirl -> dizzy posture=$posture")
-            engine.shake()
-        }
-        if (motion.consumeRock() && !using && ButtonRules.rockPlays(hasPet = nursery?.active != null, mood = mood, eggOnMatrix = nursery?.eggOnMatrix != null)) {
-            Log.d(TAG, "event rock -> play (ball out: ${engine.playingBall})")
-            // A new game cheers it up and tires it a little; a kick to the ball already rolling changes nothing.
-            if (!engine.playingBall) {
-                store.update { PetRules.play(it) }
-                if (now - ballXpAt >= XpRules.BALL_COOLDOWN_MS && award(XpRules.BALL, XpSource.BALL) > 0) ballXpAt = now
-            }
-            engine.play()
-            feel(HapticKind.PLAY)
-        }
-        if (greetWanted) greet(now)
-        val knock = motion.consumeKnock()
-        if (knock > 0 && (posture == Posture.DESK || posture == Posture.HAND)) onKnock(knock, now)
+        val gestures = Gestures(
+            drop = dropped,
+            shake = motion.consumeShake(),
+            twirl = motion.consumeTwirl(),
+            rock = motion.consumeRock(),
+            knocks = motion.consumeKnock(),
+            pickedUp = greetWanted,
+        )
+        greetWanted = false
+        val n = nursery
+        react(
+            reactions.frame(
+                now,
+                gestures,
+                Attention(
+                    hasPet = n?.active != null,
+                    eggOnMatrix = n?.eggOnMatrix != null,
+                    ready = n?.ready == true,
+                    mood = mood,
+                    posture = posture,
+                    playingBall = engine.playingBall,
+                ),
+            ),
+            now,
+        )
         sync(force = false)
         val desk = posture == Posture.DESK
+        // Busy with the screen in another app: the phone moves with the hand, and none of it is play.
+        val using = posture == Posture.USING_PHONE
         updateToward(dt)
         send(engine.tick(dt, if (using) scene() else scene(tilt = motion.tilt, tiltY = motion.tiltY, desk = desk, spin = if (desk) motion.spin else 0f, toward = toward,
             yaw = if (posture == Posture.HAND) motion.yaw else 0f)))
@@ -477,25 +449,51 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
     }
 
     /**
-     * A knock on the desk or the back of the phone: once, the pet looks up at the viewer and hops; twice, it is tickled
-     * (a giggle, a light haptic, a little joy at most every [TICKLE_JOY_MS]). A sleeper only opens one eye and nothing
-     * changes for it.
+     * Plays what [Reactions.frame] decided, in its order: the store first where a reaction changes the pet, then the
+     * matrix and the hand. A [Reaction.Hurt] or a [Reaction.Grow] changes the save, so the toy reads it back at once.
      */
-    private fun onKnock(knocks: Int, now: Long) {
-        val n = nursery
-        if (n?.active == null || n.eggOnMatrix != null) return
-        val asleep = mood == Mood.SLEEPING
-        Log.d(TAG, "event knock x$knocks posture=$posture asleep=$asleep")
-        if (knocks >= 2) {
-            engine.tickle()
-            if (asleep) return
-            feel(HapticKind.TICKLE)
-            if (now - tickleJoyAt >= TICKLE_JOY_MS) {
-                tickleJoyAt = now
-                store.update { it.copy(joy = (it.joy + TICKLE_JOY).coerceIn(0f, 100f)) }
+    private fun react(list: List<Reaction>, now: Long) {
+        for (r in list) when (r) {
+            Reaction.Hurt -> {
+                Log.d(TAG, "event drop")
+                store.drop()
+                engine.drop()
+                sync(force = true)
             }
-        } else {
-            engine.notice()
+            // The evolution plays through sync(), by justEvolved; each shake before it makes the pet flare up.
+            Reaction.Grow -> {
+                Log.d(TAG, "event shake -> grow")
+                if (store.growShake() == GrowResult.SHOOK) { engine.surge(); feel(HapticKind.GROW_SHAKE) }
+                sync(force = true)
+            }
+            Reaction.Dizzy -> {
+                // Turned round and round (on the desk, or in the hand in the plane of the screen): dizzy stars.
+                Log.d(TAG, "event twirl -> dizzy posture=$posture")
+                engine.shake()
+            }
+            is Reaction.Play -> {
+                Log.d(TAG, "event rock -> play (fresh game: ${r.freshGame})")
+                if (r.freshGame) store.update { PetRules.play(it) }
+                if (r.xp) award(XpRules.BALL, XpSource.BALL)
+                engine.play()
+                feel(HapticKind.PLAY)
+            }
+            Reaction.Notice -> {
+                Log.d(TAG, "event knock x1 posture=$posture")
+                engine.notice()
+            }
+            is Reaction.Tickle -> {
+                Log.d(TAG, "event knock x2 posture=$posture joy=${r.joy}")
+                engine.tickle()
+                // A sleeper only opens one eye: it giggles, but [feel] keeps quiet for it and nothing changes.
+                feel(HapticKind.TICKLE)
+                if (r.joy) store.update { it.copy(joy = (it.joy + Reactions.TICKLE_JOY).coerceIn(0f, 100f)) }
+            }
+            Reaction.Greet -> {
+                Log.d(TAG, "event greet posture=$posture")
+                engine.greet()
+                feel(HapticKind.GREET)
+            }
         }
     }
 
@@ -519,38 +517,18 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         toward = (d / TOWARD_FULL).coerceIn(-1f, 1f)
     }
 
-    /** Reads the screen state twice a second and tells the [Posture] for this frame. */
+    /** Reads the screen state twice a second and tells the [Posture] for this frame ([Reactions.posture]). */
     private fun updatePosture(now: Long) {
-        val wasOn = screenOn
         if (now - screenCheckedAt >= 500) {
             screenCheckedAt = now
             screenOn = getSystemService(PowerManager::class.java)?.isInteractive ?: true
             unlocked = getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == false
         }
-        val before = posture
-        posture = postures.update(motion.pose, motion.jitter, screenOn, unlocked, n7.glyphpet.MainActivity.inFront, now)
         // Picked up from the desk or out of the pocket, or the screen turned off with the phone still in hand: greet.
-        if (wasOn && !screenOn) greetCheckAt = now + 800
-        if (posture != before) {
-            if (posture == Posture.HAND && (before == Posture.DESK || before == Posture.AWAY) && now - postureSince >= GREET_AFTER_MS) greetWanted = true
-            postureSince = now
+        if (reactions.posture(motion.pose, motion.jitter, screenOn, unlocked, n7.glyphpet.MainActivity.inFront, now)) {
+            greetWanted = true
         }
-        if (greetCheckAt > 0 && now >= greetCheckAt) {
-            greetCheckAt = 0
-            if (posture == Posture.HAND) greetWanted = true
-        }
-    }
-
-    /** The owner has the phone in hand again: the pet greets once (a happy hop and a soft tick), at most every two minutes. */
-    private fun greet(now: Long) {
-        greetWanted = false
-        val n = nursery
-        if (n?.active == null || n.eggOnMatrix != null || mood == Mood.SLEEPING) return
-        if (now - greetedAt < GREET_EVERY_MS) return
-        greetedAt = now
-        Log.d(TAG, "event greet posture=$posture")
-        engine.greet()
-        feel(HapticKind.GREET)
+        posture = reactions.heldAs
     }
 
     /**

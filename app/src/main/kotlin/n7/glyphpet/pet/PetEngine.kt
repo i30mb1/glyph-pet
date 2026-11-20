@@ -71,8 +71,13 @@ data class Shown(
  * and the big moments ([Moments]): the hatch and the evolution. Around the pet: a shadow under its jumps, the [Ball] it
  * plays with, and [Weather] for its mood. [tick] returns one 25x25 frame of LED brightness, row by row.
  * @param autoHabits plays the species' habit by itself every 6-12 s; without it only [trick] starts one.
+ * @param autoSignatures plays the species' signature effect by itself every 10-20 s; without it only [signatureNow] starts it.
  */
-class PetEngine(private val random: Random = Random.Default, private val autoHabits: Boolean = true) {
+class PetEngine(
+    private val random: Random = Random.Default,
+    private val autoHabits: Boolean = true,
+    private val autoSignatures: Boolean = true,
+) {
 
     companion object {
         const val SIZE = GlyphMatrixSpec.SIZE
@@ -352,9 +357,17 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
     private var signatureMs = -1L
     private var signatureInMs = 0L
 
+    /** The seed [signature] starts with, for a preview that must repeat; null: the effect seeds itself (see [Signature.start]). */
+    private var signatureSeed: Long? = null
+
+    /** The last start was asked for ([signatureNow]), not one of the effect's own. */
+    private var signatureAsked = false
+
     /** Plays the pet's signature effect on the next free tick (debug and the app's preview). */
-    fun signatureNow() {
+    fun signatureNow(seed: Long? = null) {
         signatureInMs = 0
+        signatureSeed = seed
+        signatureAsked = true
     }
 
     private fun nextSignatureIn(): Long =
@@ -370,8 +383,8 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
             !ball.active && (scene.mood == Mood.CONTENT || scene.mood == Mood.HAPPY)
         if (signatureMs >= 0) {
             signatureMs += dtMs
-            // Once started it plays to the end: only a drop or falling asleep stops it (tilting is part of most effects).
-            if (!asleep && action == Action.NONE && signatureMs < sig.durationMs) return true
+            // Once started it plays to the end, unless the pet's own habit is due: that takes the frame (see updateHabit).
+            if (!asleep && action == Action.NONE && habitMs < 0 && signatureMs < sig.durationMs) return true
             // Watched to the end: it ran its whole length.
             if (signatureMs >= sig.durationMs) report(PetEvent(PetEvent.Kind.SIGNATURE, sig.durationMs))
             signatureMs = -1
@@ -379,10 +392,13 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
             return false
         }
         if (!free) return false
+        if (!autoSignatures && !signatureAsked) return false
         signatureInMs -= dtMs
         if (signatureInMs > 0) return false
         signatureMs = 0
-        sig.start()
+        sig.start(signatureSeed ?: System.nanoTime())
+        signatureSeed = null
+        signatureAsked = false
         return true
     }
 
@@ -695,7 +711,8 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
             signatureKind = species.kind
             signature = Signatures.of(species.kind)
             signatureMs = -1
-            signatureInMs = nextSignatureIn()
+            // A kind the pet has just become waits its turn, unless the effect was asked for ([signatureNow]).
+            if (!signatureAsked) signatureInMs = nextSignatureIn()
         }
         if (species.kind != feastMadeFor) {
             feastMadeFor = species.kind
@@ -914,8 +931,11 @@ class PetEngine(private val random: Random = Random.Default, private val autoHab
     private fun updateHabit(dtMs: Long, species: Species, scene: Scene, sliding: Boolean) {
         val mood = scene.mood
         if (habitMs >= 0) {
-            // A habit that started plays to the end; only a drop (the one action that comes at once) cuts it short.
-            if (action != Action.NONE) {
+            // A habit that started plays to the end, unless the pet is no longer free for it: any reaction, the
+            // charger, a slide or another mood cuts it short at once. (A habit itself is what keeps the pet from
+            // sliding, so the lean is read here, not [sliding].)
+            val keep = !scene.charging && abs(scene.tilt) <= SLIDE_TILT && (mood == Mood.CONTENT || mood == Mood.HAPPY)
+            if (action != Action.NONE || !keep) {
                 habitMs = -1
                 habitSpot = null
                 return

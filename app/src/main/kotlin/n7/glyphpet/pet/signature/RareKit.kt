@@ -220,6 +220,15 @@ internal class SafeSignature(private val inner: Signature) : Signature {
         }
     }
 
+    override fun start(seed: Long) {
+        broken = false
+        try {
+            inner.start(seed)
+        } catch (_: Exception) {
+            broken = true
+        }
+    }
+
     override fun draw(frame: IntArray, input: SignatureInput) {
         if (!broken) {
             try {

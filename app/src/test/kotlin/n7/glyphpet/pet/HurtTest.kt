@@ -16,12 +16,13 @@ class HurtTest {
 
     @Test
     fun `the plaster stays until the next morning`() {
-        assertEquals(at(18, 7), PetRules.hurtUntil(at(17, 10)))
-        assertEquals(at(18, 7), PetRules.hurtUntil(at(17, 23, 30)))
+        // The pet wakes at 6 (PetRules.WAKE_HOUR): that is when the plaster comes off.
+        assertEquals(at(18, PetRules.WAKE_HOUR), PetRules.hurtUntil(at(17, 10)))
+        assertEquals(at(18, PetRules.WAKE_HOUR), PetRules.hurtUntil(at(17, 23, 30)))
         // In the small hours with enough night left: that same morning.
-        assertEquals(at(18, 7), PetRules.hurtUntil(at(18, 1)))
+        assertEquals(at(18, PetRules.WAKE_HOUR), PetRules.hurtUntil(at(18, 1)))
         // Just before the morning: the morning after.
-        assertEquals(at(19, 7), PetRules.hurtUntil(at(18, 5)))
+        assertEquals(at(19, PetRules.WAKE_HOUR), PetRules.hurtUntil(at(18, 5)))
     }
 
     @Test

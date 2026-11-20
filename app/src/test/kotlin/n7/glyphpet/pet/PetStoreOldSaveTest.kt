@@ -181,7 +181,7 @@ class PetStoreOldSaveTest {
         assertEquals(n.collection, again.collection)
         // Put on the matrix (golden: a supporter's), five presses open the owl.
         store.putEggOnMatrix("owl", nowMs = now + 110_000)
-        assertEquals(EggView(EggStage.WHOLE, golden = true), store.nursery(now + 110_000).eggView)
+        assertEquals(EggView(EggStage.WHOLE, golden = true, rarity = Rarity.RARE), store.nursery(now + 110_000).eggView)
         repeat(4) { assertEquals(PressResult.CRACKED, store.pressEgg(nowMs = now + 120_000)) }
         assertEquals(PressResult.HATCHED, store.pressEgg(nowMs = now + 120_000))
         val hatched = store.nursery(now + 121_000)
@@ -224,8 +224,8 @@ class PetStoreOldSaveTest {
         val n = PetStore(fakeContext(prefs)).nursery(now)
         assertNull(n.active)
         assertEquals(1, n.eggs.size)
-        assertEquals(EggView(EggStage.WHOLE, golden = false), n.eggView)
-        assertEquals(3, prefs.map["save_version"])
+        assertEquals(EggView(EggStage.WHOLE, golden = false, rarity = n.eggs.first().rarity), n.eggView)
+        assertEquals(4, prefs.map["save_version"])
     }
 
     @Test
@@ -278,7 +278,7 @@ class PetStoreOldSaveTest {
         val n = store.nursery(now)
         assertEquals(stats, n.stats)
         assertEquals(Mood.SICK, PetRules.mood(n.stats, asleep = false))
-        assertTrue(store.feed(now))
+        assertTrue(store.feed(now).ate)
         val fed = store.nursery(now)
         // 3 + 35 Food, 2 + 5 Joy: no longer sick, only sad.
         assertEquals(Mood.SAD, PetRules.mood(fed.stats, asleep = false))
@@ -311,14 +311,14 @@ class PetStoreOldSaveTest {
         val prefs = MemoryPrefs()
         write12(prefs, now, active = "fox", seen = mapOf("fox" to 1, "cat" to 3, "ufo" to 1), eggs = listOf("owl"))
         val n = PetStore(fakeContext(prefs)).nursery(now)
-        val teen = Growth(Stage.TEEN, Stage.TEEN, careDays = 0, ready = false, sinceDay = EggRules.dayKey(now))
+        val teen = Growth(Stage.TEEN, Stage.TEEN, xp = 0, ready = false, sinceDay = EggRules.dayKey(now))
         assertEquals(mapOf("fox" to teen, "cat" to teen, "ufo" to teen), n.growth)
         assertEquals("fox", n.active?.id)
         assertSame(SpeciesCatalog.get("fox"), n.activeForm)
         assertEquals(teen, n.activeGrowth)
         assertFalse(n.ready)
         assertEquals("owl", n.eggs.firstOrNull()?.id)
-        assertEquals(3, prefs.map["save_version"])
+        assertEquals(4, prefs.map["save_version"])
         assertEquals(listOf("fox", "cat", "ufo").map { "$it:TEEN:TEEN:0:0:${EggRules.dayKey(now)}:0" }.toSet(), (prefs.map["growth"] as String).split(',').toSet())
         // Loaded again days later: the same teens, the day they became teens kept.
         val later = PetStore(fakeContext(prefs)).nursery(now + 3 * PetStats.DAY_MS)
@@ -349,10 +349,12 @@ class PetStoreOldSaveTest {
         val hatched = PetStore(fakeContext(prefs)).nursery(day1 + 2000)
         val kind = hatched.active!!.id
         assertEquals("$kind.baby", hatched.activeForm?.id)
-        assertEquals(GrowthRules.hatched(EggRules.dayKey(day1)), hatched.activeGrowth)
+        assertEquals("the first hero of all, so with its head start", GrowthRules.hatched(EggRules.dayKey(day1), first = true), hatched.activeGrowth)
         assertEquals(GrowResult.NONE, store.growShake(day1 + 3000))
 
         val day2 = day1 + PetStats.DAY_MS
+        // A hundred experience makes it ready; the debug button is the shortest way to it here.
+        store.debugXp(XpRules.BABY_TO_TEEN, day2)
         assertTrue(PetStore(fakeContext(prefs)).nursery(day2).ready)
         assertEquals(GrowResult.SHOOK, store.growShake(day2))
         assertEquals(GrowResult.SHOOK, PetStore(fakeContext(prefs)).growShake(day2 + 1))
@@ -369,22 +371,56 @@ class PetStoreOldSaveTest {
     }
 
     @Test
-    fun `a meal counts toward growing, a sick day does not`() {
+    fun `a meal brings experience while the pet is hungry, and none once it is full`() {
         val now = at(2026, 11, 18, 12)
         val prefs = MemoryPrefs()
         write12(prefs, now, active = "cat", seen = mapOf("cat" to 1))
-        prefs.map["satiety"] = 40f
+        // Three dots of Food or fewer: the meal is worth something (see XpRules.FEED_MAX_DOTS).
+        // High enough that one meal fills the pet past PetRules.FULL.
+        prefs.map["satiety"] = 60f
         val store = PetStore(fakeContext(prefs))
-        assertTrue(store.feed(now))
-        val nextDay = store.nursery(now + PetStats.DAY_MS)
-        assertEquals(1, nextDay.activeGrowth?.careDays)
-        // A neglected pet is sick that day: fed later, the day still does not count.
+        val fed = store.feed(now)
+        assertTrue(fed.ate)
+        assertEquals(XpRules.FEED, fed.xp)
+        assertEquals(XpRules.FEED, store.nursery(now).activeGrowth?.xp)
+        // Full now: the next meal is refused and brings nothing.
+        val refused = store.feed(now + 1000)
+        assertFalse(refused.ate)
+        assertEquals(0, refused.xp)
+        assertEquals(XpRules.FEED, store.nursery(now + 1000).activeGrowth?.xp)
+    }
+
+    @Test
+    fun `a sick pet gains nothing, and 1_2's care keys are gone from the save`() {
+        val now = at(2026, 11, 18, 12)
+        val prefs = MemoryPrefs()
+        write12(prefs, now, active = "cat", seen = mapOf("cat" to 1))
+        // 1.2 counted care days; the keys are dropped on the first save (see PetStore.OLD_KEYS).
+        prefs.map["care_day"] = EggRules.dayKey(now)
+        prefs.map["care_fed"] = true
+        prefs.map["care_sick"] = true
         prefs.map["satiety"] = 2f
         prefs.map["joy"] = 2f
-        prefs.map["updated_at"] = now + PetStats.DAY_MS
-        store.nursery(now + PetStats.DAY_MS + 1000)
-        assertEquals(true, prefs.map["care_sick"])
-        assertTrue(store.feed(now + PetStats.DAY_MS + 2000))
-        assertEquals(1, store.nursery(now + 2 * PetStats.DAY_MS).activeGrowth?.careDays)
+        val store = PetStore(fakeContext(prefs))
+        assertEquals(Mood.SICK, PetRules.mood(store.nursery(now).stats, asleep = false))
+        assertEquals("a sick pet earns nothing from time", 0, store.gain(XpRules.SIGNATURE, now))
+        for (key in listOf("care_day", "care_fed", "care_sick")) assertFalse(key, prefs.map.containsKey(key))
+        // The meal that cures it still counts: it was down to its last dot of Food.
+        assertEquals(XpRules.FEED, store.feed(now + 1000).xp)
+    }
+
+    @Test
+    fun `a save from before experience turns its care days into experience`() {
+        val now = at(2026, 11, 18, 12)
+        val prefs = MemoryPrefs()
+        write12(prefs, now, active = "cat", seen = mapOf("cat" to 1))
+        // Version 3: growth rows held care days in the fourth field. Two of the three days a teen needed.
+        prefs.map["save_version"] = 3
+        prefs.map["growth"] = "cat:TEEN:TEEN:2:0:${EggRules.dayKey(now)}:0"
+        val n = PetStore(fakeContext(prefs)).nursery(now)
+        assertEquals(XpRules.fromCareDays(Stage.TEEN, 2), n.activeGrowth?.xp)
+        assertEquals(4, prefs.map["save_version"])
+        // Read once more from the rewritten save: the experience stays as it is, not converted twice.
+        assertEquals(XpRules.fromCareDays(Stage.TEEN, 2), PetStore(fakeContext(prefs)).nursery(now + 1000).activeGrowth?.xp)
     }
 }

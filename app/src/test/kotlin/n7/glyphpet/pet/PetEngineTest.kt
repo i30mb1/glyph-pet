@@ -133,8 +133,13 @@ class PetEngineTest {
             val stills = Mood.entries.associateWith { PetEngine().still(Scene(s, it, egg = egg)) }
             for ((a, fa) in stills) for ((b, fb) in stills) {
                 if (a.ordinal >= b.ordinal) continue
-                // The closest pairs left: a one-eyed or mouthless pet's tear (5-6 LEDs) and a yawn (7: shut eyes, open mouth).
-                val least = if (Mood.CONTENT in listOf(a, b) && (Mood.HAPPY in listOf(a, b) || Mood.TIRED in listOf(a, b))) 7 else 5
+                // The closest pairs left: a one-eyed or mouthless pet's tear (5-6 LEDs) and a yawn (5: the chameleon,
+                // one eye and a mouth at the very edge of its head; 7 for a pet with two).
+                val least = if (Mood.CONTENT in listOf(a, b) && (Mood.HAPPY in listOf(a, b) || Mood.TIRED in listOf(a, b))) {
+                    if (s.eyes.size < 2) 5 else 7
+                } else {
+                    5
+                }
                 if (differing(fa, fb) < least) problems += "${s.id} egg=${egg != null}: $a vs $b ${differing(fa, fb)}"
             }
         }
@@ -167,8 +172,11 @@ class PetEngineTest {
             return starts
         }
         val happy = hops(Mood.HAPPY)
-        assertTrue("${happy.size} hops in 20 s", happy.size in 5..10)
-        happy.zipWithNext().forEach { (a, b) -> assertTrue("gap ${b - a}", b - a in 2000L..4500L) }
+        // A hop waits for the signature effect, which has the whole matrix: fewer hops in the same 20 s, and the gap
+        // across one effect is longer (PetEngine.updateHop, updateSignature).
+        val signature = Signatures.of(cat.kind)?.durationMs ?: 0L
+        assertTrue("${happy.size} hops in 20 s", happy.size in 3..10)
+        happy.zipWithNext().forEach { (a, b) -> assertTrue("gap ${b - a}", b - a in 2000L..(4500L + signature)) }
         assertTrue(hops(Mood.CONTENT).isEmpty())
     }
 

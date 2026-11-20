@@ -57,27 +57,25 @@ class FormsTest {
     }
 
     @Test
-    fun `babies fill up on the charger, adults charge the teen's way unless it is drawn on the teen`() {
-        val teenOnly = setOf(ChargeWay.BAR, ChargeWay.STORM, ChargeWay.BEAM, ChargeWay.IRIS)
+    fun `babies fill up on the charger, every older form charges the hero's way`() {
         for (teen in SpeciesCatalog.all) {
-            assertEquals(ChargeWay.FILL, SpeciesForms.of(teen.id, Stage.BABY).charge)
-            val adult = SpeciesForms.of(teen.id, Stage.ADULT).charge
-            assertEquals(teen.id, if (teen.charge in teenOnly) ChargeWay.FILL else teen.charge, adult)
+            assertEquals("${teen.id}.baby", ChargeWay.FILL, SpeciesForms.of(teen.id, Stage.BABY).charge)
+            assertEquals("${teen.id}.adult", teen.charge, SpeciesForms.of(teen.id, Stage.ADULT).charge)
         }
     }
 
     @Test
-    fun `habits by stage - the teen's own, a wiggle for babies, adults keep theirs only where it fits`() {
+    fun `habits by stage - the teen's own, a wiggle for babies, adults their grown-up habit`() {
         for (teen in SpeciesCatalog.all) {
             assertEquals(teen.habit.id, Habits.forStage(teen.id, Stage.TEEN, teen.rows).id)
-            assertEquals("wiggle", SpeciesForms.of(teen.id, Stage.BABY).habit.id)
-            val adult = SpeciesForms.of(teen.id, Stage.ADULT).habit.id
-            assertTrue("${teen.id}: $adult", adult == "wiggle" || adult == teen.habit.id)
+            assertEquals("${teen.id}.baby", "wiggle", SpeciesForms.of(teen.id, Stage.BABY).habit.id)
+            // An adult has its own habit now (Habits.forStage, Stage.ADULT), or the wiggle where it has none.
+            val adultForm = SpeciesForms.of(teen.id, Stage.ADULT)
+            assertEquals("${teen.id}.adult", Habits.forStage(teen.id, Stage.ADULT, adultForm.rows).id, adultForm.habit.id)
         }
-        assertEquals("vanish", SpeciesForms.of("ghost", Stage.ADULT).habit.id)
-        assertEquals("light_show", SpeciesForms.of("ufo", Stage.ADULT).habit.id)
         assertEquals("wiggle", Habits.forStage("nope", Stage.TEEN, listOf("#")).id)
-        for (s in babiesAndAdults) assertTrue("${s.id} ${s.habit.durationMs}", s.habit.durationMs in 1000L..1500L)
+        assertEquals("wiggle", Habits.forStage("nope", Stage.ADULT, listOf("#")).id)
+        for (s in babiesAndAdults) assertTrue("${s.id} ${s.habit.durationMs}", s.habit.durationMs in 1000L..1700L)
     }
 
     @Test

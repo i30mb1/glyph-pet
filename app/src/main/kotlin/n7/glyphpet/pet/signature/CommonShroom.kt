@@ -35,8 +35,8 @@ internal class CommonShroomSpores : Signature {
         start()
     }
 
-    override fun start() {
-        val r = Random(System.nanoTime())
+    override fun start(seed: Long) {
+        val r = Random(seed)
         for (i in 0 until COUNT) {
             birth[i] = (i * EMIT_MS / COUNT) + r.nextLong(0, 60)
             offset[i] = r.nextFloat() * 2f - 1f
