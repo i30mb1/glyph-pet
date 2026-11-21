@@ -52,7 +52,7 @@ internal class BeeTrick : Trick(0L) {
         sip = 0L
         pollen = 0
         party = 0L
-        seed = (System.nanoTime() and 0xffff).toInt()
+        seed = freshSeed()
         for (i in 0 until FLOWERS) {
             place(i)
             open[i] = 0.3f * i

@@ -1,6 +1,5 @@
 package n7.glyphpet.toy
 
-import android.app.KeyguardManager
 import android.app.Service
 import android.content.ComponentName
 import android.content.Intent
@@ -8,7 +7,6 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.Messenger
-import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
 import com.nothing.ketchum.Glyph
@@ -34,8 +32,8 @@ import n7.glyphpet.pet.XpRules
 import n7.glyphpet.pet.XpSource
 
 /**
- * The pet as a Glyph Toy. Live: animates at ~12 fps. Holding the Glyph button feeds, rocking the phone gently from
- * side to side plays, a shake makes the pet dizzy, a steady tilt rolls it. A pet that is ready to grow grows after a
+ * The pet as a Glyph Toy. Live: animates at ~12 fps. A press of the Glyph button feeds a hungry pet and starts the
+ * mini-game of a full one, holding it opens the menu, a shake makes the pet dizzy, a steady tilt rolls it. A pet that is ready to grow grows after a
  * few shakes instead. The matrix shows the form of the pet the player picked. While the player has put an egg on the
  * matrix the pet is away: the matrix shows the egg and holding the button cracks it; the fifth press hatches it.
  * On the charger the pet shows the battery level and the charging speed in its own way.
@@ -85,12 +83,6 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
     private var hideUnseen = true
     private val hideGate = HideGate()
     private var posture = Posture.HAND
-    private var screenOn = true
-    private var unlocked = false
-    private var screenCheckedAt = Long.MIN_VALUE / 2
-
-    /** The owner just picked the phone up: the pet greets them on this frame (see [Reactions.posture]). */
-    private var greetWanted = false
 
     /** In the hand: the forward/back angle the phone is usually held at (radians, adapting over seconds). */
     private var heldPitch = Float.NaN
@@ -114,8 +106,26 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
 
     private val toyHandler = Handler(Looper.getMainLooper()) { msg ->
         if (msg.what != GlyphToy.MSG_GLYPH_TOY) return@Handler false
-        when (msg.data.getString(GlyphToy.MSG_GLYPH_TOY_DATA)) {
-            GlyphToy.EVENT_CHANGE -> onLongPress()
+        val event = msg.data.getString(GlyphToy.MSG_GLYPH_TOY_DATA)
+        Log.d(TAG, "event glyph-button raw=$event t=${android.os.SystemClock.uptimeMillis()}")
+        when (event) {
+            // DEMO hold menu: the press is decided on letting go (see HoldMenu).
+            GlyphToy.EVENT_ACTION_DOWN -> if (engine.playingTrick) {
+                // A touch during a game ends it at once: no menu, and letting go does nothing more.
+                engine.stopTrick()
+                feel(HapticKind.PLAY)
+                pressSpent = true
+                Log.d(TAG, "event press -> stop trick")
+            } else {
+                holdMenu.down(SystemClock.uptimeMillis())
+                if (!running) startLive()
+            }
+            GlyphToy.EVENT_ACTION_UP -> if (pressSpent) {
+                pressSpent = false
+            } else {
+                val picked = holdMenu.up(SystemClock.uptimeMillis())
+                if (picked == null) onLongPress() else onMenuPick(picked)
+            }
             GlyphToy.EVENT_AOD -> onAod()
         }
         true
@@ -167,6 +177,27 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
     override fun onServiceDisconnected(name: ComponentName?) {
         connected = false
         stopLive()
+    }
+
+    private val holdMenu = HoldMenu()
+    private var pressSpent = false
+
+    /** DEMO: does what was picked in the hold menu, whatever the pet's needs. */
+    private fun onMenuPick(item: HoldMenu.Item) {
+        val kind = nursery?.activeForm?.kind
+        Log.d(TAG, "event menu pick $item")
+        when (item) {
+            HoldMenu.Item.FOOD -> {
+                val fed = store.feed()
+                engine.feed(fed.ate)
+                feel(if (fed.ate) HapticKind.FEED else HapticKind.REFUSE)
+            }
+            HoldMenu.Item.GAME -> if (kind != null && engine.trick(kind)) feel(HapticKind.PLAY)
+            HoldMenu.Item.SPARK -> engine.signatureNow()
+            HoldMenu.Item.LOVE -> { engine.pet(); feel(HapticKind.TICKLE) }
+            HoldMenu.Item.DIZZY -> engine.shake()
+        }
+        sync(force = true)
     }
 
     /** Holding the button cracks the egg on the matrix, otherwise feeds (a sleeper only opens one eye). */
@@ -259,7 +290,6 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
     /** Experience from something the owner did: a spark rises above the pet, and the debug log hears of it. */
     private fun gained(source: XpSource, xp: Int) {
         if (xp <= 0) return
-        if (source != XpSource.TIME) engine.spark(xp)
         if (n7.glyphpet.BuildConfig.DEBUG && xpLog.length < 200) xpLog.append(source).append('+').append(xp).append(' ')
     }
 
@@ -307,7 +337,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
      */
     private fun callIfNeeded() {
         val now = SystemClock.uptimeMillis()
-        if (!connected || labOn() || posture == Posture.USING_PHONE) return
+        if (!connected || labOn()) return
         val n = store.nursery()
         if (n.active == null || n.eggOnMatrix != null) return
         if (!CallRules.wants(n.stats, store.asleep(n.stats))) {
@@ -369,6 +399,12 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         val dt = (now - lastFrameAt).coerceIn(0, 250)
         lastFrameAt = now
         if (renderLab(dt)) return
+        if (holdMenu.current(now) != null) {
+            holdMenu.steer(motion.tilt, now)
+            if (holdMenu.changed(now)) haptics.play(HapticEvent(HapticKind.CRACK, 0.15f))
+            send(holdMenu.draw(now))
+            return
+        }
         if (burstUntil > 0 && now >= burstUntil) {
             burstUntil = 0
             stopLive()
@@ -379,25 +415,14 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         if (hideUnseen && hidden(now)) {
             // Nobody can see the matrix: whatever the phone did, the pet does nothing about it.
             motion.consumeShake()
-            motion.consumeRock()
-            motion.consumeKnock()
-            motion.consumeTwirl()
             sendDark()
             return
         }
         dark = false
-        val gestures = Gestures(
-            shake = motion.consumeShake(),
-            twirl = motion.consumeTwirl(),
-            rock = motion.consumeRock(),
-            knocks = motion.consumeKnock(),
-            pickedUp = greetWanted,
-        )
-        greetWanted = false
+        val gestures = Gestures(shake = motion.consumeShake())
         val n = nursery
         react(
             reactions.frame(
-                now,
                 gestures,
                 Attention(
                     hasPet = n?.active != null,
@@ -405,22 +430,21 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
                     ready = n?.ready == true,
                     mood = mood,
                     posture = posture,
-                    playingBall = engine.playingBall,
                 ),
             ),
-            now,
         )
         sync(force = false)
         val desk = posture == Posture.DESK
-        // Busy with the screen in another app: the phone moves with the hand, and none of it is play.
-        val using = posture == Posture.USING_PHONE
         updateToward(dt)
-        send(engine.tick(dt, if (using) scene() else scene(tilt = motion.tilt, tiltY = motion.tiltY, desk = desk, spin = if (desk) motion.spin else 0f, toward = toward,
-            yaw = if (posture == Posture.HAND) motion.yaw else 0f)))
+        val frame = engine.tick(dt, scene(tilt = motion.tilt, tiltY = motion.tiltY, desk = desk, spin = if (desk) motion.spin else 0f, toward = toward,
+            yaw = if (posture == Posture.HAND) motion.yaw else 0f))
+        // DEMO inertia: the whole picture thrown about by the phone's moves.
+        val inertia = motion.inertia
+        if (inertia.landed) { inertia.landed = false; feel(HapticKind.STOMP, 0.3f) }
+        send(inertia.shift(frame, n7.glyphpet.pet.SpeciesRenderer.SIZE))
         if (n7.glyphpet.BuildConfig.DEBUG && now - lastDebugLogAt >= 1000) {
             lastDebugLogAt = now
             val sh = engine.shown
-            motion.consumeBump()?.let { Log.d(TAG, "  knock-debug $it") }
             val n = nursery
             val st = n?.stats
             val g = n?.activeGrowth
@@ -447,7 +471,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
      * Plays what [Reactions.frame] decided, in its order: the store first where a reaction changes the pet, then the
      * matrix and the hand. A [Reaction.Grow] changes the save, so the toy reads it back at once.
      */
-    private fun react(list: List<Reaction>, now: Long) {
+    private fun react(list: List<Reaction>) {
         for (r in list) when (r) {
             // The evolution plays through sync(), by justEvolved; each shake before it makes the pet flare up.
             Reaction.Grow -> {
@@ -456,32 +480,8 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
                 sync(force = true)
             }
             Reaction.Dizzy -> {
-                // Turned round and round (on the desk, or in the hand in the plane of the screen): dizzy stars.
-                Log.d(TAG, "event twirl -> dizzy posture=$posture")
+                Log.d(TAG, "event shake -> dizzy posture=$posture")
                 engine.shake()
-            }
-            is Reaction.Play -> {
-                Log.d(TAG, "event rock -> play (fresh game: ${r.freshGame})")
-                if (r.freshGame) store.update { PetRules.play(it) }
-                if (r.xp) award(XpRules.BALL, XpSource.BALL)
-                engine.play()
-                feel(HapticKind.PLAY)
-            }
-            Reaction.Notice -> {
-                Log.d(TAG, "event knock x1 posture=$posture")
-                engine.notice()
-            }
-            is Reaction.Tickle -> {
-                Log.d(TAG, "event knock x2 posture=$posture joy=${r.joy}")
-                engine.tickle()
-                // A sleeper only opens one eye: it giggles, but [feel] keeps quiet for it and nothing changes.
-                feel(HapticKind.TICKLE)
-                if (r.joy) store.update { it.copy(joy = (it.joy + Reactions.TICKLE_JOY).coerceIn(0f, 100f)) }
-            }
-            Reaction.Greet -> {
-                Log.d(TAG, "event greet posture=$posture")
-                engine.greet()
-                feel(HapticKind.GREET)
             }
         }
     }
@@ -506,18 +506,9 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         toward = (d / TOWARD_FULL).coerceIn(-1f, 1f)
     }
 
-    /** Reads the screen state twice a second and tells the [Posture] for this frame ([Reactions.posture]). */
+    /** Tells the [Posture] for this frame ([Reactions.posture]). */
     private fun updatePosture(now: Long) {
-        if (now - screenCheckedAt >= 500) {
-            screenCheckedAt = now
-            screenOn = getSystemService(PowerManager::class.java)?.isInteractive ?: true
-            unlocked = getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == false
-        }
-        // Picked up from the desk or out of the pocket, or the screen turned off with the phone still in hand: greet.
-        if (reactions.posture(motion.pose, motion.jitter, screenOn, unlocked, n7.glyphpet.MainActivity.inFront, now)) {
-            greetWanted = true
-        }
-        posture = reactions.heldAs
+        posture = reactions.posture(motion.pose, motion.jitter, now)
     }
 
     /**
@@ -610,7 +601,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
                 l.stop()
                 motion.start()
                 // Nothing that happened in the Lab reaches the pet.
-                motion.consumeShake(); motion.consumeRock(); motion.consumeKnock(); motion.consumeTwirl()
+                motion.consumeShake()
             }
             return false
         }

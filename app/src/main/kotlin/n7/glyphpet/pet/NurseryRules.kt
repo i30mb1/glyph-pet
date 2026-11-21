@@ -203,8 +203,4 @@ object ButtonRules {
         petReady -> ShakeAction.GROW
         else -> ShakeAction.DIZZY
     }
-
-    /** Rocking plays with a pet that is awake; a sleeper is only lulled, its needs stay as they are. */
-    fun rockPlays(hasPet: Boolean, mood: Mood, eggOnMatrix: Boolean = false): Boolean =
-        hasPet && !eggOnMatrix && mood != Mood.SLEEPING
 }

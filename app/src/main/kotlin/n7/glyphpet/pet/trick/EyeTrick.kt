@@ -41,7 +41,7 @@ internal class EyeTrick : Trick(0L) {
         squint = 0L
         aim = 0L
         zap = 0L
-        seed = (System.nanoTime() and 0xffff).toInt()
+        seed = freshSeed()
         sparkA = TrickKit.hash01(seed) * 6.28f
         homing.reset()
     }

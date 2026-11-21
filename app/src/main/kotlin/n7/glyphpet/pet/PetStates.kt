@@ -6,7 +6,7 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 /** What the preview does to the pet on its own, again and again, to keep a short reaction on screen. */
-enum class Cue { FEED, PET, SHAKE, TRICK, SIGNATURE, ALERT }
+enum class Cue { FEED, PET, SHAKE, TRICK, SIGNATURE, ALERT, GAME }
 
 /**
  * How a state is staged for the preview: the scene the real [PetEngine] is given, and the [cue] repeated every
@@ -64,6 +64,12 @@ enum class PetState(val id: String, val stage: Staging) {
     /** Fed with the Glyph button or the Feed button. */
     EATING("eating", Staging(Mood.CONTENT, Face.EAT, Cue.FEED, cueFirstMs = 300, cueEveryMs = 3600)),
 
+    /**
+     * Full, and the Glyph button is held: the kind's own mini-game ([Tricks]), steered by leaning the phone. Only for
+     * kinds that have one; the preview sways the phone so the game is played, and starts it over now and then.
+     */
+    GAME("game", Staging(Mood.HAPPY, null, Cue.GAME, cueFirstMs = 300, cueEveryMs = 14_000)),
+
     /** Stroked with the Glyph button or the Pet button. */
     LOVED("loved", Staging(Mood.CONTENT, Face.LOVE, Cue.PET, cueFirstMs = 200, cueEveryMs = 2400)),
 
@@ -84,8 +90,8 @@ enum class PetState(val id: String, val stage: Staging) {
     /** Whether the frame described by [shown] shows this state (a sleeper's peek still counts as asleep). */
     fun isShownBy(shown: Shown): Boolean = when (this) {
         TRICK -> shown.habit
-        // The engine does not report it; the preview stages it on its own clock.
-        SIGNATURE -> true
+        // The engine does not report these; the preview stages them on its own clock.
+        SIGNATURE, GAME -> true
         CHARGING -> shown.charging
         ASLEEP -> shown.face == Face.SLEEP || shown.face == Face.PEEK
         else -> shown.face == stage.face
@@ -144,6 +150,8 @@ class StatePreview(val species: Species, val state: PetState) {
                 Cue.SHAKE -> engine.shake()
                 Cue.TRICK -> engine.trick()
                 Cue.ALERT -> engine.alert()
+                // The game would go on for a minute: it is sent home and started again, so the loop stays short.
+                Cue.GAME -> { engine.stopTrick(); engine.trick(species.kind, seed = state.ordinal * 31L + species.id.hashCode()) }
                 // A fixed seed: the same preview always plays the same effect, frame for frame.
                 Cue.SIGNATURE -> engine.signatureNow(seed = state.ordinal * 31L + species.id.hashCode())
             }
@@ -157,6 +165,11 @@ class StatePreview(val species: Species, val state: PetState) {
             val a = (2 * PI * (timeMs - cueMs) / SWAY_MS).toFloat()
             tilt = SWAY * sin(a)
             tiltY = 1f - SWAY_Y * (1f - cos(a * 0.5f)) / 2f
+        }
+        if (state == PetState.GAME) {
+            // The owner plays along: the phone leans one way and the other.
+            tilt = (GAME_SWAY * sin(2 * PI * timeMs / GAME_SWAY_MS)).toFloat()
+            tiltY = GAME_TILT_Y
         }
         val scene = Scene(
             species = species,
@@ -266,5 +279,10 @@ class StatePreview(val species: Species, val state: PetState) {
         private const val SWAY = 0.42f
         private const val SWAY_MS = 3200.0
         private const val SWAY_Y = 0.15f
+
+        /** The lean while the mini-game plays: how far, how long one swing, and the phone tipped toward lying flat. */
+        private const val GAME_SWAY = 0.8
+        private const val GAME_SWAY_MS = 2600.0
+        private const val GAME_TILT_Y = 0.3f
     }
 }

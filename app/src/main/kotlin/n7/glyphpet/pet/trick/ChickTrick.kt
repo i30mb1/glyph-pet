@@ -58,7 +58,7 @@ internal class ChickTrick : Trick(0L) {
         cheer = 0L
         walked = 0f
         dir = -1.5708f
-        seed = (System.nanoTime() and 0xffff).toInt()
+        seed = freshSeed()
         newGrain()
         homing.reset()
     }

@@ -16,8 +16,8 @@ data class Scene(
     val mood: Mood,
     val tilt: Float = 0f,
     /**
-     * The forward/back lean (-1..1): with [tilt] the way "down" points on the matrix, where rain falls and the ball
-     * rolls. 1, straight down, for the app's preview and Always-on.
+     * The forward/back lean (-1..1): with [tilt] the way "down" points on the matrix, where rain falls.
+     * 1, straight down, for the app's preview and Always-on.
      */
     val tiltY: Float = 1f,
     val charging: Boolean = false,
@@ -66,8 +66,8 @@ data class Shown(
 
 /**
  * Animates the pet or the egg on the matrix: wandering, blinking, hopping, habits, eating, reactions, the wobbling egg,
- * and the big moments ([Moments]): the hatch and the evolution. Around the pet: a shadow under its jumps, the [Ball] it
- * plays with, and [Weather] for its mood. [tick] returns one 25x25 frame of LED brightness, row by row.
+ * and the big moments ([Moments]): the hatch and the evolution. Around the pet: a shadow under its jumps and [Weather]
+ * for its mood. [tick] returns one 25x25 frame of LED brightness, row by row.
  * @param autoHabits plays the species' habit by itself every 6-12 s; without it only [trick] starts one.
  * @param autoSignatures plays the species' signature effect by itself every 10-20 s; without it only [signatureNow] starts it.
  */
@@ -91,15 +91,6 @@ class PetEngine(
 
         const val ALERT_MS = 1400L
 
-        /** A knock: the pet looks up at the viewer and hops once. */
-        const val NOTICE_MS = 700L
-
-        /** A double knock tickles: a giggling wiggle. */
-        const val TICKLE_MS = 1200L
-
-        /** Picked up: the pet greets the owner, happy, with two hops. */
-        const val GREET_MS = 1000L
-
         /** How long the egg wobbles after a press. */
         const val CRACK_WOBBLE_MS = 600L
 
@@ -121,30 +112,8 @@ class PetEngine(
             return -room..room
         }
 
-        /** The ball must hit the round edge at least this fast (cells/s) to be felt. */
-        const val BALL_FEEL_SPEED = 7f
-
         /** Events kept for the toy to feel ([haptics]); more than this between two drains and the newest are dropped. */
         private const val MAX_HAPTICS = 16
-
-        /** The number of gained experience ([spark]): how long it shows over the pet before it fades out. */
-        const val SPARK_MS = 1100L
-
-        /** Three cells wide, five tall: the smallest digits that still read at a glance on the matrix. */
-        private const val SPARK_DIGIT_W = 3
-
-        private val SPARK_DIGIT = listOf(
-            listOf("ooo", "o.o", "o.o", "o.o", "ooo"),
-            listOf("..o", "..o", "..o", "..o", "..o"),
-            listOf("ooo", "..o", "ooo", "o..", "ooo"),
-            listOf("ooo", "..o", "ooo", "..o", "ooo"),
-            listOf("o.o", "o.o", "ooo", "..o", "..o"),
-            listOf("ooo", "o..", "ooo", "..o", "ooo"),
-            listOf("ooo", "o..", "ooo", "o.o", "ooo"),
-            listOf("ooo", "..o", "..o", "..o", "..o"),
-            listOf("ooo", "o.o", "ooo", "o.o", "ooo"),
-            listOf("ooo", "o.o", "ooo", "..o", "ooo"),
-        )
 
         /** Turning the phone on the desk faster than this ([Scene.spin]) turns the pet's eyes and head with it. */
         const val SPIN_LOOK = 0.12f
@@ -238,7 +207,7 @@ class PetEngine(
         }
     }
 
-    private enum class Action { NONE, EATING, REFUSING, LOVED, DIZZY, PEEK, ALERT, SURGE, NOTICE, TICKLE, GREET }
+    private enum class Action { NONE, EATING, REFUSING, LOVED, DIZZY, PEEK, ALERT, SURGE }
 
     /** A big moment that takes over the whole matrix for a few seconds. */
     private sealed class Moment(val durationMs: Long)
@@ -277,7 +246,6 @@ class PetEngine(
     private var trickAsked = false
     private var moment: Moment? = null
     private var momentMs = 0L
-    private val ball = Ball(random)
 
     /** The trick a full pet is showing ([Tricks]); [trickMs] >= 0 while it plays. */
     private var trick: Signature? = null
@@ -293,22 +261,17 @@ class PetEngine(
      * A full pet was asked to eat: it shows its trick instead, if its kind has one. Returns false (nothing started)
      * for a kind without a trick, so the caller can fall back to the refusal. Waits for an animation that plays.
      */
-    fun trick(kind: String): Boolean {
+    fun trick(kind: String, seed: Long? = null): Boolean {
         if (!Tricks.has(kind)) return false
         react {
-            trick = Tricks.of(kind)?.also { it.start() }
+            trick = Tricks.of(kind)?.also { if (seed != null) it.start(seed) else it.start() }
             trickKind = kind
             trickMs = 0
             trickPlayedMs = 0
-            ball.clear()
-            ballAsked = false
             hopMs = -1
         }
         return true
     }
-
-    /** Whether the ball is out: a rock now only kicks it. */
-    val playingBall: Boolean get() = ball.active
 
     /** Whether a trick is playing. */
     val playingTrick: Boolean get() = trickMs >= 0
@@ -327,24 +290,21 @@ class PetEngine(
 
     /**
      * One line of the engine's state for debug logs: where the pet stands and may go, whether it slides, and what is
-     * keeping it busy (a reaction, a habit, its signature, a moment, food, the ball, waiting reactions).
+     * keeping it busy (a reaction, a habit, its signature, a moment, food, waiting reactions).
      */
     fun debug(species: Species?): String {
         val walk = species?.let { walkRange(it) }
         val slide = species?.let { slideRange(it) }
         return ("x=%.1f walk=%s slide=%s sliding=%b action=%s(%dms) habit=%d sig=%s@%d(in %d) moment=%s(%d) trick=%d food=%s " +
-            "feast=%d hop=%d ball=%b pending=%d busy=%b").format(
+            "feast=%d hop=%d pending=%d busy=%b").format(
             x, walk, slide, slidingNow, action, actionLeftMs, habitMs, signatureKind, signatureMs, signatureInMs,
-            moment?.javaClass?.simpleName, momentMs, trickMs, foodY?.let { "%.1f".format(it) }, feastMs, hopMs, ball.active,
+            moment?.javaClass?.simpleName, momentMs, trickMs, foodY?.let { "%.1f".format(it) }, feastMs, hopMs,
             pending.size, busy,
         )
     }
 
     /** The 3D look of the legendary and mythic pets. */
     private val living = Living3D()
-
-    /** The hedgehog has no ball: it curls into one itself for the ball's life. */
-    private val curl = n7.glyphpet.pet.signature.HedgehogCurl()
 
     /** The pet's own depth effect ([Signatures]), if its kind has one; [signatureMs] >= 0 while it plays. */
     private var signature: Signature? = null
@@ -371,11 +331,11 @@ class PetEngine(
     /**
      * Whether the signature effect is on the matrix this tick. It starts every 10-20 s (5-8 s in debug builds) while the
      * pet is calm or happy and nothing else is going on, and stops early if something else starts (food, a reaction,
-     * the ball, a slide, sleep).
+     * a slide, sleep).
      */
     private fun updateSignature(dtMs: Long, sig: Signature, scene: Scene, asleep: Boolean, sliding: Boolean): Boolean {
         val free = !asleep && !sliding && action == Action.NONE && habitMs < 0 && trickMs < 0 && foodY == null && feastMs < 0 &&
-            !ball.active && (scene.mood == Mood.CONTENT || scene.mood == Mood.HAPPY)
+            (scene.mood == Mood.CONTENT || scene.mood == Mood.HAPPY)
         if (signatureMs >= 0) {
             signatureMs += dtMs
             // Once started it plays to the end, unless the pet's own habit is due: that takes the frame (see updateHabit).
@@ -425,17 +385,16 @@ class PetEngine(
         return false
     }
 
-    private var ballAsked = false
     private val weather = Weather(random)
 
-    /** Where the last pet drawn covers the matrix (see [SpeciesRenderer.render]): the ball and the weather go round it. */
+    /** Where the last pet drawn covers the matrix (see [SpeciesRenderer.render]): the weather goes round it. */
     private val cover = ByteArray(SIZE * SIZE)
 
     /** A habit is due but does not fit where the pet stands: it walks here first. */
     private var habitSpot: Int? = null
 
     /**
-     * What to feel in the hand: filled during [tick] (the ball on the edge, a signature's landing or strike, the beats of
+     * What to feel in the hand: filled during [tick] (a signature's landing or strike, the beats of
      * a hatch or an evolution) for the toy to drain after each frame. Null, the default, collects nothing: the app's
      * preview never vibrates.
      */
@@ -451,22 +410,6 @@ class PetEngine(
 
     private fun report(e: PetEvent) {
         events?.let { if (it.size < MAX_HAPTICS) it.add(e) }
-    }
-
-    /** A spark is waiting to rise above the pet ([spark]); [sparkMs] >= 0 while it does. */
-    private var sparkAsked = 0
-    private var sparkMs = -1L
-
-    /** The experience the rising spark shows, 1..99. */
-    private var sparkXp = 0
-
-    /**
-     * The pet gained [xp] experience from something the owner did: that many points rise above it as a small number
-     * for [SPARK_MS]. It waits for a moment or a trick (or a signature) to end and shows in the plain pet frame only;
-     * points gained while it waits are added up into one number.
-     */
-    fun spark(xp: Int) {
-        if (xp > 0) sparkAsked += xp
     }
 
     /** What the last [tick] showed. */
@@ -502,40 +445,6 @@ class PetEngine(
     /** Stroked: heart eyes and a heart. A sleeper only opens one eye. */
     fun pet() = react { start(Action.LOVED, 1600) }
 
-    /**
-     * Played with (the phone rocked): stroked as by [pet], and a ball appears above the pet and rolls around the matrix
-     * under gravity for [Ball.LIFE_MS]. The pet follows it with its eyes and stays happy while it is out. A rock while
-     * the ball is out kicks it instead of bringing a second one. A sleeper only opens one eye, and gets no ball.
-     */
-    fun play() = react {
-        start(Action.LOVED, 1600)
-        ballAsked = true
-    }
-
-    /** A knock on the desk or the phone: the pet looks up at the viewer and hops once. A sleeper only opens one eye. */
-    fun notice() = react {
-        if (action == Action.NONE || action == Action.PEEK) {
-            start(Action.NOTICE, NOTICE_MS)
-            hopsLeft = 1
-        }
-    }
-
-    /** A double knock: a giggling wiggle with a happy face. A sleeper only opens one eye. */
-    fun tickle() = react {
-        if (action == Action.NONE || action == Action.PEEK || action == Action.NOTICE) {
-            start(Action.TICKLE, TICKLE_MS)
-            hopsLeft = 0
-        }
-    }
-
-    /** The owner picked the phone up: a happy face and two hops. A sleeper only opens one eye. */
-    fun greet() = react {
-        if (action == Action.NONE || action == Action.PEEK) {
-            start(Action.GREET, GREET_MS)
-            hopsLeft = 2
-        }
-    }
-
     /** Dizzy stars; a sleeper only opens one eye. */
     fun shake() = react { start(Action.DIZZY, 2500) }
 
@@ -565,8 +474,6 @@ class PetEngine(
         feastMs = -1
         habitMs = -1
         hopMs = -1
-        ball.clear()
-        ballAsked = false
     }
 
     /** A shake toward growing, not the last one: the pet flashes bright for a moment and trembles. */
@@ -644,8 +551,6 @@ class PetEngine(
         val egg = scene.egg
         if (egg != null || species == null) {
             // The egg on the matrix, alone: the pet is away until it hatches.
-            ball.clear()
-            ballAsked = false
             shown = Shown(null)
             if (egg != null) {
                 EggRenderer.big(frame, egg, wobble(), timeMs = time)
@@ -655,10 +560,6 @@ class PetEngine(
         }
 
         val asleep = scene.mood == Mood.SLEEPING
-        if (asleep || scene.charging) {
-            ball.clear()
-            ballAsked = false
-        }
         stir(asleep)
         updateCharge(dtMs, scene, asleep)
         updateBlink(dtMs, asleep)
@@ -710,20 +611,6 @@ class PetEngine(
         }
         val range = walkRange(species)
         val centerX = species.ox + x.roundToInt() + (species.width - 1) / 2f
-        if (ballAsked) {
-            ballAsked = false
-            if (ball.active) ball.kick(scene.tilt, scene.tiltY)
-            else ball.spawn(centerX, species.oy - 2.5f, scene.tilt, scene.tiltY)
-            if (species.kind == n7.glyphpet.pet.signature.HedgehogCurl.KIND) {
-                if (curl.active) curl.kick(scene.tilt, scene.tiltY)
-                else curl.spawn(centerX, species.oy + species.height / 2f, scene.tilt, scene.tiltY)
-            }
-        }
-        ball.update(dtMs, scene.tilt, scene.tiltY)
-        // A hard hit on the edge is felt; the hedgehog's ball is not seen (it rolls as the ball itself).
-        if (ball.hit >= BALL_FEEL_SPEED && species.kind != n7.glyphpet.pet.signature.HedgehogCurl.KIND) {
-            feel(HapticEvent(HapticKind.BALL_HIT, ((ball.hit - BALL_FEEL_SPEED) / (Ball.MAX_SPEED - BALL_FEEL_SPEED)).coerceIn(0f, 1f)))
-        }
         val sliding = !asleep && action == Action.NONE && habitMs < 0 && signatureMs < 0 && trickMs < 0 && feastMs < 0 &&
             abs(scene.tilt) > SLIDE_TILT
         slidingNow = sliding
@@ -757,31 +644,15 @@ class PetEngine(
             return frame
         }
 
-        if (ball.active && species.kind == n7.glyphpet.pet.signature.HedgehogCurl.KIND) {
-            // The hedgehog curled up into the ball itself: it rolls with the lean, then uncurls at home.
-            val home = species.oy + species.height / 2f
-            if (!curl.active) curl.spawn(centerX, home, scene.tilt, scene.tiltY)
-            curl.update(dtMs, scene.tilt, scene.tiltY, species, centerX, home)
-            val face = face(scene.mood, asleep, sliding)
-            curl.draw(frame, species, face, blinkLeftMs > 0, x.roundToInt(), scene.tilt, scene.tiltY)
-            if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
-            shown = Shown(face, dx = x.roundToInt())
-            return frame
-        }
-        curl.clear()
 
         // The frame of the species' habit playing now, if one is. The pet answers a tilted or turned phone with its
         // eyes alone ([look]): shifting the top of its body sideways read as a glitch of the sprite, not as a lean.
         val own = if (habitMs >= 0) species.habit.frameAt(habitMs) else null
         val face = own?.face ?: face(scene.mood, asleep, sliding)
         val lift = if (hopMs >= 0) HOP.getOrElse((hopMs / 80).toInt()) { 0 } else 0
-        val shudder = action == Action.REFUSING || action == Action.SURGE || action == Action.TICKLE
-        // A refusal sways slowly, "no, thanks"; a surge trembles; a tickle wiggles fast.
-        val jitterMs = when (action) {
-            Action.REFUSING -> 300L
-            Action.TICKLE -> 60L
-            else -> 120L
-        }
+        val shudder = action == Action.REFUSING || action == Action.SURGE
+        // A refusal sways slowly, "no, thanks"; a surge trembles.
+        val jitterMs = if (action == Action.REFUSING) 300L else 120L
         val jitter = if (shudder) (if ((time / jitterMs) % 2 == 0L) -1 else 1) else 0
         val dx = x.roundToInt() + jitter
         cover.fill(SpeciesRenderer.COVER_NONE)
@@ -802,8 +673,6 @@ class PetEngine(
         foodY?.let { fy -> SpeciesRenderer.glyph(frame, listOf("oo", "oo"), species.ox + dx + species.width / 2 - 1, fy.toInt()) }
         if (action == Action.SURGE) surgeGlow(frame)
         if (scene.ready && action != Action.SURGE) readySparkle(frame, species, dx, lift)
-        xpSpark(frame, dtMs, species, dx, lift)
-        ball.draw(frame, scene.tilt, scene.tiltY, cover)
         // Rain for a sad pet, a calm snow for a sleeper (the charger returns earlier, so never there); drawn behind
         // everything lit so far.
         val sky = when (scene.mood) {
@@ -827,52 +696,14 @@ class PetEngine(
     )
 
     /**
-     * Where the pet looks, in cells: straight at the viewer when a knock called it, after the ball while it rolls, with
-     * the phone turned round on the desk.
+     * Where the pet looks, in cells: with the phone turned round on the desk, leaned, or turned in the hand.
      */
     private fun look(centerX: Float, scene: Scene, asleep: Boolean): Int = when {
-        action == Action.NOTICE || action == Action.GREET -> 0
-        ball.active -> ball.side(centerX)
         !asleep && abs(scene.spin) > SPIN_LOOK -> (scene.spin * 2.5f).roundToInt().coerceIn(-2, 2)
         !asleep && abs(scene.tilt) > LEAN_TILT -> if (scene.tilt > 0) 1 else -1
         // Turned round in the hand: the eyes stay on the viewer, who is now off to that side.
         !asleep && abs(scene.yaw) > YAW_LOOK -> (scene.yaw * 4f).roundToInt().coerceIn(-2, 2)
         else -> 0
-    }
-
-    /**
-     * The experience just gained, as a small number rising [SPARK_RISE] rows above the pet's head and fading out: the
-     * pet's own "+10" for a meal, "+5" for a game of ball. Drawn over whatever is there, so it reads on any body.
-     */
-    private fun xpSpark(frame: IntArray, dtMs: Long, species: Species, dx: Int, lift: Int) {
-        if (sparkMs < 0) {
-            if (sparkAsked <= 0) return
-            sparkXp = sparkAsked.coerceAtMost(99)
-            sparkAsked = 0
-            sparkMs = 0
-        } else {
-            sparkMs += dtMs
-        }
-        if (sparkMs >= SPARK_MS) { sparkMs = -1; return }
-        // Full bright at first, fading over the last third of the rise.
-        val fade = ((SPARK_MS - sparkMs).toFloat() / (SPARK_MS / 3f)).coerceIn(0f, 1f)
-        val cx = species.ox + dx + (species.width - 1) / 2
-        // Over the pet's head, as high as its own height leaves room for: a tall one wears its number on the forehead.
-        val top = (species.oy - lift - 1 - SPARK_DIGIT.first().size).coerceAtLeast(0)
-        val text = sparkXp.toString()
-        val width = text.length * (SPARK_DIGIT_W + 1) - 1
-        val left = cx - width / 2
-        text.forEachIndexed { i, ch ->
-            val digit = SPARK_DIGIT[ch - '0']
-            for (row in digit.indices) for (col in 0 until SPARK_DIGIT_W) {
-                if (digit[row][col] != 'o') continue
-                val px = left + i * (SPARK_DIGIT_W + 1) + col
-                val py = top + row
-                if (px in 0 until SIZE && py in 0 until SIZE && GlyphMatrixSpec.isVisible(px, py)) {
-                    frame[py * SIZE + px] = maxOf(frame[py * SIZE + px], (BRIGHT * fade).toInt())
-                }
-            }
-        }
     }
 
     /** A shake toward growing: everything lit flares up to full brightness and fades back over [SURGE_MS]. */
@@ -941,7 +772,7 @@ class PetEngine(
             return
         }
         val free = (mood == Mood.CONTENT || mood == Mood.HAPPY) && action == Action.NONE && !sliding && trickMs < 0 && foodY == null &&
-            feastMs < 0 && !ball.active
+            feastMs < 0
         if (!free) {
             trickAsked = false
             habitSpot = null
@@ -963,7 +794,7 @@ class PetEngine(
         }
     }
 
-    /** A happy pet hops every 2-4 s; one playing with the ball every second or so. */
+    /** A happy pet hops every 2-4 s. */
     private fun updateHop(dtMs: Long, mood: Mood, sliding: Boolean) {
         if (hopsLeft > 0 && !sliding && habitMs < 0) {
             if (hopMs < 0) {
@@ -978,7 +809,7 @@ class PetEngine(
             return
         }
         hopsLeft = 0
-        if ((mood != Mood.HAPPY && !ball.active) || action != Action.NONE || sliding || habitMs >= 0) {
+        if (mood != Mood.HAPPY || action != Action.NONE || sliding || habitMs >= 0) {
             hopMs = -1
             return
         }
@@ -990,7 +821,7 @@ class PetEngine(
         hopInMs -= dtMs
         if (hopInMs <= 0) {
             hopMs = 0
-            hopInMs = if (ball.active) random.nextLong(700, 1501) else random.nextLong(2000, 4001)
+            hopInMs = random.nextLong(2000, 4001)
         }
     }
 
@@ -1037,9 +868,6 @@ class PetEngine(
         Action.PEEK -> Face.PEEK
         Action.ALERT -> Face.SCARED
         Action.SURGE -> Face.IDLE
-        Action.NOTICE -> Face.CONTENT
-        Action.TICKLE -> Face.HAPPY
-        Action.GREET -> Face.HAPPY
     }
 
     private fun start(next: Action, durationMs: Long) {
@@ -1155,8 +983,6 @@ class PetEngine(
     private fun face(mood: Mood, asleep: Boolean, sliding: Boolean): Face = when {
         asleep -> if (action == Action.PEEK) Face.PEEK else Face.SLEEP
         action != Action.NONE -> reaction() ?: Face.IDLE
-        // Playing with the ball: happy, even while the phone is tilted to roll it.
-        ball.active -> Face.CONTENT
         // A crawler takes a slope calmly; the others slide down it for fun, "wheee".
         sliding -> if (kindNow in CRAWLERS) Face.CONTENT else Face.HAPPY
         // Brought closer to the viewer: wide happy eyes.

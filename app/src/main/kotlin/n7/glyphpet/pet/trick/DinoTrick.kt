@@ -55,7 +55,7 @@ internal class DinoTrick : Trick(0L) {
         lastStep = -1000L
         out = 0
         roar = 0L
-        seed = (System.nanoTime() and 0xffff).toInt()
+        seed = freshSeed()
         homing.reset()
     }
 

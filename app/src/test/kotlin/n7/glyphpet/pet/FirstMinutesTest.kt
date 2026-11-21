@@ -34,7 +34,9 @@ class FirstMinutesTest {
     fun `a newborn asks for its owner at once, and stops once it is fed and played with`() {
         assertTrue(CallRules.wants(newborn, asleep = false))
         assertFalse("a sleeping pet never calls", CallRules.wants(newborn, asleep = true))
-        val cared = PetRules.play(PetRules.feed(newborn).first)
+        // Fed, then a mini-game, which cheers it up by Tricks.JOY.
+        val fed = PetRules.feed(newborn).first
+        val cared = fed.copy(joy = fed.joy + Tricks.JOY)
         assertFalse(CallRules.wants(cared, asleep = false))
     }
 
@@ -57,9 +59,9 @@ class FirstMinutesTest {
         assertFalse("it still has to be earned", first.ready)
         assertEquals(0, GrowthRules.hatched(today = 0).xp)
 
-        // Feeding the hungry newborn, a game of ball and one trick carry it the rest of the way.
+        // Feeding the hungry newborn and one mini-game carry it the rest of the way.
         val left = XpRules.BABY_TO_TEEN - first.xp
-        assertTrue("$left left after the head start", XpRules.FEED + XpRules.BALL + XpRules.TRICK_MAX >= left)
+        assertTrue("$left left after the head start", XpRules.FEED + XpRules.TRICK_MAX >= left)
     }
 
     @Test

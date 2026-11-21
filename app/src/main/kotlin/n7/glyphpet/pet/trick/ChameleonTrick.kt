@@ -52,7 +52,7 @@ internal class ChameleonTrick : Trick(0L) {
         cool = 0L
         flush = 0L
         gone = 0L
-        seed = (System.nanoTime() and 0xffff).toInt()
+        seed = freshSeed()
         newFly()
         homing.reset()
     }

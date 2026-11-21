@@ -25,7 +25,7 @@ class PetStatesTest {
     /** Whether a frame that showed [s] shows what [state] claims. */
     private fun shows(state: PetState, s: Shown): Boolean = when (state) {
         PetState.TRICK -> s.habit
-        PetState.SIGNATURE -> true
+        PetState.SIGNATURE, PetState.GAME -> true
         PetState.CHARGING -> s.charging
         PetState.HAPPY -> s.face == Face.CONTENT
         PetState.ASLEEP -> s.face == Face.SLEEP || s.face == Face.PEEK
@@ -37,7 +37,7 @@ class PetStatesTest {
     @Test
     fun `the states come in the order the app shows them, with stable ids`() {
         assertEquals(
-            listOf("calm", "signature", "happy", "hungry", "sad", "tired", "sick", "asleep", "eating", "loved", "dizzy", "scared", "trick", "charging"),
+            listOf("calm", "signature", "happy", "hungry", "sad", "tired", "sick", "asleep", "eating", "game", "loved", "dizzy", "scared", "trick", "charging"),
             PetState.entries.map { it.id },
         )
     }
@@ -48,7 +48,8 @@ class PetStatesTest {
             val p = StatePreview(s, st)
             for ((n, f) in play(p, span(p)).frames.withIndex()) {
                 assertEquals(625, f.size)
-                assertTrue("${s.id} ${st.id} frame $n is empty", f.count { it > 0 } > 20)
+                // A game may go dark on purpose for a moment (the bat in its cave).
+                if (st != PetState.GAME) assertTrue("${s.id} ${st.id} frame $n is empty", f.count { it > 0 } > 20)
                 for (i in f.indices) {
                     assertTrue(f[i] in 0..4095)
                     if (f[i] > 0) assertTrue("${s.id} ${st.id} frame $n", GlyphMatrixSpec.isVisible(i % 25, i / 25))
@@ -85,7 +86,8 @@ class PetStatesTest {
 
     @Test
     fun `short reactions are triggered again every loop and end in between`() {
-        val cued = PetState.entries.filter { it.stage.cue != null }
+        // The mini-game is no short reaction: it plays on until the preview sends it home.
+        val cued = PetState.entries.filter { it.stage.cue != null && it != PetState.GAME }
         assertEquals(
             listOf(PetState.SIGNATURE, PetState.ASLEEP, PetState.EATING, PetState.LOVED, PetState.DIZZY, PetState.SCARED, PetState.TRICK),
             cued,

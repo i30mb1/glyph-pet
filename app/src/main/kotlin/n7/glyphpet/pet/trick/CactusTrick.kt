@@ -48,7 +48,7 @@ internal class CactusTrick : Trick(0L) {
         shoot = 0L
         bristle = 0f
         happy = 0L
-        seed = (System.nanoTime() and 0xffff).toInt()
+        seed = freshSeed()
         for (i in 0 until BALLOONS) {
             spawn(i)
             by[i] -= i * 8f

@@ -1,0 +1,361 @@
+<title>Атлас Glyph Pet</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a header with the control scheme and growth plan, then one wide grid: heroes down, animations across,
+   each cell a live 25x25 LED matrix rendered from the real engine. Single dark look on purpose: it is a matrix of light. */
+:root {
+  color-scheme: dark;
+  --bg: #0b0c0e;
+  --panel: #131519;
+  --line: #23262d;
+  --ink: #eceef2;
+  --muted: #8d939f;
+  --led: #f4f6fa;
+  --off: #1a1d22;
+  --std: #6b7280;
+  --own: #7ee0b5;
+  --rep: #f2b35b;
+  --none: #3a3e46;
+  --plan: #9fb4ff;
+  --display: "Space Grotesk", system-ui, sans-serif;
+  --body: "Inter", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+}
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font: 14px/1.5 var(--body); }
+.wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 48px; display: grid; gap: 28px; max-width: 1800px; margin: 0 auto; }
+h1 { font: 700 30px/1.1 var(--display); margin: 0; letter-spacing: -0.01em; text-wrap: balance }
+h2 { font: 700 18px/1.2 var(--display); margin: 0 0 10px; text-wrap: balance }
+.lede { color: var(--muted); max-width: 68ch; margin: 6px 0 0 }
+.lede code, td code, .k { font-family: var(--mono); font-size: 12px; color: var(--ink) }
+.top { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.box { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0 }
+.box table { width: 100%; border-collapse: collapse; font-size: 13px }
+.box td, .box th { text-align: left; padding: 6px 8px 6px 0; border-top: 1px solid var(--line); vertical-align: top }
+.box th { color: var(--muted); font-weight: 500; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; border-top: 0 }
+.st { display: inline-block; font: 500 11px/1 var(--body); padding: 4px 7px; border-radius: 99px; white-space: nowrap; border: 1px solid currentColor }
+.st.done { color: var(--own) } .st.demo { color: var(--plan) } .st.todo { color: var(--rep) } .st.cut { color: var(--muted); text-decoration: line-through }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 99px; overflow: hidden }
+.seg button { background: none; border: 0; color: var(--muted); font: 500 13px var(--body); padding: 7px 14px; cursor: pointer }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg) }
+.seg button:focus-visible, .chip:focus-visible, input:focus-visible, td.cell:focus-visible { outline: 2px solid var(--plan); outline-offset: 2px }
+.chip { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 99px; font: 500 12px var(--body); padding: 5px 10px; cursor: pointer }
+.chip[aria-pressed="true"] { color: var(--ink); border-color: var(--ink) }
+input[type="search"] { background: var(--panel); border: 1px solid var(--line); color: var(--ink); border-radius: 8px; padding: 7px 10px; font: 13px var(--body); width: 180px }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; color: var(--muted); font-size: 12px }
+.legend span { display: inline-flex; gap: 6px; align-items: center }
+.dot { width: 9px; height: 9px; border-radius: 50% }
+.d-std { background: var(--std) } .d-own { background: var(--own) } .d-rep { background: var(--rep) } .d-none { background: var(--none) }
+.grid { overflow: auto; max-height: 82vh; border: 1px solid var(--line); border-radius: 12px; background: var(--panel) }
+table.atlas { border-collapse: separate; border-spacing: 0; font-size: 12px }
+.atlas th, .atlas td { border-bottom: 1px solid var(--line); border-right: 1px solid var(--line) }
+.atlas thead th { position: sticky; top: 0; z-index: 2; background: var(--panel); vertical-align: bottom; padding: 10px 8px; width: 108px; min-width: 108px; text-align: left; font-weight: 500 }
+.atlas thead tr.groups th { top: 0; padding: 6px 8px; font: 600 10px var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.atlas thead tr.cols th { top: 27px }
+.atlas thead th .n { display: block; font: 600 13px var(--display); color: var(--ink) }
+.atlas thead th .w { display: block; color: var(--muted); font-size: 11px; line-height: 1.35; margin-top: 3px; font-weight: 400 }
+.atlas th.pet { position: sticky; left: 0; z-index: 1; background: var(--panel); text-align: left; padding: 8px 10px; min-width: 132px; width: 132px }
+.atlas thead th.pet { z-index: 3 }
+.pet .n { font: 600 14px var(--display); display: block }
+.pet .r { font: 500 10px var(--body); letter-spacing: .08em; text-transform: uppercase }
+.r.COMMON { color: var(--muted) } .r.RARE { color: #8fc3ff } .r.LEGENDARY { color: #f2b35b } .r.MYTHIC { color: #e79bff }
+.pet .k { color: var(--muted); font-size: 11px }
+td.cell { padding: 8px 6px 7px; text-align: center; vertical-align: top; cursor: pointer; transition: opacity .15s }
+td.cell canvas { display: block; margin: 0 auto; width: 76px; height: 76px }
+td.cell .tag { display: flex; gap: 5px; align-items: center; justify-content: center; margin-top: 5px; color: var(--muted); font-size: 11px; line-height: 1.2; min-height: 14px }
+td.cell .tag .dot { flex: none; width: 7px; height: 7px }
+td.cell .tag em { font-style: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 86px }
+td.empty { color: var(--none); text-align: center; vertical-align: middle; font-size: 18px; cursor: default }
+body.focus td.cell.own { opacity: .22 }
+dialog { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 14px; padding: 20px; max-width: min(92vw, 460px); width: 100% }
+dialog::backdrop { background: rgb(0 0 0 / .6) }
+dialog canvas { display: block; margin: 4px auto 14px; width: min(78vw, 300px); height: min(78vw, 300px) }
+dialog h3 { font: 700 18px var(--display); margin: 0 }
+dialog p { margin: 6px 0 0; color: var(--muted) }
+dialog .row { display: flex; justify-content: space-between; align-items: center; gap: 12px }
+dialog button { background: none; border: 1px solid var(--line); color: var(--ink); border-radius: 8px; padding: 6px 10px; cursor: pointer; font: 13px var(--body) }
+.loading { color: var(--muted); padding: 20px }
+@media (prefers-reduced-motion: reduce) { td.cell { transition: none } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Атлас Glyph Pet</h1>
+    <p class="lede">Все питомцы по вертикали, все анимации по горизонтали. Кадры записаны из настоящего движка игры (<code>AtlasExport</code>), так что здесь видно ровно то, что играет на матрице. Метка под кадром показывает, общая это анимация или своя у питомца. Тап по клетке открывает её крупно.</p>
+  </header>
+
+  <section class="top">
+    <div class="box">
+      <h2>Управление</h2>
+      <table>
+        <tr><th>Действие</th><th>Что происходит</th><th>Статус</th></tr>
+        <tr><td>Кнопка, голодный</td><td>Кормёжка</td><td><span class="st done">есть</span></td></tr>
+        <tr><td>Кнопка, сытый</td><td>Своя мини-игра на минуту; касание кнопки её заканчивает</td><td><span class="st done">есть</span></td></tr>
+        <tr><td>Удержание кнопки</td><td>Меню: значки сменяются сами, наклон листает в свою сторону</td><td><span class="st demo">демо</span></td></tr>
+        <tr><td>Наклон влево-вправо</td><td>Перемещается; в планах свой стиль у каждого (призрак уходит за край)</td><td><span class="st done">есть</span></td></tr>
+        <tr><td>Наклон и поворот краем</td><td>Объём у легендарных и мифических; в планах у редких</td><td><span class="st done">есть</span></td></tr>
+        <tr><td>Резкое движение</td><td>Инерция: прижимает, подбрасывает, заносит</td><td><span class="st demo">демо</span></td></tr>
+        <tr><td>Тряска</td><td>Голова кружится; готовый растёт. В планах своя реакция у видов</td><td><span class="st done">есть</span></td></tr>
+        <tr><td>Всегда</td><td>Питомец отвечает на движения, даже когда экран включён</td><td><span class="st done">есть</span></td></tr>
+        <tr><td>Экраном вверх</td><td>Матрица гаснет; в планах сон и восстановление</td><td><span class="st todo">в планах</span></td></tr>
+        <tr><td>10 с покоя</td><td>Сам показывает привычку или фишку</td><td><span class="st todo">в планах</span></td></tr>
+        <tr><td>Зарядка</td><td>Своя анимация, быстрый сон</td><td><span class="st done">есть</span></td></tr>
+      </table>
+    </div>
+    <div class="box">
+      <h2>Рост за перерыв</h2>
+      <table>
+        <tr><th>Стадия</th><th>Что нужно</th><th>Время</th></tr>
+        <tr><td>Яйцо → малыш</td><td>5 нажатий кнопки</td><td>сразу</td></tr>
+        <tr><td>Малыш → подросток</td><td>3 мини-игры</td><td>один перерыв, ~5 мин</td></tr>
+        <tr><td>Подросток → взрослый</td><td>9 мини-игр</td><td>2–3 перерыва</td></tr>
+      </table>
+      <p class="lede" style="margin-top:12px">Один цикл: покормил до полной шкалы, нажал кнопку, сыграл мини-игру, получил шаг роста. Когда шаги набраны, потряси телефон. Это предложение, пока не сделано: сейчас опыт идёт ещё и за минуты рядом и досмотренные фишки.</p>
+      <h2 style="margin-top:18px">Погода</h2>
+      <table>
+        <tr><td>Дождь</td><td>Радость ниже 25%: давно не играли. Еда тут ни при чём</td></tr>
+        <tr><td>Снег</td><td>Спит ночью (0:00–6:00) или когда сон кончился. В планах разное по видам</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section class="controls" aria-label="Фильтры">
+    <div class="seg" role="group" aria-label="Стадия">
+      <button type="button" data-stage="baby">Малыш</button>
+      <button type="button" data-stage="teen" aria-pressed="true">Подросток</button>
+      <button type="button" data-stage="adult">Взрослый</button>
+    </div>
+    <div class="controls" role="group" aria-label="Статус" id="rarities"></div>
+    <input type="search" id="q" placeholder="Найти питомца" aria-label="Найти питомца">
+    <button type="button" class="chip" id="focusBtn" aria-pressed="false">Скрыть своё</button>
+    <div class="legend">
+      <span><i class="dot d-std"></i>общая у всех</span>
+      <span><i class="dot d-own"></i>своя</span>
+      <span><i class="dot d-rep"></i>повтор у нескольких</span>
+      <span><i class="dot d-none"></i>нет</span>
+    </div>
+  </section>
+
+  <div class="grid" id="grid"><div class="loading">Загружаю кадры…</div></div>
+</div>
+
+<dialog id="big">
+  <div class="row"><h3 id="bigTitle"></h3><button type="button" id="bigClose">Закрыть</button></div>
+  <canvas id="bigCanvas" width="300" height="300"></canvas>
+  <p id="bigTag"></p>
+  <p id="bigWhen"></p>
+</dialog>
+
+<script>
+// The columns: id from AtlasExport, name, when it plays, group.
+const COLS = [
+  ["calm", "Спокоен", "Ничего не происходит", "Само по себе"],
+  ["happy", "Счастлив", "Радость >70% и еда >50%: подпрыгивает", "Само по себе"],
+  ["habit", "Привычка", "Сам, каждые 6–12 с; план: после 10 с покоя", "Само по себе"],
+  ["signature", "Фишка", "Сам, каждые 10–20 с, когда спокоен", "Само по себе"],
+  ["hungry", "Голоден", "Еда <25%", "Настроения"],
+  ["sad", "Грустит", "Радость <25%: идёт дождь", "Настроения"],
+  ["tired", "Устал", "Сон <20%", "Настроения"],
+  ["sick", "Болеет", "Еда и радость почти на нуле", "Настроения"],
+  ["asleep", "Спит", "Ночь 0–6 или сон кончился: снег", "Настроения"],
+  ["eating", "Еда", "Кнопка, когда голодный", "Действия"],
+  ["game", "Мини-игра", "Кнопка, когда сытый; до минуты", "Действия"],
+  ["loved", "Погладить", "Пункт меню на удержании", "Действия"],
+  ["dizzy", "Тряска", "Потряс телефон", "Действия"],
+  ["tilt", "Наклон", "Наклон влево-вправо", "Действия"],
+  ["turn", "Поворот краем", "Повернул телефон краем к себе", "Действия"],
+  ["charging", "Зарядка", "Телефон на зарядке", "Система"],
+  ["grow", "Рост", "Яйцо: 5 нажатий. Рост: тряска, когда готов", "Система"],
+];
+const RAR = { COMMON: "Обычный", RARE: "Редкий", LEGENDARY: "Легендарный", MYTHIC: "Мифический" };
+const STAGE = { baby: "BABY", teen: "TEEN", adult: "ADULT" };
+
+let meta, mask, stage = "teen", frames = {}, focus = false, query = "", rarityOn = new Set(Object.keys(RAR));
+const cache = {};
+
+function decodeFrame(s) {
+  const out = new Uint8Array(625);
+  let i = 0;
+  for (const c of s) {
+    if (c >= "1" && c <= "9") out[i++] = c.charCodeAt(0) - 48;
+    else i += c.charCodeAt(0) - 96;
+  }
+  return out;
+}
+function decodeSeq(s) {
+  const seq = [];
+  for (let i = 0; i < s.length; i++) {
+    let v = parseInt(s[i], 36);
+    if (s[i + 1] === "!") { v += 36; i++; }
+    seq.push(v);
+  }
+  return seq;
+}
+
+// How much each column of a hero is its own, the shared one, a repeat, or missing.
+function tagOf(pet, col, form) {
+  const stageForm = pet.forms[STAGE[stage]];
+  switch (col) {
+    case "eating": return pet.feast ? ["own", "своя еда"] : ["std", "кусочек"];
+    case "tilt": return pet.kind === "snail" ? ["own", "ползёт"] : ["std", "скатывается"];
+    case "habit": {
+      const id = stageForm.habit;
+      const kinds = habitKinds[id] || [];
+      if (kinds.length > 3) return ["std", id];
+      return kinds.length > 1 ? ["rep", id + " ×" + kinds.length] : ["own", id];
+    }
+    case "signature": return pet.sig ? (pet.sigShared.length > 1 ? ["rep", pet.sig] : ["own", pet.sig.replace(/^(Common|Legend)/, "")]) : ["none", ""];
+    case "game": return pet.trick ? (pet.trickShared.length > 1 ? ["rep", pet.trick] : ["own", pet.trick.replace(/Trick$/, "")]) : ["none", ""];
+    case "charging": return stageForm.charge ? ["own", stageForm.charge.toLowerCase()] : ["std", "заливка"];
+    case "turn": return pet.rarity === "MYTHIC" ? ["own", "всегда 3D"] : pet.rarity === "LEGENDARY" ? ["own", "голограмма"] : ["none", ""];
+    case "sad": return ["std", "дождь"];
+    case "asleep": return ["std", "снег"];
+    case "grow": return ["std", stage === "baby" ? "вылупление" : "эволюция"];
+    default: return ["std", ""];
+  }
+}
+let habitKinds = {};
+
+// One LED matrix drawn into a canvas: dark dots for the LEDs that exist, lit ones from 1 to 9.
+function draw(cv, f) {
+  const ctx = cv.getContext("2d");
+  const w = cv.width, cell = w / 25, r = cell * 0.36;
+  ctx.clearRect(0, 0, w, w);
+  for (let y = 0; y < 25; y++) for (let x = 0; x < 25; x++) {
+    const i = y * 25 + x;
+    if (mask[i] !== "1") continue;
+    const v = f ? f[i] : 0;
+    ctx.fillStyle = v ? `rgba(244,246,250,${0.18 + 0.82 * v / 9})` : "#1a1d22";
+    ctx.beginPath();
+    ctx.arc((x + 0.5) * cell, (y + 0.5) * cell, v ? r * 1.15 : r, 0, 6.2832);
+    ctx.fill();
+  }
+}
+
+const live = new Map(); // canvas -> {frames, seq}
+const visible = new Set();
+const io = new IntersectionObserver(es => es.forEach(e => e.isIntersecting ? visible.add(e.target) : visible.delete(e.target)), { rootMargin: "120px" });
+let bigAnim = null;
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function loop(t) {
+  const n = Math.floor(t / meta.frameMs);
+  for (const cv of visible) {
+    const a = live.get(cv);
+    if (!a) continue;
+    const k = reduced ? Math.floor(a.seq.length / 2) : n % a.seq.length;
+    if (cv._k === k) continue;
+    cv._k = k;
+    draw(cv, a.frames[a.seq[k]]);
+  }
+  if (bigAnim) {
+    const k = n % bigAnim.seq.length;
+    draw(bigAnim.cv, bigAnim.frames[bigAnim.seq[k]]);
+  }
+  requestAnimationFrame(loop);
+}
+
+async function loadStage(s) {
+  if (!cache[s]) {
+    const raw = await (await fetch(`frames-${s}.json`)).json();
+    const out = {};
+    for (const [kind, states] of Object.entries(raw)) {
+      out[kind] = {};
+      for (const [id, v] of Object.entries(states)) out[kind][id] = { frames: v.f.map(decodeFrame), seq: decodeSeq(v.s) };
+    }
+    cache[s] = out;
+  }
+  return cache[s];
+}
+
+function render() {
+  const grid = document.getElementById("grid");
+  live.clear(); visible.clear(); io.disconnect();
+  const pets = meta.pets.filter(p => rarityOn.has(p.rarity) &&
+    (!query || (p.name + " " + p.kind + " " + p.forms[STAGE[stage]].name).toLowerCase().includes(query)));
+  const groups = [];
+  for (const c of COLS) { const g = groups[groups.length - 1]; if (g && g[0] === c[3]) g[1]++; else groups.push([c[3], 1]); }
+  let h = `<table class="atlas"><thead><tr class="groups"><th class="pet"></th>${groups.map(([g, n]) => `<th colspan="${n}">${g}</th>`).join("")}</tr>`;
+  h += `<tr class="cols"><th class="pet"><span class="n">Питомец</span><span class="w">${pets.length} из ${meta.pets.length}</span></th>`;
+  h += COLS.map(([, n, w]) => `<th><span class="n">${n}</span><span class="w">${w}</span></th>`).join("") + `</tr></thead><tbody>`;
+  for (const p of pets) {
+    const form = p.forms[STAGE[stage]];
+    h += `<tr><th class="pet" scope="row"><span class="r ${p.rarity}">${RAR[p.rarity]}</span><span class="n">${form.name}</span><span class="k">${p.kind}</span></th>`;
+    for (const [id, name] of COLS) {
+      const data = frames[p.kind] && frames[p.kind][id];
+      if (!data) { h += `<td class="empty" title="Нет у этого питомца">–</td>`; continue; }
+      const [cls, label] = tagOf(p, id, form);
+      h += `<td class="cell ${cls}" tabindex="0" data-kind="${p.kind}" data-col="${id}"><canvas width="152" height="152" aria-label="${form.name}: ${name}"></canvas><div class="tag"><i class="dot d-${cls}"></i><em>${label || { std: "общая", own: "своя", rep: "повтор", none: "нет" }[cls]}</em></div></td>`;
+    }
+    h += `</tr>`;
+  }
+  h += `</tbody></table>`;
+  grid.innerHTML = pets.length ? h : `<div class="loading">Никого не нашлось.</div>`;
+  grid.querySelectorAll("td.cell").forEach(td => {
+    const cv = td.querySelector("canvas");
+    const a = frames[td.dataset.kind][td.dataset.col];
+    live.set(cv, a);
+    draw(cv, a.frames[a.seq[0]]);
+    io.observe(cv);
+  });
+}
+
+function openBig(td) {
+  const p = meta.pets.find(x => x.kind === td.dataset.kind);
+  const col = COLS.find(c => c[0] === td.dataset.col);
+  const form = p.forms[STAGE[stage]];
+  const [cls, label] = tagOf(p, col[0], form);
+  document.getElementById("bigTitle").textContent = `${form.name}: ${col[1]}`;
+  document.getElementById("bigTag").textContent = ({ std: "Общая у всех", own: "Своя у питомца", rep: "Повтор у нескольких", none: "Нет" })[cls] + (label ? ` · ${label}` : "");
+  document.getElementById("bigWhen").textContent = "Когда играет: " + col[2];
+  const a = frames[p.kind][col[0]];
+  bigAnim = { cv: document.getElementById("bigCanvas"), ...a };
+  document.getElementById("big").showModal();
+}
+
+async function setStage(s) {
+  stage = s;
+  try { localStorage.setItem("atlas-stage", s); } catch (e) {}
+  document.querySelectorAll("[data-stage]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.stage === s)));
+  document.getElementById("grid").innerHTML = `<div class="loading">Загружаю кадры…</div>`;
+  frames = await loadStage(s);
+  render();
+}
+
+(async function start() {
+  meta = await (await fetch("meta.json")).json();
+  mask = meta.mask;
+  // Which kinds share each habit, across every stage: a habit of one kind is its own.
+  for (const p of meta.pets) for (const f of Object.values(p.forms)) {
+    (habitKinds[f.habit] ||= []);
+    if (!habitKinds[f.habit].includes(p.kind)) habitKinds[f.habit].push(p.kind);
+  }
+  const rb = document.getElementById("rarities");
+  rb.innerHTML = Object.entries(RAR).map(([k, v]) => `<button type="button" class="chip" data-r="${k}" aria-pressed="true">${v}</button>`).join("");
+  rb.addEventListener("click", e => {
+    const b = e.target.closest("[data-r]"); if (!b) return;
+    const on = b.getAttribute("aria-pressed") !== "true";
+    b.setAttribute("aria-pressed", String(on));
+    on ? rarityOn.add(b.dataset.r) : rarityOn.delete(b.dataset.r);
+    render();
+  });
+  document.querySelectorAll("[data-stage]").forEach(b => b.addEventListener("click", () => setStage(b.dataset.stage)));
+  document.getElementById("q").addEventListener("input", e => { query = e.target.value.trim().toLowerCase(); render(); });
+  document.getElementById("focusBtn").addEventListener("click", e => {
+    focus = !focus; e.currentTarget.setAttribute("aria-pressed", String(focus)); document.body.classList.toggle("focus", focus);
+  });
+  const grid = document.getElementById("grid");
+  grid.addEventListener("click", e => { const td = e.target.closest("td.cell"); if (td) openBig(td); });
+  grid.addEventListener("keydown", e => { if (e.key === "Enter") { const td = e.target.closest("td.cell"); if (td) openBig(td); } });
+  const dlg = document.getElementById("big");
+  document.getElementById("bigClose").addEventListener("click", () => dlg.close());
+  dlg.addEventListener("close", () => { bigAnim = null; });
+  let s = "teen";
+  try { s = localStorage.getItem("atlas-stage") || "teen"; } catch (e) {}
+  await setStage(STAGE[s] ? s : "teen");
+  requestAnimationFrame(loop);
+})();
+</script>

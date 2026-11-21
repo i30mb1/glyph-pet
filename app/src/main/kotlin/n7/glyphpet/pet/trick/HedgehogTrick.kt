@@ -53,7 +53,7 @@ internal class HedgehogTrick : Trick(0L) {
         stuck = 0
         party = 0L
         squash = 0f
-        seed = (System.nanoTime() and 0xffff).toInt()
+        seed = freshSeed()
         for (i in 0 until APPLES) {
             on[i] = false
             place(i)

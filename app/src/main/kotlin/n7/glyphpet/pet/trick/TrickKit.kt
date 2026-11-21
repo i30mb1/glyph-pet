@@ -280,6 +280,18 @@ internal abstract class Trick(@Suppress("UNUSED_PARAMETER") planned: Long) : Sig
         reset()
     }
 
+    /** The seed [start] was given, while it runs; null: seed from the clock. */
+    private var seedFrom: Long? = null
+
+    /** The same game every time for one [seed]: the app's preview must repeat frame for frame. */
+    final override fun start(seed: Long) {
+        seedFrom = seed
+        try { start() } finally { seedFrom = null }
+    }
+
+    /** A 16-bit seed for [reset]: from [start]'s seed if it was given one, else from the clock. */
+    protected fun freshSeed(): Int = ((seedFrom ?: System.nanoTime()) and 0xffff).toInt()
+
     protected abstract fun reset()
 
     /** Draws the whole scene, the pet included, into a cleared [frame]. */

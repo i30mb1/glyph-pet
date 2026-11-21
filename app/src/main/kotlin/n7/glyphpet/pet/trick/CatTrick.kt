@@ -65,7 +65,7 @@ internal class CatTrick : Trick(DURATION) {
         started = false
         endX = Float.NaN
         endY = Float.NaN
-        seed = (System.nanoTime() and 0xffff).toInt()
+        seed = freshSeed()
     }
 
     override fun scene(frame: IntArray, input: SignatureInput) {

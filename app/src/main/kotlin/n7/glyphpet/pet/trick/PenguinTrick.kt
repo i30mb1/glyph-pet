@@ -79,7 +79,7 @@ internal class PenguinTrick : Trick(DURATION) {
         endY = Float.NaN
         flife.fill(0f)
         scratch.fill(0f)
-        seed = (System.nanoTime() and 0xffff).toInt()
+        seed = freshSeed()
     }
 
     private fun posesOf(sp: Species, face: Face, blink: Boolean): Poses = poses.getOrPut("${sp.id}|$face|$blink") {

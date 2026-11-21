@@ -41,16 +41,13 @@ enum class HapticKind {
     /** Lightning struck in the cloud's storm. */
     LIGHTNING,
 
-    /** Rocking the phone started a game. */
+    /** A mini-game started or ended, or a soft beat inside one. */
     PLAY,
 
-    /** A double knock tickled the pet: a light giggle. */
+    /** The pet was stroked (the menu's heart): a light giggle. */
     TICKLE,
 
-    /** The pet greets the owner who picked the phone up: one soft tick. */
-    GREET,
-
-    /** The pet calls for its owner: a need has run out. Two soft ticks, a little firmer than [GREET]. */
+    /** The pet calls for its owner: a need has run out. Two soft ticks. */
     CALL,
 }
 

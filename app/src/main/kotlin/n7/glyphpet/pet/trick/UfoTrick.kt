@@ -64,7 +64,7 @@ internal class UfoTrick : Trick(DURATION) {
     private val layer = Canvas()
 
     override fun reset() {
-        seed = (System.nanoTime() and 0xffff).toInt()
+        seed = freshSeed()
         cowX = if (TrickKit.hash01(seed) < 0.5f) COW_MIN_X + 1f else COW_MAX_X - 1f
         cowDir = if (cowX < 12f) 1f else -1f
         turnMs = 1800L

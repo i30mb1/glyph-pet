@@ -52,7 +52,7 @@ internal class SnailTrick : Trick(0L) {
         still = 0L
         munch = 0L
         trail.fill(0f)
-        seed = (System.nanoTime() and 0xffff).toInt()
+        seed = freshSeed()
         for (i in 0 until LEAVES) place(i)
         homing.reset()
     }

@@ -53,7 +53,7 @@ internal class BunnyTrick : Trick(0L) {
         rest = 0L
         chase = 0L
         munch = 0L
-        seed = (System.nanoTime() and 0xffff).toInt()
+        seed = freshSeed()
         homing.reset()
     }
 

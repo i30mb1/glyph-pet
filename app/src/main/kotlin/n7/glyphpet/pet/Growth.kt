@@ -22,7 +22,7 @@ data class Growth(
 }
 
 /** Where experience came from: for the toy's debug log. */
-enum class XpSource { TIME, FEED, BALL, TRICK, SIGNATURE, DEBUG }
+enum class XpSource { TIME, FEED, TRICK, SIGNATURE, DEBUG }
 
 /**
  * Growing by experience: all the numbers in one place. Only the active pet gains, and only while it is awake and
@@ -37,9 +37,6 @@ object XpRules {
     /** A meal eaten while food showed [FEED_MAX_DOTS] dots or fewer. */
     const val FEED = 10
     const val FEED_MAX_DOTS = 3
-    /** A new ball game, at most once per [BALL_COOLDOWN_MS]. */
-    const val BALL = 5
-    const val BALL_COOLDOWN_MS = 30_000L
     /** A trick: [TRICK_PER] for every [TRICK_EVERY_MS] it played, up to [TRICK_MAX]. */
     const val TRICK_PER = 1
     const val TRICK_EVERY_MS = 5_000L
@@ -50,10 +47,10 @@ object XpRules {
 
     /**
      * The very first hero of all hatches this far along toward growing, so its owner sees an evolution in the first
-     * ten minutes rather than on the third evening: feeding the hungry newborn ([FEED]), a game of ball ([BALL]) and
-     * one trick ([TRICK_MAX]) cover what is left of [BABY_TO_TEEN] between them. Every hero after it starts from 0.
+     * ten minutes rather than on the third evening: feeding the hungry newborn ([FEED]) and one mini-game ([TRICK_MAX])
+     * cover what is left of [BABY_TO_TEEN] between them. Every hero after it starts from 0.
      */
-    const val FIRST_HEAD_START = 75
+    const val FIRST_HEAD_START = 78
 
     /** Minutes together count only while the toy reports at least this often; a longer gap was time away. */
     const val MAX_GAP_MS = 3 * 60_000L

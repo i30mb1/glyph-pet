@@ -54,7 +54,7 @@ internal class CrabTrick : Trick(0L) {
         snap = -1L
         count = 0
         dance = 0L
-        seed = (System.nanoTime() and 0xffff).toInt()
+        seed = freshSeed()
         homing.reset()
     }
 

@@ -13,8 +13,7 @@ import kotlin.math.sqrt
 /**
  * Reads the accelerometer: [tilt] is the sideways lean (-1..1, positive = the pet slides to the right
  * of the matrix as seen from the back), [tiltY] the forward/back lean (-1..1, positive = the phone stands upright, so
- * down on the matrix is down), [consumeShake] reports a shake once, [consumeRock] a gentle rock from side to
- * side once ([RockDetector]). Together, ([tilt], [tiltY]) is the way "down"
+ * down on the matrix is down), [consumeShake] reports a shake once. Together, ([tilt], [tiltY]) is the way "down"
  * points on the matrix as seen from the back: where things fall and roll.
  * With the proximity and light sensors it also tells how the phone lies ([pose]): screen up, in a pocket.
  */
@@ -24,11 +23,8 @@ class MotionSensor(context: Context) : SensorEventListener {
         /** Shakes closer together count as one; short enough that five shakes open an egg in a few seconds. */
         const val SHAKE_GAP_MS = 1200L
 
-        /** The accelerometer runs at 100 Hz, fast enough to catch the short spike of a knock. */
+        /** The accelerometer runs at 100 Hz, fast enough for the pet's inertia to follow a quick move. */
         const val ACCEL_PERIOD_US = 10_000
-
-        /** A shake is confirmed this long after its spike, unless the spike turned out to be a knock. */
-        const val SHAKE_CONFIRM_MS = 200L
 
         /** rad/s around the screen's axis that is [spin] 1: half a turn a second. */
         const val SPIN_FULL = 3f
@@ -47,6 +43,9 @@ class MotionSensor(context: Context) : SensorEventListener {
 
     @Volatile var tilt: Float = 0f
         private set
+
+    /** DEMO: the pet thrown about by the phone's moves ([Inertia]). */
+    val inertia = Inertia()
 
     /** Smoothed like [tilt]: 1 upright, 0 lying flat, -1 upside down. Upright until the accelerometer says otherwise. */
     @Volatile var tiltY: Float = 1f
@@ -81,18 +80,9 @@ class MotionSensor(context: Context) : SensorEventListener {
 
     private var running = false
     private var shaken = false
-    private var rocked = false
     private var lastShakeMs = 0L
-    private var shakeAt = -1L
-    private var knock = 0
-    private val knocks = KnockDetector()
 
-    /** Debug: the last bump the knock detector saw and did not take, read once. */
-    fun consumeBump(): String? = knocks.lastBump.also { knocks.lastBump = null; knocks.resetBumpPeak() }
-    private val twirls = TwirlDetector()
-    private var twirled = false
     private var lastGyroNs = 0L
-    private val rocks = RockDetector()
     private val low = FloatArray(3)
     private var lastAccelNs = 0L
 
@@ -105,9 +95,6 @@ class MotionSensor(context: Context) : SensorEventListener {
         readings = 0
         lastAccelNs = 0L
         jitter = 0f
-        shakeAt = -1L
-        knocks.reset()
-        twirls.reset()
         lastGyroNs = 0L
         spin = 0f
         yaw = 0f
@@ -146,16 +133,8 @@ class MotionSensor(context: Context) : SensorEventListener {
     @Synchronized
     fun consumeShake(): Boolean = shaken.also { shaken = false }
 
-    /** A knock on the desk or the back of the phone ([KnockDetector]): 1 single, 2 double, 0 none; once. */
-    @Synchronized
-    fun consumeKnock(): Int = knock.also { knock = 0 }
 
-    /** The phone twirled round in the plane of its screen ([TwirlDetector]); once. */
-    @Synchronized
-    fun consumeTwirl(): Boolean = twirled.also { twirled = false }
 
-    @Synchronized
-    fun consumeRock(): Boolean = rocked.also { rocked = false }
 
     override fun onSensorChanged(event: SensorEvent) {
         when (event.sensor.type) {
@@ -196,20 +175,21 @@ class MotionSensor(context: Context) : SensorEventListener {
         val hz = az - low[2]
         val high = sqrt(hx * hx + hy * hy + hz * hz)
         jitter += (high - jitter) * (1f - exp(-dt / 0.6f))
+        // DEMO inertia: the moved phone's acceleration along the world's up (the slow average points up while still),
+        // and along the device's x edge with that vertical part taken out.
+        val gLen = sqrt(low[0] * low[0] + low[1] * low[1] + low[2] * low[2])
+        if (readings > 0 && gLen > 4f) {
+            val up = (hx * low[0] + hy * low[1] + hz * low[2]) / gLen
+            val side = hx - up * low[0] / gLen
+            inertia.feed(up, side, dt)
+        }
         readings++
 
         val magnitude = sqrt(ax * ax + ay * ay + az * az)
         val now = event.timestamp / 1_000_000
         val force = magnitude - SensorManager.GRAVITY_EARTH
-        if (rocks.feed(tilt, force, now)) synchronized(this) { rocked = true }
-        val knocked = knocks.feed(high, magnitude, dt, now)
-        if (knocked > 0) synchronized(this) { knock = maxOf(knock, knocked) }
-        // A hard knock on the back can be as strong as a shake for a moment: a shake waits to see that it was none.
         val wall = System.currentTimeMillis()
-        if (force > 9f && shakeAt < 0 && wall - lastShakeMs > SHAKE_GAP_MS) shakeAt = now
-        if (shakeAt >= 0 && knocks.confirmedAt >= shakeAt) shakeAt = -1
-        if (shakeAt >= 0 && now - shakeAt >= SHAKE_CONFIRM_MS) {
-            shakeAt = -1
+        if (force > 9f && wall - lastShakeMs > SHAKE_GAP_MS) {
             lastShakeMs = wall
             synchronized(this) { shaken = true }
         }
@@ -221,7 +201,6 @@ class MotionSensor(context: Context) : SensorEventListener {
         // The gyroscope's z is counterclockwise seen from the screen, so clockwise seen from the matrix.
         val wz = event.values[2]
         spin += ((wz / SPIN_FULL).coerceIn(-1f, 1f) - spin) * (1f - exp(-dt / 0.25f))
-        if (twirls.feed(wz, dt, event.timestamp / 1_000_000)) synchronized(this) { twirled = true }
         // The turn round the vertical: the rate along "up" (the slow accelerometer, which reads up while still).
         // Counterclockwise from above takes the matrix's right side (the device's -x end) away from the viewer.
         val g = sqrt(low[0] * low[0] + low[1] * low[1] + low[2] * low[2])

@@ -67,7 +67,7 @@ internal class FrogTrick : Trick(0L) {
         ripple = RIPPLE_MS
         tongue = -1L
         gone = 0L
-        seed = (System.nanoTime() and 0xffff).toInt()
+        seed = freshSeed()
         newFly()
         homing.reset()
     }

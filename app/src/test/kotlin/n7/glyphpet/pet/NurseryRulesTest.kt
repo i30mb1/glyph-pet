@@ -274,11 +274,4 @@ class NurseryRulesTest {
         assertEquals(ShakeAction.DIZZY, ButtonRules.shake(hasPet = true, eggOnMatrix = false, petReady = false))
         assertEquals(ShakeAction.NOTHING, ButtonRules.shake(hasPet = false, eggOnMatrix = false, petReady = false))
     }
-
-    @Test
-    fun `rocking plays with a pet that is awake`() {
-        assertTrue(ButtonRules.rockPlays(hasPet = true, mood = Mood.SAD))
-        assertFalse(ButtonRules.rockPlays(hasPet = true, mood = Mood.SLEEPING))
-        assertFalse(ButtonRules.rockPlays(hasPet = false, mood = Mood.CONTENT))
-    }
 }

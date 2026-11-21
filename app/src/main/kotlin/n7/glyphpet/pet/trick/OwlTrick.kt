@@ -45,7 +45,7 @@ internal class OwlTrick : Trick(0L) {
     private val layer = Canvas()
 
     override fun reset() {
-        seed = (System.nanoTime() and 0xffff).toInt()
+        seed = freshSeed()
         flyA = TrickKit.hash01(seed) * 6.28f
         flyDir = 1f
         watch = 0L

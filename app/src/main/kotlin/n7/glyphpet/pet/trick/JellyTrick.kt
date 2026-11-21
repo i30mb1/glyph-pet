@@ -57,7 +57,7 @@ internal class JellyTrick : Trick(0L) {
         eaten = 0
         glow = 0L
         party = 0L
-        seed = (System.nanoTime() and 0xffff).toInt()
+        seed = freshSeed()
         for (i in 0 until SPECKS) speck(i)
         homing.reset()
     }

@@ -107,7 +107,6 @@ class Haptics(private val context: Context) {
             ?: predefined(VibrationEffect.EFFECT_TICK)
         HapticKind.TICKLE -> compose(Step(Composition.PRIMITIVE_TICK, 0.35f), Step(Composition.PRIMITIVE_TICK, 0.3f, delayMs = 70), Step(Composition.PRIMITIVE_TICK, 0.25f, delayMs = 70))
             ?: predefined(VibrationEffect.EFFECT_TICK)
-        HapticKind.GREET -> compose(Step(Composition.PRIMITIVE_TICK, 0.4f))
             ?: predefined(VibrationEffect.EFFECT_TICK)
         // Calling for attention: two soft ticks, asking rather than nagging.
         HapticKind.CALL -> compose(Step(Composition.PRIMITIVE_TICK, 0.55f), Step(Composition.PRIMITIVE_TICK, 0.45f, delayMs = 110))

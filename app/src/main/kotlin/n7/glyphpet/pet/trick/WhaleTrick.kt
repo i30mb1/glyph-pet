@@ -56,7 +56,7 @@ internal class WhaleTrick : Trick(0L) {
         cool = 0L
         spoutMs = 0L
         live.fill(false)
-        seed = (System.nanoTime() and 0xffff).toInt()
+        seed = freshSeed()
         homing.reset()
     }
 

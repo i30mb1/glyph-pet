@@ -49,7 +49,7 @@ internal class BatTrick : Trick(0L) {
         swingV = 0f
         gone = 0L
         happy = 0L
-        seed = (System.nanoTime() and 0xffff).toInt()
+        seed = freshSeed()
         newMoth()
         homing.reset()
     }

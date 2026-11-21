@@ -74,7 +74,7 @@ internal class RaccoonTrick : Trick(0L) {
         splash = 0L
         caught = 0
         lastGx = Float.NaN
-        seed = (System.nanoTime() and 0xffff).toInt()
+        seed = freshSeed()
         newFish()
         homing.reset()
     }

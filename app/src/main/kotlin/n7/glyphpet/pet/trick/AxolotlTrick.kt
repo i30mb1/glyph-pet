@@ -50,7 +50,7 @@ internal class AxolotlTrick : Trick(0L) {
         vx = 0f
         vy = 0f
         pop = 0L
-        seed = (System.nanoTime() and 0xffff).toInt()
+        seed = freshSeed()
         for (i in 0 until FIZZ) {
             fx[i] = MID - 8f + i * 4f
             fy[i] = 6f + 13f * TrickKit.hash01(seed + i)

@@ -49,7 +49,7 @@ internal class CloudTrick : Trick(0L) {
         y = SKY_Y
         water = 0f
         bloom = 0L
-        seed = (System.nanoTime() and 0xffff).toInt()
+        seed = freshSeed()
         newFlower()
         homing.reset()
     }

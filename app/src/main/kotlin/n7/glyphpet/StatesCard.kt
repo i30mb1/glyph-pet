@@ -58,7 +58,7 @@ private class LiveFrame(val speciesId: String, val page: Int, val cells: List<Ce
 @Composable
 internal fun StatesCard(species: Species, open: Boolean, onOpen: (Boolean) -> Unit, modifier: Modifier = Modifier) {
     val states = remember(species.kind) {
-        PetState.entries.filter { it != PetState.SIGNATURE || Signatures.has(species.kind) }
+        PetState.entries.filter { (it != PetState.SIGNATURE || Signatures.has(species.kind)) && (it != PetState.GAME || n7.glyphpet.pet.Tricks.has(species.kind)) }
     }
     val pager = rememberPagerState(pageCount = { states.size })
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -151,6 +151,7 @@ internal fun stateName(state: PetState, species: Species): Int = when (state) {
     PetState.SICK -> R.string.state_sick
     PetState.ASLEEP -> R.string.state_asleep
     PetState.EATING -> R.string.state_eating
+    PetState.GAME -> R.string.state_game
     PetState.LOVED -> R.string.state_loved
     PetState.DIZZY -> R.string.state_dizzy
     PetState.SCARED -> R.string.state_scared
@@ -178,6 +179,7 @@ internal fun stateWhen(state: PetState): Int = when (state) {
     PetState.SICK -> R.string.state_sick_when
     PetState.ASLEEP -> R.string.state_asleep_when
     PetState.EATING -> R.string.state_eating_when
+    PetState.GAME -> R.string.state_game_when
     PetState.LOVED -> R.string.state_loved_when
     PetState.DIZZY -> R.string.state_dizzy_when
     PetState.SCARED -> R.string.state_scared_when

@@ -14,8 +14,8 @@ import n7.glyphpet.pet.signature.SafeSignature
 
 /**
  * The common pets' small signature effects (2-3 s), by kind (see pet/signature/Common*.kt). Each is wrapped so a bug
- * in it can never break the matrix: it falls back to the plain pet. The hedgehog curls up and rolls by itself here, and also
- * when the phone is rocked ([n7.glyphpet.pet.signature.HedgehogCurl]).
+ * in it can never break the matrix: it falls back to the plain pet. The hedgehog curls up and rolls by itself here
+ * ([n7.glyphpet.pet.signature.HedgehogCurl]).
  */
 object CommonSignatures {
     val all: Map<String, () -> Signature> = mapOf(

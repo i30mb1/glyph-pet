@@ -30,28 +30,8 @@ class EngineOverridesTest {
     // --- One reaction over another -------------------------------------------------------------------
 
     @Test
-    fun `a double knock upgrades a single one, and a single one never interrupts a tickle`() {
-        val up = engine()
-        up.notice()
-        up.tick(80, busyFree)
-        assertEquals("NOTICE", up.action())
-        up.tickle()
-        up.tick(80, busyFree)
-        assertEquals("a tickle takes over from a knock", "TICKLE", up.action())
-
-        val down = engine()
-        down.tickle()
-        down.tick(80, busyFree)
-        assertEquals("TICKLE", down.action())
-        down.notice()
-        down.tick(80, busyFree)
-        assertEquals("a knock under a tickle changes nothing", "TICKLE", down.action())
-        assertEquals("and brings no hop of its own", 0, down.shown.lift)
-    }
-
-    @Test
-    fun `a knock, a notification and a greeting all wait for a reaction that is already playing`() {
-        for (quiet in listOf<(PetEngine) -> Unit>({ it.notice() }, { it.alert() }, { it.greet() })) {
+    fun `a notification waits for a reaction that is already playing`() {
+        for (quiet in listOf<(PetEngine) -> Unit>({ it.alert() })) {
             val e = engine()
             e.shake()
             e.tick(80, busyFree)
@@ -64,7 +44,7 @@ class EngineOverridesTest {
 
     @Test
     fun `a stroke takes over from any reaction, because the owner's hand is on the pet`() {
-        for (before in listOf<(PetEngine) -> Unit>({ it.notice() }, { it.tickle() }, { it.greet() }, { it.shake() })) {
+        for (before in listOf<(PetEngine) -> Unit>({ it.alert() }, { it.shake() })) {
             val e = engine()
             before(e)
             e.tick(80, busyFree)
@@ -136,9 +116,9 @@ class EngineOverridesTest {
         e.tick(80, busyFree)
         assertTrue(e.playingTrick)
         e.feed(accepted = true)
-        e.notice()
-        e.tickle()
-        e.greet()
+        e.alert()
+        e.shake()
+        e.pet()
         repeat(20) { e.tick(80, busyFree) }
         assertTrue("the trick plays on", e.playingTrick)
         assertEquals("nothing of theirs showed", "NONE", e.action())
@@ -225,35 +205,6 @@ class EngineOverridesTest {
         assertTrue("a signature cut short is never reported", cut.events!!.isEmpty())
     }
 
-    // --- The ball ----------------------------------------------------------------------------------------
-
-    @Test
-    fun `a second game while the ball is out kicks it instead of bringing another`() {
-        val e = engine()
-        e.play()
-        repeat(3) { e.tick(80, Scene(cat, Mood.CONTENT)) }
-        assertTrue(e.playingBall)
-        e.play()
-        repeat(3) { e.tick(80, Scene(cat, Mood.CONTENT)) }
-        assertTrue("still one ball", e.playingBall)
-    }
-
-    @Test
-    fun `a sleeping pet gets no ball, and a trick clears the one already out`() {
-        val asleep = engine()
-        asleep.play()
-        repeat(3) { asleep.tick(80, Scene(cat, Mood.SLEEPING)) }
-        assertFalse(asleep.playingBall)
-
-        val tricked = engine()
-        tricked.play()
-        repeat(3) { tricked.tick(80, Scene(cat, Mood.CONTENT)) }
-        assertTrue(tricked.playingBall)
-        tricked.trick(cat.kind)
-        tricked.tick(80, Scene(cat, Mood.CONTENT))
-        assertFalse("the trick has the matrix to itself", tricked.playingBall)
-    }
-
     // --- The sleeper ---------------------------------------------------------------------------------------
 
     @Test
@@ -264,9 +215,6 @@ class EngineOverridesTest {
             "fed" to { it.feed(accepted = true) },
             "refused" to { it.feed(accepted = false) },
             "shaken" to { it.shake() },
-            "knocked" to { it.notice() },
-            "tickled" to { it.tickle() },
-            "greeted" to { it.greet() },
             "alerted" to { it.alert() },
             "surging" to { it.surge() },
         )
@@ -296,7 +244,7 @@ class EngineOverridesTest {
         val e = engine()
         val before = e.tick(80, egg)
         assertNull(e.shown.face)
-        for (poke in listOf<(PetEngine) -> Unit>({ it.pet() }, { it.notice() }, { it.tickle() }, { it.greet() }, { it.play() })) {
+        for (poke in listOf<(PetEngine) -> Unit>({ it.pet() }, { it.shake() }, { it.alert() }, { it.feed(accepted = true) })) {
             poke(e)
             val after = e.tick(80, egg)
             assertNull("the pet is away", e.shown.face)

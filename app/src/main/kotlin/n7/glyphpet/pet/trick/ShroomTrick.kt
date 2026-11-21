@@ -46,7 +46,7 @@ internal class ShroomTrick : Trick(0L) {
         puff = 0L
         step = 0L
         shake = 0L
-        seed = (System.nanoTime() and 0xffff).toInt()
+        seed = freshSeed()
         homing.reset()
     }
 
