@@ -22,7 +22,7 @@ enum class Stage {
  * [SAD] cries a tear, [HUNGRY] opens its mouth and thinks of food, [PEEK] is a sleeper opening one eye,
  * [TIRED] is awake with heavy eyes.
  */
-enum class Face { IDLE, CONTENT, HAPPY, LOVE, EAT, SLEEP, YAWN, HUNGRY, ANGRY, SCARED, DIZZY, SICK, SAD, PEEK, TIRED }
+enum class Face { IDLE, CONTENT, HAPPY, LOVE, EAT, SLEEP, YAWN, HUNGRY, ANGRY, SCARED, DIZZY, SAD, PEEK, TIRED }
 
 /**
  * Extra dots drawn over the pet: 'o' bright, '#' body brightness times [level], 'x' (habits only) switches the LED off.
@@ -53,6 +53,13 @@ class HabitFrame(
 /** A species' signature idle animation. [id] is stable: the app names the habit by it. */
 class Habit(val id: String, val frames: List<HabitFrame>) {
     val durationMs: Long = frames.sumOf { it.ms }
+
+    /** No habit at all (a baby): nothing ever plays. */
+    val none: Boolean get() = frames.isEmpty()
+
+    companion object {
+        val NONE = Habit("none", emptyList())
+    }
 
     /** The frame [elapsedMs] into the habit, or null once it is over. */
     fun frameAt(elapsedMs: Long): HabitFrame? {
@@ -146,11 +153,11 @@ object SpeciesCatalog {
         Species(
             "frog", "Frog", Rarity.RARE,
             listOf(
-                ".###.....###.", "#####...#####", "#############", "#############", "#############",
+                ".####...####.", "######.######", "#############", "#############", "#############",
                 "#############", "#############", ".###########.", "##.##...##.##",
             ),
-            // Centred on the matrix: rows 8..16; the fly it eats sits by its mouth (matrix row 13).
-            ox = 6, oy = 8, eyes = listOf(1 to 0, 10 to 0), mouth = 5 to 5,
+            // Centred on the matrix: rows 8..16. The eyes sit in the bumps on top, with body round them.
+            ox = 6, oy = 8, eyes = listOf(2 to 0, 9 to 0), mouth = 5 to 5,
             extras = mapOf(Face.EAT to listOf(Overlay(listOf("....o.o", ".....o.", "ooooo.."), 17, 11))),
             replaces = setOf(Face.EAT),
             habit = Habits::frog,
@@ -277,7 +284,6 @@ object SpeciesCatalog {
             ox = 6, oy = 7, eyes = listOf(5 to 5), mouth = null,
             extras = mapOf(
                 Face.ANGRY to VEINS,
-                Face.SICK to VEINS,
                 // No mouth to frown with: a worried brow arches over the eyeball.
                 Face.SAD to listOf(Overlay(listOf("...oooooo...", ".oo......oo."), 6, 4)),
             ),

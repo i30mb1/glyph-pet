@@ -62,22 +62,48 @@ class HabitsTest {
     }
 
     @Test
-    fun `the habit plays every 6 to 12 seconds while calm or happy`() {
+    fun `the habit plays now and then, only after the pet was left alone for a while`() {
         for (s in SpeciesCatalog.all) for (mood in listOf(Mood.CONTENT, Mood.HAPPY)) {
             val engine = PetEngine(Random(21))
             val starts = mutableListOf<Long>()
             var was = false
-            habitFrames(engine, 60_000, { Scene(s, mood) }) { t, e ->
+            habitFrames(engine, 120_000, { Scene(s, mood) }) { t, e ->
                 if (e.shown.habit && !was) starts += t
                 was = e.shown.habit
             }
-            assertTrue("${s.id} $mood: ${starts.size} habits", starts.size >= 3)
-            // A kind with its own signature shares the quiet moments with it (each waits for the other to end),
-            // so its habits may come further apart: by one signature at most between two habits.
-            val signature = Signatures.of(s.kind)?.durationMs ?: 0L
+            assertTrue("${s.id} $mood: ${starts.size} habits", starts.size >= 2)
+            assertTrue("${s.id} $mood first at ${starts.first()}", starts.first() >= PetEngine.QUIET_MS)
+            // Each one waits for the quiet again, after the habit or the signature before it.
             starts.zipWithNext().forEach { (a, b) ->
-                assertTrue("${s.id} $mood gap ${b - a}", b - a in 6000L..(12_000L + s.habit.durationMs + PetEngine.HOP_MS + 160 + signature))
+                assertTrue("${s.id} $mood gap ${b - a}", b - a >= PetEngine.QUIET_MS + s.habit.durationMs)
             }
+        }
+    }
+
+    @Test
+    fun `the signature comes by itself about once a minute, small habits fill the quiet between`() {
+        for (s in SpeciesCatalog.all) {
+            if (!Signatures.has(s.kind)) continue
+            val engine = PetEngine(Random(24))
+            var sigs = 0
+            var habits = 0
+            var wasSig = false
+            var wasHabit = false
+            var t = 0L
+            while (t < 200_000) {
+                t += 80
+                engine.tick(80, Scene(s, Mood.CONTENT))
+                val sig = engine.playingSignature
+                if (sig && !wasSig) sigs++
+                if (engine.shown.habit && !wasHabit) habits++
+                wasSig = sig
+                wasHabit = engine.shown.habit
+            }
+            // 200 s: the first at about 20 s, then one a minute or a little more (it waits for the quiet).
+            // (Debug builds bring it every 30 s, to be seen sooner.)
+            val expected = if (n7.glyphpet.BuildConfig.DEBUG) 3..8 else 2..4
+            assertTrue("${s.id}: $sigs signatures", sigs in expected)
+            if (!s.habit.none) assertTrue("${s.id}: $habits habits, $sigs signatures", habits >= sigs)
         }
     }
 
@@ -91,7 +117,6 @@ class HabitsTest {
                 "charging" to Pair({ _ -> Scene(s, Mood.CONTENT, charging = true, watts = 20f, battery = 0.5f) }, { _, _ -> }),
                 "sliding" to Pair({ t -> Scene(s, Mood.CONTENT, tilt = if ((t / 1000) % 2 == 0L) 1f else -1f) }, { _, _ -> }),
                 "hungry" to Pair({ _ -> Scene(s, Mood.HUNGRY) }, { _, _ -> }),
-                "sick" to Pair({ _ -> Scene(s, Mood.SICK) }, { _, _ -> }),
             )
             for ((what, stage) in busy) {
                 val (scene, poke) = stage
@@ -142,7 +167,7 @@ class HabitsTest {
                 val new = lostBy(s, f, engine.shown.dx)
                 assertTrue("${s.id} seed=$seed t=$t dx=${engine.shown.dx} loses $new", new.isEmpty())
             }
-            assertTrue("${s.id} seed=$seed: $habits habit frames", habits > 50)
+            assertTrue("${s.id} seed=$seed: $habits habit frames", habits > 8)
         }
     }
 

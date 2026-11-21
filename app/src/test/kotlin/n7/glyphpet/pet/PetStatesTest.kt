@@ -37,7 +37,7 @@ class PetStatesTest {
     @Test
     fun `the states come in the order the app shows them, with stable ids`() {
         assertEquals(
-            listOf("calm", "signature", "happy", "hungry", "sad", "tired", "sick", "asleep", "eating", "game", "loved", "dizzy", "scared", "trick", "charging"),
+            listOf("calm", "signature", "happy", "hungry", "sad", "tired", "asleep", "eating", "game", "loved", "dizzy", "trick", "charging"),
             PetState.entries.map { it.id },
         )
     }
@@ -66,7 +66,7 @@ class PetStatesTest {
             val share = run.shown.count { shows(st, it) }.toFloat() / run.shown.size
             val least = when (st) {
                 PetState.SIGNATURE -> 1f
-                PetState.CALM, PetState.HUNGRY, PetState.SAD, PetState.SICK, PetState.CHARGING -> 0.95f
+                PetState.CALM, PetState.HUNGRY, PetState.SAD, PetState.CHARGING -> 0.95f
                 PetState.HAPPY, PetState.TIRED, PetState.ASLEEP -> 0.8f
                 else -> 0.15f
             }
@@ -89,7 +89,7 @@ class PetStatesTest {
         // The mini-game is no short reaction: it plays on until the preview sends it home.
         val cued = PetState.entries.filter { it.stage.cue != null && it != PetState.GAME }
         assertEquals(
-            listOf(PetState.SIGNATURE, PetState.ASLEEP, PetState.EATING, PetState.LOVED, PetState.DIZZY, PetState.SCARED, PetState.TRICK),
+            listOf(PetState.SIGNATURE, PetState.ASLEEP, PetState.EATING, PetState.LOVED, PetState.DIZZY, PetState.TRICK),
             cued,
         )
         for (s in SpeciesCatalog.all) for (st in cued) {

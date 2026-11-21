@@ -68,7 +68,7 @@ data class Shown(
  * Animates the pet or the egg on the matrix: wandering, blinking, hopping, habits, eating, reactions, the wobbling egg,
  * and the big moments ([Moments]): the hatch and the evolution. Around the pet: a shadow under its jumps and [Weather]
  * for its mood. [tick] returns one 25x25 frame of LED brightness, row by row.
- * @param autoHabits plays the species' habit by itself every 6-12 s; without it only [trick] starts one.
+ * @param autoHabits plays the species' habit by itself after [QUIET_MS] of calm, now and then; without it only [trick] starts one.
  * @param autoSignatures plays the species' signature effect by itself every 10-20 s; without it only [signatureNow] starts it.
  */
 class PetEngine(
@@ -115,6 +115,23 @@ class PetEngine(
         /** Events kept for the toy to feel ([haptics]); more than this between two drains and the newest are dropped. */
         private const val MAX_HAPTICS = 16
 
+        /** The pet shows something of its own only after this long with nothing happening ([quietMs]). */
+        const val QUIET_MS = 10_000L
+
+        /**
+         * The signature, the pet's big show, comes by itself about once in this long of the pet being awake and calm
+         * (the first one sooner, [FIRST_SIGNATURE_MS]); its small habit fills the quiet in between. A shake asks for it
+         * at once.
+         */
+        const val SIGNATURE_EVERY_MS = 60_000L
+        const val FIRST_SIGNATURE_MS = 20_000L
+
+        /** A glint runs over the pet for this long before a signature that came by itself: "now the big one". */
+        const val ANNOUNCE_MS = 400L
+
+        /** A shake this soon after a signature (or during one) is one too many: the pet gets dizzy. */
+        const val SIGNATURE_FRESH_MS = 3_000L
+
         /** Turning the phone on the desk faster than this ([Scene.spin]) turns the pet's eyes and head with it. */
         const val SPIN_LOOK = 0.12f
 
@@ -131,11 +148,6 @@ class PetEngine(
         /** [Scene.toward] past this: the pet comes closer, or shrinks back to [BACK_DIM] of its brightness. */
         const val TOWARD = 0.45f
         const val BACK_DIM = 0.8f
-
-        /** Kinds that crawl down a slope slowly and calmly instead of sliding off it. */
-        private val CRAWLERS = setOf("snail")
-
-        private fun slideSpeed(kind: String?): Float = if (kind in CRAWLERS) 0.35f else 1f
 
         /** Reactions kept while an animation plays; more than this and the newest are dropped. */
         private const val MAX_PENDING = 4
@@ -198,7 +210,6 @@ class PetEngine(
         /** The face a pet shows for its mood when nothing else is going on. */
         fun moodFace(mood: Mood): Face = when (mood) {
             Mood.SLEEPING -> Face.SLEEP
-            Mood.SICK -> Face.SICK
             Mood.HUNGRY -> Face.HUNGRY
             Mood.SAD -> Face.SAD
             Mood.TIRED -> Face.TIRED
@@ -241,7 +252,23 @@ class PetEngine(
 
     /** The phone was tipped toward the viewer in the last tick ([Scene.toward]): the pet came closer. */
     private var closer = false
-    private var habitInMs = 8000L
+    /** The wait after the quiet before the next habit, so habits come every 10-20 s and not like clockwork. */
+    private var habitInMs = 0L
+
+    /** The glint before a signature that came by itself ([ANNOUNCE_MS]); -1 when none is running. */
+    private var announceMs = -1L
+
+    /** Time since the last signature ended; -1 before the first. */
+    private var sinceSignatureMs = -1L
+
+    /** A signature plays or has just ended ([SIGNATURE_FRESH_MS]): another shake now makes the pet dizzy instead. */
+    val signatureFresh: Boolean get() = signatureMs >= 0 || signatureAsked || sinceSignatureMs in 0 until SIGNATURE_FRESH_MS
+
+    /**
+     * How long nothing has happened to the pet: calm or happy, no reaction, food, game, slide, habit or signature. The
+     * habit and the signature start only once it reaches [QUIET_MS], so they never come on top of the owner's play.
+     */
+    private var quietMs = 0L
     private var habitMs = -1L
     private var trickAsked = false
     private var moment: Moment? = null
@@ -276,6 +303,9 @@ class PetEngine(
     /** Whether a trick is playing. */
     val playingTrick: Boolean get() = trickMs >= 0
 
+    /** The signature effect is on the matrix. */
+    val playingSignature: Boolean get() = signatureMs >= 0
+
     /** The owner had enough: the trick goes to its ending at once (the pet heads home and settles). */
     fun stopTrick() {
         val tr = trick ?: return
@@ -287,6 +317,12 @@ class PetEngine(
 
     /** Whether the pet was sliding (or crawling) with the tilt in the last tick; for [debug]. */
     private var slidingNow = false
+
+    /** The slide in progress ([TiltStyle]): how long, how far it rolled, whether it moved this frame, its last jump. */
+    private var slideMs = 0L
+    private var rolled = 0f
+    private var slideMoved = false
+    private var jumpedMs = -1L
 
     /**
      * One line of the engine's state for debug logs: where the pet stands and may go, whether it slides, and what is
@@ -325,13 +361,21 @@ class PetEngine(
         signatureAsked = true
     }
 
-    private fun nextSignatureIn(): Long =
-        if (n7.glyphpet.BuildConfig.DEBUG) random.nextLong(5_000, 8_000) else random.nextLong(10_000, 20_000)
+    /** Whether the signature that comes by itself is due: then it goes first and the habit waits. */
+    private fun signatureDue(): Boolean = autoSignatures && signature != null && signatureInMs <= 0 && quietMs >= QUIET_MS
+
+    private fun nextSignatureIn(first: Boolean = false): Long = when {
+        n7.glyphpet.BuildConfig.DEBUG -> if (first) 5_000L else 30_000L
+        first -> FIRST_SIGNATURE_MS
+        else -> SIGNATURE_EVERY_MS
+    }
+
+    private fun nextHabitIn(): Long = random.nextLong(0, 10_000)
 
     /**
-     * Whether the signature effect is on the matrix this tick. It starts every 10-20 s (5-8 s in debug builds) while the
-     * pet is calm or happy and nothing else is going on, and stops early if something else starts (food, a reaction,
-     * a slide, sleep).
+     * Whether the signature effect is on the matrix this tick. By itself it comes about once a minute
+     * ([SIGNATURE_EVERY_MS]), after [QUIET_MS] of quiet and an [ANNOUNCE_MS] glint; asked for ([signatureNow], a shake)
+     * it starts at once. Something else starting (food, a reaction, a slide, sleep) stops it early.
      */
     private fun updateSignature(dtMs: Long, sig: Signature, scene: Scene, asleep: Boolean, sliding: Boolean): Boolean {
         val free = !asleep && !sliding && action == Action.NONE && habitMs < 0 && trickMs < 0 && foodY == null && feastMs < 0 &&
@@ -343,13 +387,18 @@ class PetEngine(
             // Watched to the end: it ran its whole length.
             if (signatureMs >= sig.durationMs) report(PetEvent(PetEvent.Kind.SIGNATURE, sig.durationMs))
             signatureMs = -1
+            sinceSignatureMs = 0
             signatureInMs = nextSignatureIn()
             return false
         }
-        if (!free) return false
-        if (!autoSignatures && !signatureAsked) return false
-        signatureInMs -= dtMs
-        if (signatureInMs > 0) return false
+        if (!free) { announceMs = -1; return false }
+        if (!signatureAsked) {
+            if (!signatureDue()) { announceMs = -1; return false }
+            // It came by itself: a glint first, then the show.
+            announceMs = if (announceMs < 0) 0 else announceMs + dtMs
+            if (announceMs < ANNOUNCE_MS) return false
+        }
+        announceMs = -1
         signatureMs = 0
         sig.start(signatureSeed ?: System.nanoTime())
         signatureSeed = null
@@ -479,7 +528,7 @@ class PetEngine(
     /** A shake toward growing, not the last one: the pet flashes bright for a moment and trembles. */
     fun surge() = react { start(Action.SURGE, SURGE_MS) }
 
-    /** A notification came: the pet looks up with a "!". A sleeper only opens one eye. */
+    /** The pet calls for its owner ([CallRules]): it looks out with a "!". A sleeper only opens one eye. */
     fun alert() = react {
         if (action == Action.NONE || action == Action.PEEK) start(Action.ALERT, ALERT_MS)
     }
@@ -515,7 +564,8 @@ class PetEngine(
             else -> moodFace(scene.mood)
         }
         if (scene.charging) {
-            ChargeRenderer.render(species, chargeState(scene, still = true), frame = frame)
+            val body3d = if (Living3D.handles(species)) runCatching { living.still(species) }.getOrNull() else null
+            ChargeRenderer.render(species, chargeState(scene, still = true), frame = frame, body3d = body3d)
         } else {
             val painter = if (Living3D.handles(species)) runCatching { living.still(species) }.getOrNull() else null
             SpeciesRenderer.render(species, face, frame = frame, shadow = true, painter = painter)
@@ -560,6 +610,14 @@ class PetEngine(
         }
 
         val asleep = scene.mood == Mood.SLEEPING
+        val calm = !asleep && !scene.charging && moment == null && action == Action.NONE && habitMs < 0 && signatureMs < 0 &&
+            trickMs < 0 && foodY == null && feastMs < 0 && abs(scene.tilt) <= SLIDE_TILT &&
+            (scene.mood == Mood.CONTENT || scene.mood == Mood.HAPPY)
+        quietMs = if (calm) quietMs + dtMs else 0L
+        // The signature's minute runs while the pet is awake and at ease, habits or not; the habit waits after the quiet.
+        if (!asleep && !scene.charging && signatureInMs > 0 && (scene.mood == Mood.CONTENT || scene.mood == Mood.HAPPY)) signatureInMs -= dtMs
+        if (quietMs >= QUIET_MS && habitInMs > 0) habitInMs -= dtMs
+        if (sinceSignatureMs >= 0) sinceSignatureMs += dtMs
         stir(asleep)
         updateCharge(dtMs, scene, asleep)
         updateBlink(dtMs, asleep)
@@ -590,7 +648,9 @@ class PetEngine(
             trickAsked = false
             // The charging indicator has the whole matrix: a kind's own meal does not play here either.
             if (foodY != null || feastMs >= 0) { foodY = null; feastMs = -1; start(Action.EATING, 1800) }
-            ChargeRenderer.render(species, chargeState(scene, still = asleep), plugMs.takeIf { it >= 0 }, frame)
+            // The top tiers stay in 3D on the charger ([Living3D]).
+            val body3d = if (Living3D.handles(species)) runCatching { living.live(species, dtMs, scene.tilt, scene.tiltY, time, -1f, scene.yaw) }.getOrNull() else null
+            ChargeRenderer.render(species, chargeState(scene, still = asleep), plugMs.takeIf { it >= 0 }, frame, body3d)
             if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
             shown = Shown(null, charging = true)
             return frame
@@ -602,7 +662,7 @@ class PetEngine(
             signature = Signatures.of(species.kind)
             signatureMs = -1
             // A kind the pet has just become waits its turn, unless the effect was asked for ([signatureNow]).
-            if (!signatureAsked) signatureInMs = nextSignatureIn()
+            if (!signatureAsked) signatureInMs = nextSignatureIn(first = true)
         }
         if (species.kind != feastMadeFor) {
             feastMadeFor = species.kind
@@ -614,6 +674,8 @@ class PetEngine(
         val sliding = !asleep && action == Action.NONE && habitMs < 0 && signatureMs < 0 && trickMs < 0 && feastMs < 0 &&
             abs(scene.tilt) > SLIDE_TILT
         slidingNow = sliding
+        if (sliding) slideMs += dtMs else { slideMs = 0L; rolled = 0f; jumpedMs = -1L }
+        if (jumpedMs >= 0) jumpedMs += dtMs
         // Tipped toward the viewer: the pet comes closer with a little hop toward them.
         val wasCloser = closer
         closer = !asleep && scene.toward > TOWARD
@@ -649,7 +711,12 @@ class PetEngine(
         // eyes alone ([look]): shifting the top of its body sideways read as a glitch of the sprite, not as a lean.
         val own = if (habitMs >= 0) species.habit.frameAt(habitMs) else null
         val face = own?.face ?: face(scene.mood, asleep, sliding)
-        val lift = if (hopMs >= 0) HOP.getOrElse((hopMs / 80).toInt()) { 0 } else 0
+        val tiltStyle = TiltStyle.of(species.kind)
+        val lift = when {
+            hopMs >= 0 -> HOP.getOrElse((hopMs / 80).toInt()) { 0 }
+            sliding && own == null -> tiltStyle.lift(slideMs)
+            else -> 0
+        }
         val shudder = action == Action.REFUSING || action == Action.SURGE
         // A refusal sways slowly, "no, thanks"; a surge trembles.
         val jitterMs = if (action == Action.REFUSING) 300L else 120L
@@ -667,12 +734,33 @@ class PetEngine(
             species, face, blink = blinkLeftMs > 0, dx = dx, frame = frame, timeMs = time, lift = lift,
             habit = if (painter != null) living.habitFor(species, own) else own,
             eyeDx = look(centerX, scene, asleep), shadow = true, cover = cover, painter = painter,
+            badges = !(sliding && own == null) || tiltStyle == TiltStyle.STICK,
         )
+        if (sliding && own == null) {
+            // On its way through the edge: the part already out comes in from the other side.
+            if (tiltStyle.wraps && dx != 0) {
+                SpeciesRenderer.render(
+                    species, face, blink = blinkLeftMs > 0, dx = dx - sign(dx.toFloat()).toInt() * TiltStyle.WRAP_CELLS,
+                    frame = frame, timeMs = time, lift = lift, eyeDx = look(centerX, scene, asleep), shadow = true,
+                    painter = painter, badges = false,
+                )
+            }
+            val top = species.oy - SpeciesRenderer.jumpOf(face) - lift
+            val left = species.ox + dx
+            val faceRows = (species.eyes.map { it.second } + listOfNotNull(species.mouth?.second))
+                .flatMap { listOf(top + it, top + it + 1) }.toSet()
+            tiltStyle.draw(frame, left, left + species.width - 1, top, top + species.height - 1, scene.tilt, slideMs, rolled, slideMoved, jumpedMs, faceRows, solid = painter != null)
+        }
         // Tipped away from the viewer: the pet shrinks back, a little dimmer.
         if (!asleep && scene.toward < -TOWARD) for (i in frame.indices) frame[i] = (frame[i] * BACK_DIM).toInt()
         foodY?.let { fy -> SpeciesRenderer.glyph(frame, listOf("oo", "oo"), species.ox + dx + species.width / 2 - 1, fy.toInt()) }
         if (action == Action.SURGE) surgeGlow(frame)
-        if (scene.ready && action != Action.SURGE) readySparkle(frame, species, dx, lift)
+        if (scene.ready && action != Action.SURGE && announceMs < 0) {
+            val phase = time % READY_EVERY_MS
+            if (phase < READY_SWEEP_MS) sweep(frame, species, dx, lift, phase.toFloat() / READY_SWEEP_MS)
+        }
+        // The glint before its big show.
+        if (announceMs >= 0) sweep(frame, species, dx, lift, announceMs.toFloat() / ANNOUNCE_MS)
         // Rain for a sad pet, a calm snow for a sleeper (the charger returns earlier, so never there); drawn behind
         // everything lit so far.
         val sky = when (scene.mood) {
@@ -716,14 +804,12 @@ class PetEngine(
      * A pet ready to grow: every [READY_EVERY_MS] a diagonal glint sweeps over it from the top left to the bottom
      * right, lighting what it crosses at full brightness.
      */
-    private fun readySparkle(frame: IntArray, species: Species, dx: Int, lift: Int) {
-        val phase = time % READY_EVERY_MS
-        if (phase >= READY_SWEEP_MS) return
+    private fun sweep(frame: IntArray, species: Species, dx: Int, lift: Int, progress: Float) {
         val left = species.ox + dx
         val top = species.oy - lift - 2
         val from = left + top - 2
         val to = left + species.width + top + species.height + 4
-        val c = from + ((to - from) * phase / READY_SWEEP_MS).toInt()
+        val c = from + ((to - from) * progress.coerceIn(0f, 1f)).toInt()
         for (i in frame.indices) {
             if (frame[i] <= 0) continue
             val d = i % SIZE + i / SIZE - c
@@ -749,8 +835,9 @@ class PetEngine(
     }
 
     /**
-     * The habit plays every 6-12 s while the pet is calm or happy and nothing else is going on. If it would not fit
-     * where the pet stands, the pet first walks to the nearest spot where it does.
+     * The habit plays once the pet has been left alone for [QUIET_MS] and a few seconds more ([habitInMs]), so every
+     * 10-20 s of quiet; a signature that is due goes first. If it would not fit where the pet stands, the pet first
+     * walks to the nearest spot where it does. A baby has none.
      */
     private fun updateHabit(dtMs: Long, species: Species, scene: Scene, sliding: Boolean) {
         val mood = scene.mood
@@ -767,7 +854,7 @@ class PetEngine(
             habitMs += dtMs
             if (habitMs >= species.habit.durationMs) {
                 habitMs = -1
-                habitInMs = random.nextLong(6000, 12001)
+                habitInMs = nextHabitIn()
             }
             return
         }
@@ -780,9 +867,13 @@ class PetEngine(
         }
         val spots = habitSpots(species)
         val at = x.roundToInt()
-        if (autoHabits) habitInMs -= dtMs
+        if (species.habit.none) {
+            trickAsked = false
+            return
+        }
+        val due = autoHabits && quietMs >= QUIET_MS && habitInMs <= 0 && !signatureDue() && signatureMs < 0 && announceMs < 0
         // A hop in the air lands first; an asked-for trick starts at once (once the pet stands where it fits).
-        if (trickAsked || (autoHabits && hopMs < 0 && habitInMs <= 0)) {
+        if (trickAsked || (due && hopMs < 0)) {
             if (at in spots || spots.isEmpty()) {
                 trickAsked = false
                 habitSpot = null
@@ -853,7 +944,7 @@ class PetEngine(
         still = still,
         blink = blinkLeftMs > 0,
         reaction = if (still) (if (action == Action.PEEK) Face.PEEK else null) else reaction(),
-        needy = scene.mood == Mood.HUNGRY || scene.mood == Mood.SAD || scene.mood == Mood.SICK,
+        needy = scene.mood == Mood.HUNGRY || scene.mood == Mood.SAD,
         need = moodFace(scene.mood),
     )
 
@@ -909,10 +1000,32 @@ class PetEngine(
 
     /** [range]: where the pet walks by itself; [slide]: how far a tilt takes it, out over the edge for a big pet. */
     private fun updateMovement(dtMs: Long, scene: Scene, range: IntRange, slide: IntRange, asleep: Boolean, sliding: Boolean) {
-        if (x < slide.first || x > slide.last) x = x.coerceIn(slide.first.toFloat(), slide.last.toFloat())
+        val style = TiltStyle.of(kindNow)
+        slideMoved = false
+        // A pet that wraps round may be anywhere on its way through the edge; it walks home from there.
+        val out = if (style.wraps) abs(x) > TiltStyle.WRAP_CELLS else (x < slide.first || x > slide.last)
+        if (out) x = if (style.wraps) 0f else x.coerceIn(slide.first.toFloat(), slide.last.toFloat())
         if (asleep || action != Action.NONE || habitMs >= 0 || trickMs >= 0 || feastMs >= 0) return
         if (sliding) {
-            x = (x + scene.tilt * dtMs * 0.01f * slideSpeed(kindNow)).coerceIn(slide.first.toFloat(), slide.last.toFloat())
+            val was = x
+            var next = x + scene.tilt * dtMs * style.speed(slideMs)
+            // Some go down in whole jumps on a beat.
+            if (style.beatMs > 0 && (slideMs % style.beatMs) < dtMs && slideMs >= dtMs) {
+                next += (if (scene.tilt > 0) 1 else -1) * style.beatCells
+                jumpedMs = 0L
+            }
+            x = if (style.wraps) {
+                val half = TiltStyle.WRAP_CELLS / 2f
+                when {
+                    next > half -> next - TiltStyle.WRAP_CELLS
+                    next < -half -> next + TiltStyle.WRAP_CELLS
+                    else -> next
+                }
+            } else {
+                next.coerceIn(slide.first.toFloat(), slide.last.toFloat())
+            }
+            if (x.roundToInt() != was.roundToInt()) slideMoved = true
+            if (!style.wraps || abs(x - was) < 2f) rolled += x - was
             targetX = x
             return
         }
@@ -924,21 +1037,16 @@ class PetEngine(
         } else if (spot != null) {
             targetX = spot.toFloat()
         } else if (wanderInMs <= 0) {
-            // A sick pet only shuffles a step or so from its home spot.
-            val near = maxOf(range.first, -1)..minOf(range.last, 1)
-            val reach = if (scene.mood == Mood.SICK && !near.isEmpty()) near else range
-            targetX = random.nextInt(reach.first, reach.last + 1).toFloat()
+            targetX = random.nextInt(range.first, range.last + 1).toFloat()
             wanderInMs = when (scene.mood) {
                 Mood.HAPPY -> random.nextLong(1500, 3000)
                 Mood.HUNGRY, Mood.SAD, Mood.TIRED -> random.nextLong(5000, 9000)
-                Mood.SICK -> random.nextLong(10000, 16000)
                 else -> random.nextLong(2500, 5000)
             }
         }
         if (abs(targetX - x) >= 1f) {
             stepMs += dtMs
             val pace = when (scene.mood) {
-                Mood.SICK -> 1000
                 Mood.TIRED, Mood.HUNGRY -> 450
                 else -> 300
             }
@@ -983,8 +1091,8 @@ class PetEngine(
     private fun face(mood: Mood, asleep: Boolean, sliding: Boolean): Face = when {
         asleep -> if (action == Action.PEEK) Face.PEEK else Face.SLEEP
         action != Action.NONE -> reaction() ?: Face.IDLE
-        // A crawler takes a slope calmly; the others slide down it for fun, "wheee".
-        sliding -> if (kindNow in CRAWLERS) Face.CONTENT else Face.HAPPY
+        // Each kind takes a slope its own way ([TiltStyle]).
+        sliding -> TiltStyle.of(kindNow).face
         // Brought closer to the viewer: wide happy eyes.
         closer -> Face.HAPPY
         yawnLeftMs > 0 -> Face.YAWN

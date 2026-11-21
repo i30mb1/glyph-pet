@@ -37,7 +37,8 @@ import n7.glyphpet.pet.XpSource
  * few shakes instead. The matrix shows the form of the pet the player picked. While the player has put an egg on the
  * matrix the pet is away: the matrix shows the egg and holding the button cracks it; the fifth press hatches it.
  * On the charger the pet shows the battery level and the charging speed in its own way.
- * Always-on: one calm frame per EVENT_AOD (once a minute); a notification wakes the pet for a moment.
+ * Always-on: at every EVENT_AOD (once a minute) the pet comes to life for [AOD_BURST_MS], then holds a calm frame
+ * till the next one; a notification wakes it for a moment too.
  * Nobody sees the matrix while the phone lies screen up or is in a pocket: then it stays dark (a setting, on by default).
  * The phone answers with short, soft vibrations ([Haptics], a setting, on by default): never for a sleeping pet (only its
  * egg and hatch), never in Always-on frames or the Lab.
@@ -51,6 +52,9 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
 
         /** A notification in Always-on wakes the pet for this long, then the calm frame comes back. */
         const val BURST_MS = 2600L
+
+        /** Every Always-on minute the pet lives this long (a blink, a look round) before the calm frame comes back. */
+        const val AOD_BURST_MS = 2500L
 
         /** Tipping the phone this far (radians, about 25 degrees) from how it is held is [Scene.toward] 1. */
         const val TOWARD_FULL = 0.45f
@@ -91,6 +95,9 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
 
     /** While > 0: the live loop was started by a notification in Always-on and ends at this uptime. */
     private var burstUntil = 0L
+
+    /** The live burst running now is Always-on's minute ([AOD_BURST_MS]): silent, nobody asked for it. */
+    private var aodBurst = false
 
     /** When the pet last called for its owner (uptime), and how many calls in a row nobody has answered. */
     private var calledAt = Long.MIN_VALUE / 2
@@ -205,6 +212,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         if (labPress()) return
         // The button was pressed: someone has the phone in hand. Light up now, hide again later if it is put away.
         burstUntil = 0
+        aodBurst = false
         hideGate.reset()
         if (!running) startLive()
         val n = nursery ?: store.nursery()
@@ -259,7 +267,8 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
      * are felt.
      */
     private fun feel(kind: HapticKind, strength: Float = 1f) {
-        if (labOn()) return
+        // Always-on's minute of life is to be seen, not felt: no buzz every minute.
+        if (labOn() || aodBurst) return
         val egg = kind == HapticKind.CRACK || kind == HapticKind.HATCH_SWING || kind == HapticKind.HATCH_RISE ||
             kind == HapticKind.HATCH_FLASH
         if (mood == Mood.SLEEPING && !egg) return
@@ -297,7 +306,11 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         burstUntil = 0
         stopLive()
         sync(force = true)
-        drawStill()
+        // The Lab keeps its still frame; the pet lives for a moment, then the calm frame is back (renderLive).
+        if (labOn() || !connected) { drawStill(); return }
+        burstUntil = SystemClock.uptimeMillis() + AOD_BURST_MS
+        aodBurst = true
+        startLive()
     }
 
     /** The calm Always-on frame, or darkness if nobody can see the matrix right now. */
@@ -311,19 +324,15 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
     }
 
     /**
-     * A notification that would alert the owner: the pet looks up (a sleeper opens one eye). In Always-on it comes to
-     * life for [BURST_MS], then the calm frame is back. Ignored while the matrix is dark because nobody can see it.
+     * A notification that would alert the owner: in Always-on the pet comes to life for [BURST_MS], then the calm
+     * frame is back. Live, it is already there.
      */
     private fun onNotification() {
-        if (!connected || labOn()) return
-        if (running) {
-            if (!dark) engine.alert()
-            return
-        }
+        if (!connected || labOn() || running) return
         sync(force = true)
         burstUntil = SystemClock.uptimeMillis() + BURST_MS
+        aodBurst = false
         startLive()
-        engine.alert()
     }
 
     /**
@@ -372,6 +381,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             return
         }
         burstUntil = now + BURST_MS
+        aodBurst = false
         startLive()
         engine.alert()
     }
@@ -388,6 +398,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
     }
 
     private fun stopLive() {
+        aodBurst = false
         running = false
         main.removeCallbacks(frameLoop)
         if (::motion.isInitialized) motion.stop()
@@ -407,6 +418,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         }
         if (burstUntil > 0 && now >= burstUntil) {
             burstUntil = 0
+            aodBurst = false
             stopLive()
             drawStill()
             return
@@ -430,6 +442,8 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
                     ready = n?.ready == true,
                     mood = mood,
                     posture = posture,
+                    hasSignature = n?.activeForm?.let { n7.glyphpet.pet.Signatures.has(it.kind) } == true,
+                    signatureFresh = engine.signatureFresh,
                 ),
             ),
         )
@@ -478,6 +492,10 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
                 Log.d(TAG, "event shake -> grow")
                 if (store.growShake() == GrowResult.SHOOK) { engine.surge(); feel(HapticKind.GROW_SHAKE) }
                 sync(force = true)
+            }
+            Reaction.Signature -> {
+                Log.d(TAG, "event shake -> signature")
+                engine.signatureNow()
             }
             Reaction.Dizzy -> {
                 Log.d(TAG, "event shake -> dizzy posture=$posture")

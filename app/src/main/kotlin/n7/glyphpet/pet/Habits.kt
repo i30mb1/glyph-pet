@@ -16,12 +16,12 @@ object Habits {
 
     /**
      * The habit of [kind] at [stage], built from that form's [rows]. A teen and an adult have their own habit (the
-     * adult's is drawn on the adult sprite's coordinates). A baby, and any unknown kind, has the [wiggle], which fits
-     * any silhouette.
+     * adult's is drawn on the adult sprite's coordinates). A baby has none ([Habit.NONE]): its signature is its show.
+     * An unknown kind has the [wiggle], which fits any silhouette.
      */
     fun forStage(kind: String, stage: Stage, rows: List<String>): Habit {
         val own = when (stage) {
-            Stage.BABY -> null
+            Stage.BABY -> return Habit.NONE
             Stage.TEEN -> teen(kind)
             Stage.ADULT -> adult(kind)
         }

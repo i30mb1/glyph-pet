@@ -1293,7 +1293,6 @@ private fun rarityName(rarity: Rarity): Int = when (rarity) {
 
 private fun moodLine(mood: Mood): Int = when (mood) {
     Mood.SLEEPING -> R.string.now_sleeping
-    Mood.SICK -> R.string.now_sick
     Mood.HUNGRY -> R.string.now_hungry
     Mood.TIRED -> R.string.now_tired
     Mood.SAD -> R.string.now_sad

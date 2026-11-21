@@ -32,10 +32,11 @@ internal object Kit {
         lift: Int = 0,
         gain: Float = 1f,
         cover: ByteArray = ByteArray(N * N),
+        painter: n7.glyphpet.pet.BodyPainter? = null,
     ) {
         val tmp = IntArray(N * N)
         cover.fill(SpeciesRenderer.COVER_NONE)
-        SpeciesRenderer.render(species, face, blink = blink, dx = dx, frame = tmp, lift = lift, cover = cover)
+        SpeciesRenderer.render(species, face, blink = blink, dx = dx, frame = tmp, lift = lift, cover = cover, painter = painter)
         for (i in 0 until N * N) {
             if (!VISIBLE[i]) continue
             val v = (tmp[i] * gain).toInt().coerceIn(0, SpeciesRenderer.BRIGHT)

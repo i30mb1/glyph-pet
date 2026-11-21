@@ -5,6 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.abs
 import kotlin.random.Random
 
 /** Reviewer's attacks on the 1.2 rules: mood order, the button, habits, the peek, random runs, the previews. */
@@ -13,7 +14,6 @@ class ReviewRulesTest {
     /** The mood order exactly as the brief writes it. */
     private fun expectedMood(s: Float, j: Float, e: Float, asleep: Boolean): Mood = when {
         asleep -> Mood.SLEEPING
-        s < 5f && j < 5f -> Mood.SICK
         s < 25f -> Mood.HUNGRY
         e < 20f -> Mood.TIRED
         j < 25f -> Mood.SAD
@@ -24,23 +24,10 @@ class ReviewRulesTest {
     private val grid = listOf(0f, 1f, 4.99f, 5f, 5.01f, 9.99f, 10f, 19.99f, 20f, 24.99f, 25f, 49.99f, 50f, 50.01f, 70f, 70.01f, 89.99f, 90f, 100f)
 
     @Test
-    fun `mood follows the brief's order on every boundary, SICK right after SLEEPING`() {
+    fun `mood follows the brief's order on every boundary`() {
         for (s in grid) for (j in grid) for (e in grid) for (asleep in listOf(false, true)) {
             val stats = PetStats(s, j, e, 0, 0)
             assertEquals("s=$s j=$j e=$e asleep=$asleep", expectedMood(s, j, e, asleep), PetRules.mood(stats, asleep))
-        }
-        assertEquals(5f, PetRules.SICK_SATIETY)
-        assertEquals(5f, PetRules.SICK_JOY)
-    }
-
-    @Test
-    fun `one meal always cures a sick pet and is never refused`() {
-        for (s in listOf(0f, 2.5f, 4.99f)) for (j in listOf(0f, 2.5f, 4.99f)) for (e in listOf(0f, 15f, 50f, 100f)) {
-            val sick = PetStats(s, j, e, 0, 0)
-            assertEquals(Mood.SICK, PetRules.mood(sick, asleep = false))
-            val (fed, ate) = PetRules.feed(sick)
-            assertTrue(ate)
-            assertTrue("s=$s j=$j e=$e", PetRules.mood(fed, asleep = false) != Mood.SICK)
         }
     }
 
@@ -100,7 +87,6 @@ class ReviewRulesTest {
                 "asleep" to Scene(s, Mood.SLEEPING),
                 "tilt" to Scene(s, Mood.CONTENT, tilt = 1f),
                 "hungry" to Scene(s, Mood.HUNGRY),
-                "sick" to Scene(s, Mood.SICK),
             )
             for ((what, scene) in interrupts) {
                 val engine = PetEngine(Random(42), autoHabits = false)
@@ -157,6 +143,7 @@ class ReviewRulesTest {
             var egg: EggView? = null
             var tilt = 0f
             var peekMs = 0L
+            var wasWaiting = false
             repeat(3000) { step ->
                 val roll = r.nextInt(60)
                 if (roll <= 4) peekMs = 0 // a new poke may start the peek again
@@ -185,13 +172,17 @@ class ReviewRulesTest {
                     assertTrue(what, !sh.habit && sh.lift == 0)
                 } else {
                     if (sh.habit) assertTrue("$what habit in $mood", mood == Mood.CONTENT || mood == Mood.HAPPY)
-                    if (sh.lift > 0) assertEquals("$what hop", Mood.HAPPY, mood)
+                    // A hop is joy, or the way its kind goes down a slope (TiltStyle).
+                    if (sh.lift > 0 && abs(tilt) <= PetEngine.SLIDE_TILT) assertEquals("$what hop", Mood.HAPPY, mood)
                     if (mood == Mood.SLEEPING && egg == null) assertTrue("$what ${sh.face}", sh.face == Face.SLEEP || sh.face == Face.PEEK)
                     // A reaction that waited in the queue pokes the sleeper again when it finally runs, so the eye
                     // stays open; only an eye open with nothing left waiting is held to its second (plus one 250 ms step).
                     val waiting = !engine.debug(s).contains("pending=0")
-                    if (waiting) peekMs = 0
-                    if (sh.face == Face.PEEK) { peekMs += dt; assertTrue("$what peek $peekMs", peekMs <= 1000 + 250) } else peekMs = 0
+                    // One still waiting in the last tick may have run in this one, starting a new peek here.
+                    val ranNow = wasWaiting && !waiting
+                    wasWaiting = waiting
+                    if (waiting || ranNow) peekMs = 0
+                    if (sh.face == Face.PEEK && !ranNow) { peekMs += dt; assertTrue("$what peek $peekMs", peekMs <= 1000 + 250) } else peekMs = 0
                     if (mood != Mood.SLEEPING) assertTrue("$what peek awake", sh.face != Face.PEEK)
                 }
             }
@@ -237,7 +228,7 @@ class ReviewRulesTest {
     @Test
     fun `a preview never shows another state's claim where it should not`() {
         for (s in SpeciesCatalog.all) {
-            for (st in listOf(PetState.CALM, PetState.HUNGRY, PetState.SAD, PetState.SICK, PetState.TIRED)) {
+            for (st in listOf(PetState.CALM, PetState.HUNGRY, PetState.SAD, PetState.TIRED)) {
                 val p = StatePreview(s, st)
                 repeat(200) {
                     p.tick(80)

@@ -37,6 +37,15 @@ h2 { font: 700 18px/1.2 var(--display); margin: 0 0 10px; text-wrap: balance }
 .box th { color: var(--muted); font-weight: 500; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; border-top: 0 }
 .st { display: inline-block; font: 500 11px/1 var(--body); padding: 4px 7px; border-radius: 99px; white-space: nowrap; border: 1px solid currentColor }
 .st.done { color: var(--own) } .st.demo { color: var(--plan) } .st.todo { color: var(--rep) } .st.cut { color: var(--muted); text-decoration: line-through }
+.ways { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px }
+.way { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 8px; align-content: start; min-width: 0 }
+.way h3 { margin: 0; font: 700 15px/1.25 var(--display); display: flex; gap: 8px; align-items: baseline }
+.way h3 .l { font: 600 12px var(--mono); color: var(--plan) }
+.way p { margin: 0; color: var(--muted); font-size: 13px }
+.way .t { display: flex; flex-wrap: wrap; gap: 6px }
+.way .t span { font-size: 11px; border: 1px solid var(--line); border-radius: 99px; padding: 3px 8px; color: var(--ink) }
+.way ul { margin: 0; padding-left: 16px; font-size: 12.5px; color: var(--muted); display: grid; gap: 2px }
+.way li.p::marker { content: "+  "; color: var(--own) } .way li.m::marker { content: "–  "; color: var(--rep) }
 .controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 99px; overflow: hidden }
 .seg button { background: none; border: 0; color: var(--muted); font: 500 13px var(--body); padding: 7px 14px; cursor: pointer }
@@ -78,6 +87,8 @@ dialog p { margin: 6px 0 0; color: var(--muted) }
 dialog .row { display: flex; justify-content: space-between; align-items: center; gap: 12px }
 dialog button { background: none; border: 1px solid var(--line); color: var(--ink); border-radius: 8px; padding: 6px 10px; cursor: pointer; font: 13px var(--body) }
 .loading { color: var(--muted); padding: 20px }
+.summary { margin: -12px 0 0; display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--muted); font-size: 13px }
+.summary b { color: var(--ink); font: 700 20px/1 var(--display); margin-right: 5px; font-variant-numeric: tabular-nums }
 @media (prefers-reduced-motion: reduce) { td.cell { transition: none } }
 </style>
 
@@ -98,7 +109,7 @@ dialog button { background: none; border: 1px solid var(--line); color: var(--in
         <tr><td>Наклон влево-вправо</td><td>Перемещается; в планах свой стиль у каждого (призрак уходит за край)</td><td><span class="st done">есть</span></td></tr>
         <tr><td>Наклон и поворот краем</td><td>Объём у легендарных и мифических; в планах у редких</td><td><span class="st done">есть</span></td></tr>
         <tr><td>Резкое движение</td><td>Инерция: прижимает, подбрасывает, заносит</td><td><span class="st demo">демо</span></td></tr>
-        <tr><td>Тряска</td><td>Голова кружится; готовый растёт. В планах своя реакция у видов</td><td><span class="st done">есть</span></td></tr>
+        <tr><td>Тряска</td><td>Показывает фишку; готовый растёт; тряхнул ещё раз во время фишки — голова кружится</td><td><span class="st done">есть</span></td></tr>
         <tr><td>Всегда</td><td>Питомец отвечает на движения, даже когда экран включён</td><td><span class="st done">есть</span></td></tr>
         <tr><td>Экраном вверх</td><td>Матрица гаснет; в планах сон и восстановление</td><td><span class="st todo">в планах</span></td></tr>
         <tr><td>10 с покоя</td><td>Сам показывает привычку или фишку</td><td><span class="st todo">в планах</span></td></tr>
@@ -122,6 +133,21 @@ dialog button { background: none; border: 1px solid var(--line); color: var(--in
     </div>
   </section>
 
+  <section>
+    <h2>Как может расти питомец: варианты</h2>
+    <p class="lede" style="margin:0 0 12px">Выбери одну букву или сочетание. Срок указан при игре в перерывах по 5 минут.</p>
+    <div class="ways">
+      <article class="way"><h3><span class="l">A</span>Шаги за мини-игры</h3><p>Каждая мини-игра — шаг роста. Малыш: 3 игры, подросток: 9.</p><div class="t"><span>малыш ~5 мин</span><span>взрослый 2–3 перерыва</span></div><ul><li class="p">просто объяснить</li><li class="p">одна петля: еда → игра</li><li class="m">9 игр подряд скучно</li><li class="m">остальные анимации не нужны для роста</li></ul></article>
+      <article class="way"><h3><span class="l">B</span>Звёзды за цель в игре</h3><p>У каждой мини-игры есть цель: съесть 6 планктона, поймать рыбку, долететь. Выполнил — звезда. 3 звезды — подросток, ещё 5 — взрослый.</p><div class="t"><span>малыш 1 перерыв</span><span>взрослый 2 перерыва</span></div><ul><li class="p">навык и азарт</li><li class="p">повод играть лучше, а не дольше</li><li class="m">у каждой игры нужна понятная цель и счётчик на матрице</li></ul></article>
+      <article class="way"><h3><span class="l">C</span>Открой все анимации</h3><p>Рост — за открытия: впервые увидел фишку, привычку, сон под снегом, свою еду, головокружение. Открыл 4 — подросток, ещё 6 — взрослый. В приложении альбом с силуэтами того, что ещё не видел.</p><div class="t"><span>малыш 10–15 мин</span><span>взрослый 1–2 дня</span></div><ul><li class="p">все анимации становятся целью</li><li class="p">альбом и атлас — одно и то же</li><li class="m">часть открытий зависит от времени (ночь, зарядка)</li></ul></article>
+      <article class="way"><h3><span class="l">D</span>Задания дня</h3><p>Каждый день 3 маленьких задания: накорми досыта, сыграй, дай подзарядиться. Все три — шаг. Малышу нужен 1 набор, подростку 3.</p><div class="t"><span>малыш сегодня</span><span>взрослый через 3–4 дня</span></div><ul><li class="p">возвращаются каждый день</li><li class="p">задания можно менять под питомца</li><li class="m">долго до взрослого</li><li class="m">пропустил день — ждёшь</li></ul></article>
+      <article class="way"><h3><span class="l">E</span>Счастливое время</h3><p>Питомец растёт, пока счастлив (сыт и весел), даже когда телефон просто лежит матрицей вверх на столе. 20 минут счастья — подросток, ещё 90 — взрослый.</p><div class="t"><span>малыш 20 мин</span><span>взрослый за рабочий день</span></div><ul><li class="p">компаньон на столе, без усилий</li><li class="p">кормёжка и игра поддерживают счастье</li><li class="m">рост идёт сам, мало «моего» участия</li></ul></article>
+      <article class="way"><h3><span class="l">F</span>Искры за всё</h3><p>Любое событие даёт искры: еда, игра, рекорд, первая фишка за день, утро после сна. Полоса заполняется быстро вначале и медленнее потом.</p><div class="t"><span>малыш 1 перерыв</span><span>взрослый 1 день</span></div><ul><li class="p">гибко, любой стиль игры работает</li><li class="m">сложно объяснить, за что сколько</li><li class="m">похоже на нынешний непонятный опыт</li></ul></article>
+      <article class="way"><h3><span class="l">G</span>Развилка эволюции</h3><p>Как растил, такой и вырос: много игр — спортивная форма, много сна — сонная, много еды — круглая. Сроки из любого варианта выше.</p><div class="t"><span>зависит от основы</span></div><ul><li class="p">хочется вырастить заново, иначе</li><li class="p">разговоры «а у меня вырос такой»</li><li class="m">нужны 2–3 взрослые формы на каждого питомца: много рисовать</li></ul></article>
+      <article class="way"><h3><span class="l">H</span>Комбо B + C</h3><p>Звёзды за игры ведут к подростку быстро (1 перерыв), а взрослого дают открытия: увидеть все анимации подростка.</p><div class="t"><span>малыш 1 перерыв</span><span>взрослый 1–2 дня</span></div><ul><li class="p">быстрый первый результат и долгая цель</li><li class="p">каждая анимация нужна</li><li class="m">два правила вместо одного</li></ul></article>
+    </div>
+  </section>
+
   <section class="controls" aria-label="Фильтры">
     <div class="seg" role="group" aria-label="Стадия">
       <button type="button" data-stage="baby">Малыш</button>
@@ -139,6 +165,8 @@ dialog button { background: none; border: 1px solid var(--line); color: var(--in
     </div>
   </section>
 
+  <p class="summary" id="summary"></p>
+
   <div class="grid" id="grid"><div class="loading">Загружаю кадры…</div></div>
 </div>
 
@@ -154,17 +182,16 @@ dialog button { background: none; border: 1px solid var(--line); color: var(--in
 const COLS = [
   ["calm", "Спокоен", "Ничего не происходит", "Само по себе"],
   ["happy", "Счастлив", "Радость >70% и еда >50%: подпрыгивает", "Само по себе"],
-  ["habit", "Привычка", "Сам, каждые 6–12 с; план: после 10 с покоя", "Само по себе"],
-  ["signature", "Фишка", "Сам, каждые 10–20 с, когда спокоен", "Само по себе"],
+  ["habit", "Привычка", "Часто: после 10 с тишины (подростки и взрослые)", "Само по себе"],
+  ["signature", "Фишка", "Сам раз в минуту после блика, или потряси", "Само по себе"],
   ["hungry", "Голоден", "Еда <25%", "Настроения"],
   ["sad", "Грустит", "Радость <25%: идёт дождь", "Настроения"],
   ["tired", "Устал", "Сон <20%", "Настроения"],
-  ["sick", "Болеет", "Еда и радость почти на нуле", "Настроения"],
   ["asleep", "Спит", "Ночь 0–6 или сон кончился: снег", "Настроения"],
   ["eating", "Еда", "Кнопка, когда голодный", "Действия"],
   ["game", "Мини-игра", "Кнопка, когда сытый; до минуты", "Действия"],
   ["loved", "Погладить", "Пункт меню на удержании", "Действия"],
-  ["dizzy", "Тряска", "Потряс телефон", "Действия"],
+  ["dizzy", "Голова кругом", "Тряхнул во время фишки или сразу после", "Действия"],
   ["tilt", "Наклон", "Наклон влево-вправо", "Действия"],
   ["turn", "Поворот краем", "Повернул телефон краем к себе", "Действия"],
   ["charging", "Зарядка", "Телефон на зарядке", "Система"],
@@ -195,12 +222,28 @@ function decodeSeq(s) {
   return seq;
 }
 
+const MEAL_RU = { RaccoonWashFood: "моет еду", TongueMeal: "ловит языком", PeckMeal: "клюёт зёрна", InhaleMeal: "вдыхает",
+  EngulfMeal: "обволакивает", BeamMeal: "луч", CrunchMeal: "хрустит", PinchMeal: "клешнёй", DiveMeal: "ныряет",
+  ScanMeal: "загрузка", WaterMeal: "полив", NectarMeal: "нектар", GravityMeal: "притяжение", GazeMeal: "взглядом",
+  ButterMeal: "масло", WashFaceMeal: "умывается", PounceMeal: "прыжок", SwoopMeal: "на лету", LeafMeal: "листик" };
+const TILT_RU = { SLIDE: "скатывается", CRAWL: "ползёт", WRAP: "сквозь край", ROLL: "катится", STICK: "держится", SWAY: "качается",
+  FLOAT: "плывёт", HOP: "скачет", SCUTTLE: "семенит", SKATE: "скользит со следом", GLITCH: "глитч-прыжки", STOMP: "топает" };
 // How much each column of a hero is its own, the shared one, a repeat, or missing.
 function tagOf(pet, col, form) {
   const stageForm = pet.forms[STAGE[stage]];
   switch (col) {
-    case "eating": return pet.feast ? ["own", "своя еда"] : ["std", "кусочек"];
-    case "tilt": return pet.kind === "snail" ? ["own", "ползёт"] : ["std", "скатывается"];
+    case "eating": {
+      if (!pet.meal) return ["std", "кусочек"];
+      const name = MEAL_RU[pet.meal] || pet.meal;
+      const n = meta.pets.filter(p => p.meal === pet.meal).length;
+      return n > 1 ? ["rep", name + " ×" + n] : ["own", name];
+    }
+    case "tilt": {
+      const name = TILT_RU[pet.tilt] || pet.tilt;
+      if (pet.tilt === "SLIDE") return ["std", name];
+      const n = meta.pets.filter(p => p.tilt === pet.tilt).length;
+      return n > 1 ? ["rep", name + " ×" + n] : ["own", name];
+    }
     case "habit": {
       const id = stageForm.habit;
       const kinds = habitKinds[id] || [];
@@ -271,7 +314,24 @@ async function loadStage(s) {
   return cache[s];
 }
 
+// The counts over every hero at this stage, whatever the filters: states, heroes, animations and how many are their own.
+function summarize() {
+  let cells = 0, own = 0, std = 0, rep = 0;
+  for (const p of meta.pets) for (const [id] of COLS) {
+    if (!(frames[p.kind] && frames[p.kind][id])) continue;
+    cells++;
+    const c = tagOf(p, id, p.forms[STAGE[stage]])[0];
+    if (c === "own") own++; else if (c === "rep") rep++; else std++;
+  }
+  const stageName = { baby: "малыша", teen: "подростка", adult: "взрослого" }[stage];
+  document.getElementById("summary").innerHTML =
+    `<span><b>${COLS.length}</b>состояний</span><span><b>${meta.pets.length}</b>питомцев</span>` +
+    `<span><b>${cells}</b>анимаций у ${stageName}</span><span><b>${own}</b>своих</span><span><b>${std}</b>общих</span>` +
+    (rep ? `<span><b>${rep}</b>повторов</span>` : "");
+}
+
 function render() {
+  summarize();
   const grid = document.getElementById("grid");
   live.clear(); visible.clear(); io.disconnect();
   const pets = meta.pets.filter(p => rarityOn.has(p.rarity) &&

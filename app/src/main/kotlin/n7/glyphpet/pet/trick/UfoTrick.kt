@@ -7,6 +7,7 @@ import n7.glyphpet.pet.signature.Canvas
 import n7.glyphpet.pet.signature.Kit
 import kotlin.math.abs
 import kotlin.math.floor
+import kotlin.math.roundToInt
 
 /**
  * UFO: it rises to the top and shines its beam down; a small cow wanders on the grass below. The owner steers the
@@ -35,8 +36,15 @@ internal class UfoTrick : Trick(DURATION) {
         const val DROP_S = 0.5f
         const val NEXT_COW_MS = 900L
         const val FLASH_MS = 400L
-        const val BEAM = 380f
-        const val BEAM_SCAN = 260f
+        /**
+         * The beam is faint inside ([BEAM]) with brighter rims ([BEAM_RIM]) and scan lines: the cow, the brightest thing
+         * on the matrix, stands out in it instead of melting into a cone as bright as itself.
+         */
+        const val BEAM = 140f
+        const val BEAM_RIM = 650f
+        const val BEAM_SCAN = 380f
+        /** The cow: nearly white, its patches dark. */
+        const val COW_BODY = 3400f
         const val GRASS = 300f
 
         private val COW = spriteOf(
@@ -46,8 +54,25 @@ internal class UfoTrick : Trick(DURATION) {
                 "#x##x#.",
                 "#.#.#..",
             ),
+            body = COW_BODY,
         )
         private val COW_LEFT = COW.flippedX()
+
+        /**
+         * The ship while it plays, drawn cell for cell at this size: the pet's own sprite scaled down blurred into a
+         * smudge with flickering eyes. Steady bright eyes in the dome; the rim lights ([LIGHTS] row) chase round.
+         */
+        private val MINI = spriteOf(
+            listOf(
+                "...#####...",
+                "..##o#o##..",
+                ".#########.",
+                "###########",
+                "..#.....#..",
+            ),
+        )
+        private const val LIGHTS = 3
+        private const val CHASE_MS = 220L
     }
 
     private var cowX = 12f
@@ -105,7 +130,11 @@ internal class UfoTrick : Trick(DURATION) {
             shipY = TrickKit.lerp(homeY, playCy, rise)
             scale = TrickKit.lerp(1f, small, rise)
         }
-        val shipBottom = shipY + sp.height * scale / 2f
+        // Up and playing: the small ship of its own, whole cells; on the way up and home, the pet itself scaling.
+        val mini = r <= 0f && rise >= 1f
+        val miniLeft = (shipX - MINI.w / 2f).roundToInt()
+        val miniTop = (shipY - MINI.h / 2f).roundToInt()
+        val shipBottom = if (mini) miniTop + MINI.h.toFloat() else shipY + sp.height * scale / 2f
         val beam = Kit.smooth((t - RISE_MS).toFloat() / 300f) * (1f - Kit.smooth(r * 3f))
 
         // The cow: wanders, or rides the beam up.
@@ -164,7 +193,8 @@ internal class UfoTrick : Trick(DURATION) {
                 val line = if (((y - scan) % 4f + 4f) % 4f < 1f) BEAM_SCAN else 0f
                 for (x in floor(shipX - half).toInt()..floor(shipX + half).toInt() + 1) {
                     val edge = (half + 0.5f - abs(x - shipX)).coerceIn(0f, 1f)
-                    if (edge > 0f) canvas.max(x, y, (BEAM + line) * edge * beam)
+                    val rim = abs(x - shipX) > half - 1f
+                    if (edge > 0f) canvas.max(x, y, ((if (rim) BEAM_RIM else BEAM) + line) * edge * beam)
                 }
             }
         }
@@ -183,7 +213,14 @@ internal class UfoTrick : Trick(DURATION) {
         // The ship over all of it, brighter for a moment when a cow is in.
         layer.clear()
         val glow = if (flashMs >= 0) 1.5f else 1f
-        layer.spriteAt(sprites.get(sp, if (flashMs >= 0) Face.HAPPY else Face.CONTENT, input.blink), shipX, shipY, scale, scale, glow)
+        if (mini) {
+            layer.sprite(MINI, miniLeft, miniTop, glow)
+            for (i in 0 until MINI.w step 2) {
+                if (((i / 2) + t / CHASE_MS) % 3 == 0L) layer.max(miniLeft + i, miniTop + LIGHTS, Kit.BRIGHT)
+            }
+        } else {
+            layer.spriteAt(sprites.get(sp, if (flashMs >= 0) Face.HAPPY else Face.CONTENT, input.blink), shipX, shipY, scale, scale, glow)
+        }
         canvas.over(layer)
         canvas.toFrame(frame)
     }

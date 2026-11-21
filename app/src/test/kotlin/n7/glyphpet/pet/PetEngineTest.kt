@@ -212,37 +212,23 @@ class PetEngineTest {
     }
 
     @Test
-    fun `a sick pet looks sick and hardly walks`() {
-        val bunny = SpeciesCatalog.get("bunny")!!
-        fun moves(mood: Mood): Int {
-            val engine = PetEngine(Random(14), autoHabits = false)
-            var last = Double.NaN
-            var moves = 0
-            repeat(400) {
-                val f = engine.tick(80, Scene(bunny, mood))
-                if (mood == Mood.SICK) assertEquals(Face.SICK, engine.shown.face)
-                val lit = f.indices.filter { f[it] > 0 }
-                val cx = lit.sumOf { it % 25 }.toDouble() / lit.size
-                if (!last.isNaN() && kotlin.math.abs(cx - last) > 0.5) moves++
-                last = cx
+    fun `fed, every kind plays its own meal to the end`() {
+        for (s in SpeciesCatalog.all) {
+            val engine = PetEngine(Random(2), autoHabits = false, autoSignatures = false)
+            val before = engine.tick(80, Scene(s, Mood.CONTENT))
+            engine.feed(accepted = true)
+            var eating = 0L
+            var changed = false
+            var t = 0L
+            while (t < 6000) {
+                val f = engine.tick(80, Scene(s, Mood.CONTENT))
+                if (engine.shown.face == Face.EAT) { eating += 80; if (!f.contentEquals(before)) changed = true }
+                t += 80
             }
-            return moves
+            val meal = Feasts.of(s.kind)!!.durationMs
+            assertTrue("${s.id}: ate for $eating ms of $meal", eating in meal - 160..meal + 160)
+            assertTrue(s.id, changed)
+            assertTrue(s.id, engine.shown.face != Face.EAT)
         }
-        val sick = moves(Mood.SICK)
-        val calm = moves(Mood.CONTENT)
-        assertTrue("sick $sick, calm $calm", sick * 3 <= calm)
-        assertEquals(Face.SICK, PetEngine.moodFace(Mood.SICK))
-    }
-
-    @Test
-    fun `fed food falls and is eaten`() {
-        val engine = PetEngine(Random(2))
-        val jelly = SpeciesCatalog.get("jelly")!!
-        fun litAbove(frame: IntArray) = (0 until 25 * 5).count { frame[it] > 0 }
-        assertEquals(0, litAbove(engine.tick(80, Scene(jelly, Mood.CONTENT))))
-        engine.feed(accepted = true)
-        assertTrue(litAbove(engine.tick(80, Scene(jelly, Mood.CONTENT))) > 0)
-        repeat(30) { engine.tick(80, Scene(jelly, Mood.CONTENT)) }
-        assertEquals(0, litAbove(engine.tick(80, Scene(jelly, Mood.CONTENT))))
     }
 }

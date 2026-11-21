@@ -10,25 +10,31 @@ import kotlin.math.hypot
 import kotlin.math.sin
 
 /**
- * Jelly: it swims toward the lean in pulses (a squeeze, then a glide) and its tentacles trail behind, swaying. Specks
- * of plankton drift about; swim through one to eat it (a tick, the jelly glows), and every six it lights up all over.
+ * Jelly: it swims toward the lean in pulses (a squeeze, then a glide) and its two short tentacles trail behind, dim.
+ * Bright twinkling plankton crosses drift about; swim through one to eat it (a tick, a ring bursts, the jelly glows),
+ * and the dots along the bottom rim count them: every six it lights up all over.
  */
 internal class JellyTrick : Trick(0L) {
     companion object {
-        const val JELLY_H = 6f
+        const val JELLY_H = 7f
         const val GROW_MS = 450L
         const val PULSE_MS = 650L
         const val SQUEEZE_MS = 160L
         const val KICK = 7f
         const val DRAG = 2.2f
-        const val ARMS = 3
-        const val NODES = 4
+        const val ARMS = 2
+        const val NODES = 3
         const val SPACING = 1.1f
-        const val SPECKS = 4
+        const val SPECKS = 3
         const val EAT = 2.2f
         const val FULL = 6
         const val GLOW_MS = 500L
         const val PARTY_MS = 1400L
+        const val BURST_MS = 320L
+        /** The count of eaten plankton: a dot each along the bottom rim, between these angles (radians, 0 = right). */
+        const val COUNT_FROM = 2.2f
+        const val COUNT_TO = 0.94f
+        const val COUNT_R = 11.3f
     }
 
     private var x = MID
@@ -43,6 +49,9 @@ internal class JellyTrick : Trick(0L) {
     private var eaten = 0
     private var glow = 0L
     private var party = 0L
+    private var burst = 0L
+    private var bx = 0f
+    private var by = 0f
     private var seed = 0
     private var started = false
     private val homing = Homing()
@@ -57,6 +66,7 @@ internal class JellyTrick : Trick(0L) {
         eaten = 0
         glow = 0L
         party = 0L
+        burst = 0L
         seed = freshSeed()
         for (i in 0 until SPECKS) speck(i)
         homing.reset()
@@ -114,10 +124,14 @@ internal class JellyTrick : Trick(0L) {
             }
             if (glow > 0L) glow -= ms
             if (party > 0L) party -= ms
+            if (burst > 0L) burst -= ms
             for (i in 0 until SPECKS) {
                 sx[i] += sin(t / 900f + i * 2f) * 0.6f * dt
                 sy[i] += cos(t / 1100f + i) * 0.5f * dt
                 if (grow >= 1f && hypot(sx[i] - x, sy[i] - y) < EAT) {
+                    bx = sx[i]
+                    by = sy[i]
+                    burst = BURST_MS
                     speck(i)
                     glow = GLOW_MS
                     eaten++
@@ -142,7 +156,7 @@ internal class JellyTrick : Trick(0L) {
         // Tentacles: each node follows the one before it, so the arms trail behind the swim.
         val bottom = homing.y + sp.height * homing.s / 2f - 0.3f
         for (a in 0 until ARMS) {
-            var px = homing.x + (a - 1) * w / 3f
+            var px = homing.x + (a - 0.5f) * w / 3f
             var py = bottom
             for (n in 0 until NODES) {
                 val sway = 0.25f * sin(t / 180f + a * 1.7f + n)
@@ -163,17 +177,40 @@ internal class JellyTrick : Trick(0L) {
         val g = if (going) 1f - r else grow
         val shine = if (party > 0L) 0.6f + 0.4f * sin(t / 70f) else glow.toFloat() / GLOW_MS
         for (a in 0 until ARMS) for (n in 0 until NODES) {
-            canvas.splat(ax[a][n], ay[a][n], (1500f - n * 250f + 1500f * shine) * maxOf(g, if (going) 0f else 1f))
+            // Dim and short: they trail, they are not something to catch.
+            canvas.splat(ax[a][n], ay[a][n], (700f - n * 180f + 900f * shine) * maxOf(g, if (going) 0f else 1f))
         }
         val gain = 1f + 0.8f * shine
         val s = sprites.get(sp, face, input.blink && face == Face.IDLE)
         layer.spriteAt(s, homing.x, homing.y, homing.s * (1f + 0.15f * sq), homing.s * (1f - 0.15f * sq), gain)
         canvas.over(layer)
-        if (!going && grow >= 1f) for (i in 0 until SPECKS) {
-            canvas.splat(sx[i], sy[i], 1400f + 900f * sin(t / 200f + i * 1.3f))
+        if (!going && grow >= 1f) {
+            // The plankton: bright twinkling crosses, the brightest thing on the matrix, so it reads as the target.
+            for (i in 0 until SPECKS) {
+                val tw = 0.75f + 0.25f * sin(t / 140f + i * 2.1f)
+                canvas.splat(sx[i], sy[i], 3200f * tw)
+                for ((ox, oy) in CROSS) canvas.splat(sx[i] + ox, sy[i] + oy, 1300f * tw)
+            }
+            // A ring bursts where one was eaten.
+            if (burst > 0L) {
+                val k = 1f - burst.toFloat() / BURST_MS
+                val rr = 1f + 2.2f * k
+                for (j in 0 until 8) {
+                    val a = j * 0.785f
+                    canvas.splat(bx + rr * cos(a), by + rr * sin(a), 2600f * (1f - k))
+                }
+            }
+            // How many so far, out of [FULL]: a dot each along the bottom rim.
+            for (j in 0 until FULL) {
+                val a = COUNT_FROM + (COUNT_TO - COUNT_FROM) * j / (FULL - 1)
+                val lit = party > 0L || j < eaten
+                canvas.splat(MID + COUNT_R * cos(a), MID + COUNT_R * sin(a), if (lit) 2800f else 380f)
+            }
         }
         canvas.toFrame(frame)
     }
+
+    private val CROSS = listOf(1f to 0f, -1f to 0f, 0f to 1f, 0f to -1f)
 
     private fun speck(i: Int) {
         seed++

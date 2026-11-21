@@ -4,7 +4,7 @@ import n7.glyphpet.pet.Mood
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** The pet's answer to the gestures of a frame ([Reactions]): a shake grows a pet that is ready, or makes one dizzy. */
+/** The pet's answer to the gestures of a frame ([Reactions]): a shake grows a pet that is ready, else shows its signature. */
 class ReactionsTest {
 
     private val awake = Attention(hasPet = true, mood = Mood.CONTENT)
@@ -17,9 +17,18 @@ class ReactionsTest {
     }
 
     @Test
-    fun `a shake grows a pet that is ready, and leaves one that is not dizzy`() {
+    fun `a shake grows a pet that is ready, and one that is not shows its signature`() {
         assertEquals(listOf(Reaction.Grow), one(Gestures(shake = true), awake.copy(ready = true)))
-        assertEquals(listOf(Reaction.Dizzy), one(Gestures(shake = true), awake.copy(ready = false)))
+        assertEquals(listOf(Reaction.Signature), one(Gestures(shake = true), awake.copy(ready = false)))
+    }
+
+    @Test
+    fun `one shake too many, or a pet not up to a show, makes it dizzy`() {
+        val shake = Gestures(shake = true)
+        assertEquals(listOf(Reaction.Dizzy), one(shake, awake.copy(signatureFresh = true)))
+        assertEquals(listOf(Reaction.Dizzy), one(shake, awake.copy(hasSignature = false)))
+        for (m in listOf(Mood.HUNGRY, Mood.SAD, Mood.TIRED, Mood.SLEEPING)) assertEquals(m.name, listOf(Reaction.Dizzy), one(shake, awake.copy(mood = m)))
+        assertEquals(listOf(Reaction.Signature), one(shake, awake.copy(mood = Mood.HAPPY)))
     }
 
     @Test
@@ -31,7 +40,7 @@ class ReactionsTest {
     @Test
     fun `the pet answers however the phone is held`() {
         for (p in Posture.entries) {
-            assertEquals(p.name, listOf(Reaction.Dizzy), one(Gestures(shake = true), awake.copy(posture = p)))
+            assertEquals(p.name, listOf(Reaction.Signature), one(Gestures(shake = true), awake.copy(posture = p)))
         }
     }
 

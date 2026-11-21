@@ -65,17 +65,17 @@ class FormsTest {
     }
 
     @Test
-    fun `habits by stage - the teen's own, a wiggle for babies, adults their grown-up habit`() {
+    fun `habits by stage - the teen's own, none for babies, adults their grown-up habit`() {
         for (teen in SpeciesCatalog.all) {
             assertEquals(teen.habit.id, Habits.forStage(teen.id, Stage.TEEN, teen.rows).id)
-            assertEquals("${teen.id}.baby", "wiggle", SpeciesForms.of(teen.id, Stage.BABY).habit.id)
+            assertTrue("${teen.id}.baby", SpeciesForms.of(teen.id, Stage.BABY).habit.none)
             // An adult has its own habit now (Habits.forStage, Stage.ADULT), or the wiggle where it has none.
             val adultForm = SpeciesForms.of(teen.id, Stage.ADULT)
             assertEquals("${teen.id}.adult", Habits.forStage(teen.id, Stage.ADULT, adultForm.rows).id, adultForm.habit.id)
         }
         assertEquals("wiggle", Habits.forStage("nope", Stage.TEEN, listOf("#")).id)
         assertEquals("wiggle", Habits.forStage("nope", Stage.ADULT, listOf("#")).id)
-        for (s in babiesAndAdults) assertTrue("${s.id} ${s.habit.durationMs}", s.habit.durationMs in 1000L..1700L)
+        for (s in babiesAndAdults.filter { !it.habit.none }) assertTrue("${s.id} ${s.habit.durationMs}", s.habit.durationMs in 1000L..1700L)
     }
 
     @Test
@@ -148,12 +148,12 @@ class FormsTest {
             val engine = PetEngine(Random(3))
             var played = false
             var t = 0L
-            while (t < 30_000 && !played) {
+            while (t < 60_000 && !played) {
                 t += 80
                 engine.tick(80, Scene(s, Mood.CONTENT))
                 played = engine.shown.habit
             }
-            assertTrue("${s.id}: its habit never played", played || PetEngine.habitSpots(s).isEmpty())
+            assertTrue("${s.id}: its habit never played", played || s.habit.none || PetEngine.habitSpots(s).isEmpty())
         }
     }
 }

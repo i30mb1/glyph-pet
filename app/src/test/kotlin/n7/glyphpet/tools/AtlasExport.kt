@@ -17,6 +17,7 @@ import n7.glyphpet.pet.SpeciesForms
 import n7.glyphpet.pet.Stage
 import n7.glyphpet.pet.StatePreview
 import n7.glyphpet.pet.Staging
+import n7.glyphpet.pet.TiltStyle
 import n7.glyphpet.pet.TrickList
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -63,6 +64,8 @@ class AtlasExport {
             meta.append(",\"sig\":").append(js(sigOf[kind])).append(",\"sigShared\":").append(sigOf[kind]?.let { shared(it, sigOf) } ?: "[]")
             meta.append(",\"trick\":").append(js(trickOf[kind])).append(",\"trickShared\":").append(trickOf[kind]?.let { shared(it, trickOf) } ?: "[]")
             meta.append(",\"feast\":").append(Feasts.has(kind))
+            meta.append(",\"meal\":").append(js(Feasts.of(kind)?.let(::nameOf)))
+            meta.append(",\"tilt\":\"").append(TiltStyle.of(kind).name).append("\"")
             meta.append(",\"forms\":{")
             Stage.entries.forEachIndexed { j, st ->
                 val s = SpeciesForms.of(kind, st)
@@ -114,13 +117,12 @@ class AtlasExport {
             "hungry" to preview(PetState.HUNGRY, 2400),
             "sad" to preview(PetState.SAD, 3200),
             "tired" to preview(PetState.TIRED, 3200),
-            "sick" to preview(PetState.SICK, 2400),
             "asleep" to preview(PetState.ASLEEP, 4000),
             "eating" to preview(PetState.EATING, loop(PetState.EATING)),
             "loved" to preview(PetState.LOVED, loop(PetState.LOVED)),
             "dizzy" to preview(PetState.DIZZY, loop(PetState.DIZZY)),
             "tilt" to custom(s, 4800) { e, t -> scene(s, tilt = if ((t / 1600) % 2 == 0L) 1f else -1f) },
-            "habit" to preview(PetState.TRICK, loop(PetState.TRICK)),
+            "habit" to (if (s.habit.none) null else preview(PetState.TRICK, loop(PetState.TRICK))),
             "signature" to (if (Signatures.has(s.kind)) preview(PetState.SIGNATURE, StatePreview(s, PetState.SIGNATURE).loopMs.coerceIn(2400, 6400)) else null),
             "game" to (if (TrickList.all.containsKey(s.kind)) custom(s, 6400, start = { it.trick(s.kind) }) { _, t ->
                 scene(s, tilt = (0.8 * sin(2 * PI * t / 2600.0)).toFloat(), tiltY = 0.3f)

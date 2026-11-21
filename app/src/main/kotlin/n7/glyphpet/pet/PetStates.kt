@@ -6,11 +6,11 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 /** What the preview does to the pet on its own, again and again, to keep a short reaction on screen. */
-enum class Cue { FEED, PET, SHAKE, TRICK, SIGNATURE, ALERT, GAME }
+enum class Cue { FEED, PET, SHAKE, TRICK, SIGNATURE, GAME }
 
 /**
  * How a state is staged for the preview: the scene the real [PetEngine] is given, and the [cue] repeated every
- * [cueEveryMs] (first at [cueFirstMs]). [tiltEveryMs] > 0 tilts the phone the other way that often. [face] is what the
+ * [cueEveryMs] (first at [cueFirstMs]). [face] is what the
  * state shows (null: the charging indicator, or the species' habit for [PetState.TRICK]).
  */
 class Staging(
@@ -19,7 +19,6 @@ class Staging(
     val cue: Cue? = null,
     val cueFirstMs: Long = 0,
     val cueEveryMs: Long = 0,
-    val tiltEveryMs: Long = 0,
     val charging: Boolean = false,
 ) {
     companion object {
@@ -55,9 +54,6 @@ enum class PetState(val id: String, val stage: Staging) {
     /** Sleep below a fifth: heavy eyes, yawns. */
     TIRED("tired", Staging(Mood.TIRED, Face.TIRED)),
 
-    /** Food and Joy both almost empty: pale, hardly moves. Feeding cures it. */
-    SICK("sick", Staging(Mood.SICK, Face.SICK)),
-
     /** At night (23:00-7:00) or when Sleep is almost empty. A touch, a shake or food makes it open one eye. */
     ASLEEP("asleep", Staging(Mood.SLEEPING, Face.SLEEP, Cue.PET, cueFirstMs = 1800, cueEveryMs = 4000)),
 
@@ -76,9 +72,6 @@ enum class PetState(val id: String, val stage: Staging) {
     /** The phone is shaken. */
     DIZZY("dizzy", Staging(Mood.CONTENT, Face.DIZZY, Cue.SHAKE, cueFirstMs = 200, cueEveryMs = 3300)),
 
-    /** The phone is tilted: it slides to the low side. */
-    /** The phone is tilted and a notification comes in: the pet slides to the low side and looks up, startled. */
-    SCARED("scared", Staging(Mood.CONTENT, Face.SCARED, Cue.ALERT, cueFirstMs = 600, cueEveryMs = 4200, tiltEveryMs = 1500)),
 
     /** Every 6-12 s while calm or happy: the species' own habit, named by [Habit.id]. */
     TRICK("trick", Staging(Mood.CONTENT, null, Cue.TRICK, cueFirstMs = 400, cueEveryMs = 3200)),
@@ -149,7 +142,6 @@ class StatePreview(val species: Species, val state: PetState) {
                 Cue.PET -> engine.pet()
                 Cue.SHAKE -> engine.shake()
                 Cue.TRICK -> engine.trick()
-                Cue.ALERT -> engine.alert()
                 // The game would go on for a minute: it is sent home and started again, so the loop stays short.
                 Cue.GAME -> { engine.stopTrick(); engine.trick(species.kind, seed = state.ordinal * 31L + species.id.hashCode()) }
                 // A fixed seed: the same preview always plays the same effect, frame for frame.
@@ -158,7 +150,7 @@ class StatePreview(val species: Species, val state: PetState) {
             cueMs = timeMs
             nextCueMs += loopMs
         }
-        var tilt = if (stage.tiltEveryMs > 0) (if ((timeMs / stage.tiltEveryMs) % 2 == 0L) 1f else -1f) else 0f
+        var tilt = 0f
         var tiltY = 1f
         if (state == PetState.SIGNATURE && cueMs >= 0 && timeMs - cueMs < signatureMs) {
             // A slow sway from upright while the effect plays (level between, so the pet does not slide off).
@@ -254,7 +246,9 @@ class StatePreview(val species: Species, val state: PetState) {
     private fun hold(copy: StatePreview, frame: IntArray): IntArray {
         var shown = frame
         var held = 0L
-        while (held < STILL_HOLD_MS) {
+        // A kind that eats its own way is caught in the middle of its meal, where it shows best.
+        val holdMs = if (state == PetState.EATING) Feasts.of(species.kind)?.let { it.durationMs * 55 / 100 } ?: STILL_HOLD_MS else STILL_HOLD_MS
+        while (held < holdMs) {
             val next = copy.tick(FRAME_MS)
             if (!state.isShownBy(copy.shown)) break
             shown = next

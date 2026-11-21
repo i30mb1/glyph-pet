@@ -16,6 +16,9 @@ data class Attention(
     val ready: Boolean = false,
     val mood: Mood = Mood.CONTENT,
     val posture: Posture = Posture.HAND,
+    /** The pet has a signature to show, and whether one plays or just ended ([n7.glyphpet.pet.PetEngine.signatureFresh]). */
+    val hasSignature: Boolean = true,
+    val signatureFresh: Boolean = false,
 )
 
 /**
@@ -26,7 +29,13 @@ sealed interface Reaction {
     /** A shake while the pet is ready to grow: one shake toward its evolution. */
     data object Grow : Reaction
 
-    /** A shake while it is not: dizzy stars, so the shake always shows it was felt. */
+    /** A shake while it is not: the pet shows its signature at once. */
+    data object Signature : Reaction
+
+    /**
+     * One shake too many (during its signature or just after it), or a pet not up to a show (asleep, hungry, sad,
+     * tired, or with no signature): dizzy stars, so the shake always shows it was felt.
+     */
     data object Dizzy : Reaction
 }
 
@@ -61,8 +70,9 @@ class Reactions {
         val shake = ButtonRules.shake(hasPet = at.hasPet, eggOnMatrix = at.eggOnMatrix, petReady = at.ready)
         return when {
             shake == ShakeAction.GROW -> listOf(Reaction.Grow)
-            at.hasPet && !at.eggOnMatrix -> listOf(Reaction.Dizzy)
-            else -> emptyList()
+            !at.hasPet || at.eggOnMatrix -> emptyList()
+            at.hasSignature && !at.signatureFresh && (at.mood == Mood.CONTENT || at.mood == Mood.HAPPY) -> listOf(Reaction.Signature)
+            else -> listOf(Reaction.Dizzy)
         }
     }
 }

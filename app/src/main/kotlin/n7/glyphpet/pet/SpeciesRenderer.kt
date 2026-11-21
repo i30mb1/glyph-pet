@@ -11,7 +11,7 @@ object SpeciesRenderer {
     const val BODY = 1200
 
     /** [PEEK]: the first eye open, the others shut. */
-    private enum class Eyes { OPEN, CLOSED, HAPPY, SAD, ANGRY, DIZZY, SICK, LOVE, SCARED, PEEK }
+    private enum class Eyes { OPEN, CLOSED, HAPPY, SAD, ANGRY, DIZZY, LOVE, SCARED, PEEK }
     private enum class Mouth { NEUTRAL, SMILE, GRIN, FROWN, OPEN, SMALL, TEETH, WAVY }
 
     private class Look(val eyes: Eyes, val mouth: Mouth, val body: Float = 1f, val jump: Int = 0)
@@ -28,7 +28,6 @@ object SpeciesRenderer {
         Face.ANGRY to Look(Eyes.ANGRY, Mouth.TEETH),
         Face.SCARED to Look(Eyes.SCARED, Mouth.OPEN, jump = 1),
         Face.DIZZY to Look(Eyes.DIZZY, Mouth.WAVY),
-        Face.SICK to Look(Eyes.SICK, Mouth.WAVY, body = 0.65f),
         Face.SAD to Look(Eyes.SAD, Mouth.FROWN),
         Face.PEEK to Look(Eyes.PEEK, Mouth.SMALL, body = 0.5f),
         Face.TIRED to Look(Eyes.CLOSED, Mouth.NEUTRAL, body = 0.75f),
@@ -55,7 +54,6 @@ object SpeciesRenderer {
         Eyes.SAD to listOf(1 to 0, 0 to 1, 1 to 1),
         Eyes.ANGRY to listOf(0 to 0, 0 to 1, 1 to 1),
         Eyes.DIZZY to listOf(0 to 0, 1 to 1),
-        Eyes.SICK to listOf(0 to 1, 1 to 0),
     )
 
     private val MOUTHS: Map<Mouth, List<Pair<Int, Int>>> = mapOf(
@@ -75,7 +73,6 @@ object SpeciesRenderer {
     private val VEIN = listOf("o.o", ".o.", "o.o")
     private val BANG = listOf("o", "o", "o", ".", "o")
     private val STAR = listOf(".o.", "ooo", ".o.")
-    private val DROP = listOf(".o", "oo", "oo")
     private val SPARK = listOf("o.....o")
 
     /** A thought of food: a dim bubble with the food block inside and two dots trailing down to the head. */
@@ -120,7 +117,7 @@ object SpeciesRenderer {
 
         species.eyes.forEachIndexed { i, (homeX, ey) ->
             val ex = homeX + eyeDx
-            val mirror = i == 1 && eyes != Eyes.SICK
+            val mirror = i == 1
             when (eyes) {
                 Eyes.LOVE -> for (d in EYES.getValue(Eyes.OPEN)) cell(ex + d.first, ey + d.second, 'o')
                 Eyes.SCARED -> {
@@ -151,6 +148,8 @@ object SpeciesRenderer {
      * @param eyeDx shifts the eyes sideways (a glance), unless the habit frame shifts them itself.
      * @param shadow a pet off the ground (a hop, a jump for joy, a habit that rises) casts a dim shadow on the ground.
      * @param painter draws the body in 3D instead of flat (see [Living3D]); null, the default, draws it flat.
+     * @param badges draws the face's badge (a happy spark, a heart, a "z"); off while the pet slides down a lean,
+     *   where a spark over its jumping head read as its eyes slipping off.
      * @param cover if given, gets [COVER_BODY] for every visible cell of the silhouette (the carved eye and mouth holes
      *   included) and [COVER_FACE] for the eye and mouth slots with a cell of margin around them.
      */
@@ -168,9 +167,10 @@ object SpeciesRenderer {
         shadow: Boolean = false,
         cover: ByteArray? = null,
         painter: BodyPainter? = null,
+        badges: Boolean = true,
     ): IntArray {
         val look = LOOKS.getValue(face)
-        val eyesDx = habit?.eyeDx?.takeIf { it != 0 } ?: eyeDx
+        val eyesDx = habit?.eyeDx?.takeIf { it != 0 } ?: safeEyeDx(species, habit?.rows ?: species.rows, eyeDx)
         val rows = habit?.rows ?: species.rows
         val grid = carve(
             species, face,
@@ -221,7 +221,7 @@ object SpeciesRenderer {
         val sideX = ox + w + 1
         val sideY = species.oy + (species.mouth?.second ?: (species.height / 2))
 
-        if (face !in species.replaces) {
+        if (badges && face !in species.replaces) {
             when (face) {
                 Face.HAPPY -> badge(frame, SPARK, heartX - 1, heartY + 3)
                 Face.LOVE -> badge(frame, HEART, heartX, heartY)
@@ -232,7 +232,6 @@ object SpeciesRenderer {
                 Face.ANGRY -> badge(frame, VEIN, zX, zY)
                 Face.SCARED -> badge(frame, BANG, zX + 1, zY)
                 Face.DIZZY -> { badge(frame, STAR, heartX - 3, heartY + 1); badge(frame, STAR, heartX + 5, heartY + 1) }
-                Face.SICK -> badge(frame, DROP, zX, zY + 1)
                 else -> Unit
             }
         }
@@ -474,6 +473,30 @@ object SpeciesRenderer {
         val (fx, fy) = fitted(rows, x, y)
         glyph(frame, rows, fx, fy, brightValue = brightValue)
     }
+
+    /**
+     * How far the eyes may look aside, up to [eyeDx]: only as far as every eye's hole stays on body cells ('#'). Looked
+     * further, a hole bit into what frames the eye (the chameleon's bright ring) or out past the body's edge, and the
+     * eye fell apart. The bot's eyes are lit on its dark face and move freely.
+     */
+    fun safeEyeDx(species: Species, rows: List<String>, eyeDx: Int): Int {
+        if (eyeDx == 0 || species.inverted) return eyeDx
+        fun fits(d: Int) = species.eyes.all { (ex, ey) ->
+            (0..1).all { a ->
+                (0..1).all { b ->
+                    val x = ex + d + a
+                    val y = ey + b
+                    rows.getOrNull(y)?.getOrNull(x) == '#' || (x - ex in 0..1)
+                }
+            }
+        }
+        var d = eyeDx
+        while (d != 0 && !fits(d)) d -= Integer.signum(d)
+        return d
+    }
+
+    /** How high [face] lifts the pet off its spot (a happy jump), in cells. */
+    fun jumpOf(face: Face): Int = LOOKS.getValue(face).jump
 
     fun put(frame: IntArray, x: Int, y: Int, value: Int) {
         if (GlyphMatrixSpec.isVisible(x, y)) frame[y * SIZE + x] = maxOf(frame[y * SIZE + x], value)

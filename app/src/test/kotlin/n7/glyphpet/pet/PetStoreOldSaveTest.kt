@@ -277,10 +277,10 @@ class PetStoreOldSaveTest {
         val store = PetStore(fakeContext(prefs))
         val n = store.nursery(now)
         assertEquals(stats, n.stats)
-        assertEquals(Mood.SICK, PetRules.mood(n.stats, asleep = false))
+        assertEquals(Mood.HUNGRY, PetRules.mood(n.stats, asleep = false))
         assertTrue(store.feed(now).ate)
         val fed = store.nursery(now)
-        // 3 + 35 Food, 2 + 5 Joy: no longer sick, only sad.
+        // 3 + 35 Food, 2 + 5 Joy: no longer hungry, only sad.
         assertEquals(Mood.SAD, PetRules.mood(fed.stats, asleep = false))
         assertEquals(38f, prefs.map["satiety"])
         assertEquals(7f, prefs.map["joy"])
@@ -402,8 +402,8 @@ class PetStoreOldSaveTest {
         prefs.map["satiety"] = 2f
         prefs.map["joy"] = 2f
         val store = PetStore(fakeContext(prefs))
-        assertEquals(Mood.SICK, PetRules.mood(store.nursery(now).stats, asleep = false))
-        assertEquals("a sick pet earns nothing from time", 0, store.gain(XpRules.SIGNATURE, now))
+        assertEquals(Mood.HUNGRY, PetRules.mood(store.nursery(now).stats, asleep = false))
+        assertEquals("a hungry pet earns nothing from time", 0, store.gain(XpRules.SIGNATURE, now))
         for (key in listOf("care_day", "care_fed", "care_sick")) assertFalse(key, prefs.map.containsKey(key))
         // The meal that cures it still counts: it was down to its last dot of Food.
         assertEquals(XpRules.FEED, store.feed(now + 1000).xp)

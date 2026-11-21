@@ -64,9 +64,9 @@ object XpRules {
 
     fun trick(playedMs: Long): Int = ((playedMs.coerceAtLeast(0) / TRICK_EVERY_MS) * TRICK_PER).toInt().coerceAtMost(TRICK_MAX)
 
-    /** Whether the pet gains at all now: awake, not hungry, not sick. */
+    /** Whether the pet gains at all now: awake and not hungry. */
     fun gains(stats: PetStats, asleep: Boolean): Boolean = when (PetRules.mood(stats, asleep)) {
-        Mood.SLEEPING, Mood.SICK, Mood.HUNGRY -> false
+        Mood.SLEEPING, Mood.HUNGRY -> false
         else -> true
     }
 

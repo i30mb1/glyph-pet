@@ -66,13 +66,13 @@
     <string name="supporter_close">Закрыть</string>
 
     <string name="step_activate">Включи Glyph Pet в Glyph-игрушках</string>
-    <string name="step_play">Нажми кнопку Glyph, чтобы покормить, а сытому — чтобы поиграть. Потряси, чтобы подрос готовый питомец</string>
+    <string name="step_play">Нажми кнопку Glyph, чтобы покормить, а сытому — чтобы поиграть. Потряси — покажет свою фишку, а готовый питомец подрастёт</string>
     <string name="step_aod">Сделай его Always-on игрушкой, чтобы он всегда был с тобой</string>
 
     <string name="intro_1_title">Каждый день — новый питомец</string>
     <string name="intro_1_text">Каждый день, когда ты играешь, приходит новый питомец в яйце, всегда тот, которого у тебя ещё нет. Положи яйцо на матрицу и пять раз зажми кнопку Glyph — он вылупится.</string>
     <string name="intro_2_title">Кнопка и жесты</string>
-    <string name="intro_2_text">Питомец живёт на задней панели телефона. Нажми кнопку Glyph — он поест, а сытый начнёт мини-игру. Потряси — закружится голова, а когда питомец готов, он подрастёт.</string>
+    <string name="intro_2_text">Питомец живёт на задней панели телефона. Нажми кнопку Glyph — он поест, а сытый начнёт мини-игру. Потряси — покажет свою фишку, а когда питомец готов, он подрастёт.</string>
     <string name="intro_3_title">Собери всех 28</string>
     <string name="intro_3_text">Каждый новый питомец попадает в питомник. Девять обычных, тринадцать редких, четыре легендарных и два мифических.</string>
     <string name="intro_next">Дальше</string>
@@ -92,7 +92,6 @@
     <string name="now_egg_how">Зажимай кнопку Glyph на задней панели, всего пять долгих нажатий.</string>
     <string name="now_egg_presses">Осталось нажатий до вылупления: %1$d</string>
     <string name="now_sleeping">%1$s спит</string>
-    <string name="now_sick">%1$s болеет</string>
     <string name="now_hungry">%1$s хочет есть</string>
     <string name="now_tired">%1$s хочет спать</string>
     <string name="now_sad">%1$s скучает</string>
@@ -109,7 +108,6 @@
     <string name="next_supporter">Все питомцы, которых у тебя нет, уже ждут в яйцах.</string>
 
     <string name="mood_sleeping">Спит. Проснётся утром или когда отдохнёт.</string>
-    <string name="mood_sick">Болеет. Покорми его.</string>
     <string name="mood_hungry">Голодный. Зажми кнопку Glyph.</string>
     <string name="mood_tired">Устал и скоро уснёт.</string>
     <string name="mood_sad">Скучает. Накорми досыта и нажми кнопку Glyph: поиграете.</string>
@@ -127,8 +125,6 @@
     <string name="state_sad_when">Когда Радости меньше четверти</string>
     <string name="state_tired">Устал</string>
     <string name="state_tired_when">Когда Сна меньше пятой части</string>
-    <string name="state_sick">Болеет</string>
-    <string name="state_sick_when">Когда Еда и Радость почти на нуле. Покорми, и пройдёт.</string>
     <string name="state_asleep">Спит</string>
     <string name="state_asleep_when">Ночью с 0:00 до 6:00 или когда Сон почти на нуле</string>
     <string name="state_eating">Ест</string>
@@ -136,13 +132,11 @@
     <string name="state_loved">Его гладят</string>
     <string name="state_loved_when">Когда качаешь телефон из стороны в сторону</string>
     <string name="state_dizzy">Голова кругом</string>
-    <string name="state_dizzy_when">Когда трясёшь телефон, а подрастать ему ещё рано</string>
-    <string name="state_scared">Испуган</string>
-    <string name="state_scared_when">Когда наклоняешь телефон: он катится вниз</string>
+    <string name="state_dizzy_when">Когда трясёшь слишком часто, прямо во время фишки или сразу после, или когда ему не до фишек</string>
     <string name="state_game">Мини-игра</string>
     <string name="state_game_when">Сытый и зажали кнопку Glyph: играете до минуты, наклоняя телефон. Нажми кнопку ещё раз, и он пойдёт домой</string>
     <string name="state_trick">Свой трюк</string>
-    <string name="state_trick_when">Время от времени, когда он спокоен или счастлив</string>
+    <string name="state_trick_when">Часто, когда он спокоен: после 10 секунд тишины</string>
     <string name="state_charging">На зарядке</string>
     <string name="state_charging_when">Когда телефон заряжается: показывает заряд и скорость</string>
 
@@ -219,7 +213,7 @@
     <string name="grow_ready_pick">Готов расти: положи его на матрицу и потряси телефон 3 раза</string>
     <!-- Signature effects: the states card's page and the collection tiles. -->
     <string name="state_signature">Фишка</string>
-    <string name="state_signature_when">%1$s. Раз в 10–20 секунд, когда питомец спокоен</string>
+    <string name="state_signature_when">%1$s. Сам раз в минуту, перед ней пробегает блик. Или потряси телефон</string>
     <string name="sig_bunny">Прыжок вглубь</string>
     <string name="sig_bunny_about">Прыгает вглубь матрицы и обратно</string>
     <string name="sig_chick">Зёрнышки</string>

@@ -122,8 +122,27 @@ object ChargeRenderer {
         if (a < 0) a + 2 * Math.PI else a
     }
 
-    /** @param plugMs time since the cable went in while that moment is still playing, else null. */
-    fun render(species: Species, st: ChargeState, plugMs: Long? = null, frame: IntArray = IntArray(SIZE * SIZE)): IntArray {
+    /**
+     * The 3D body of a legendary or mythic pet for the frame being drawn ([Living3D]): every way of charging paints
+     * the pet through [paint], which uses it, so the top tiers stay in 3D on the charger too. Per thread: the app's
+     * previews and the toy draw at the same time.
+     */
+    private val painter = ThreadLocal<BodyPainter?>()
+
+    /**
+     * @param plugMs time since the cable went in while that moment is still playing, else null.
+     * @param body3d the pet's 3D painter, for the top tiers; null draws it flat.
+     */
+    fun render(species: Species, st: ChargeState, plugMs: Long? = null, frame: IntArray = IntArray(SIZE * SIZE), body3d: BodyPainter? = null): IntArray {
+        painter.set(body3d)
+        try {
+            return renderFlatOr3d(species, st, plugMs, frame)
+        } finally {
+            painter.set(null)
+        }
+    }
+
+    private fun renderFlatOr3d(species: Species, st: ChargeState, plugMs: Long?, frame: IntArray): IntArray {
         if (plugMs != null && plugMs < PLUG_FLASH_MS && !st.still) {
             if ((plugMs / 100) % 2 == 0L) RING.forEach { (x, y) -> set(frame, x, y, BRIGHT) }
             val dy = standDy(species, st)
@@ -323,6 +342,13 @@ object ChargeRenderer {
         still: Boolean = false,
         body: ((Int, Int) -> Int)? = null,
     ) {
+        val p = painter.get()
+        if (p != null && body == null) {
+            val ok = runCatching {
+                p.paint(f, s, Face.CONTENT, s.rows, grid, s.ox, s.oy + dy, if (still) BODY / 2 else BODY, if (still) BRIGHT / 2 else BRIGHT)
+            }.getOrDefault(false)
+            if (ok) return
+        }
         val last = grid.lastIndex
         val half = s.width / 2f
         for (y in grid.indices) for (x in grid[y].indices) {

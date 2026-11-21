@@ -75,26 +75,6 @@ class PetRulesTest {
     }
 
     @Test
-    fun `a pet with almost no food and no joy is sick, right after sleep in order`() {
-        assertEquals(Mood.SICK, PetRules.mood(PetStats(4f, 4f, 90f, 0, 0), asleep = false))
-        assertEquals("sick beats tired", Mood.SICK, PetRules.mood(PetStats(4f, 4f, 15f, 0, 0), asleep = false))
-        assertEquals("sleep beats sick", Mood.SLEEPING, PetRules.mood(PetStats(4f, 4f, 5f, 0, 0), asleep = true))
-        assertEquals("both thresholds", Mood.HUNGRY, PetRules.mood(PetStats(4f, PetRules.SICK_JOY, 90f, 0, 0), asleep = false))
-        assertEquals(Mood.SAD, PetRules.mood(PetStats(PetRules.SICK_SATIETY + 30f, 4f, 90f, 0, 0), asleep = false))
-        assertEquals(Mood.HUNGRY, PetRules.mood(PetStats(PetRules.SICK_SATIETY, 4f, 90f, 0, 0), asleep = false))
-    }
-
-    @Test
-    fun `half a day without care makes the pet sick and one meal cures it`() {
-        val start = PetStats(60f, 50f, 90f, 0, 0)
-        val later = PetRules.advance(start, 9 * hour)
-        assertEquals(Mood.SICK, PetRules.mood(later, asleep = false))
-        val (fed, ate) = PetRules.feed(later)
-        assertTrue(ate)
-        assertFalse(PetRules.mood(fed, asleep = false) == Mood.SICK)
-    }
-
-    @Test
     fun `only being worn out puts the pet to sleep, at any hour of the night or the day`() {
         val rested = PetStats(50f, 50f, 50f, 0, 0)
         assertFalse(rested.napping)
