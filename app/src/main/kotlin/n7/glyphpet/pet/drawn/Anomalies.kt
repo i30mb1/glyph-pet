@@ -52,8 +52,8 @@ object Drawn {
     fun frame(kind: String, col: String, t: Long, stage: Stage, tilt: Float = 0f, frame: IntArray = IntArray(625)): IntArray {
         val hero = byKind[kind] ?: return frame
         val c = Cv()
-        // The clips are drawn on a 160 ms beat: a frame between two steps shows the earlier one, as the atlas does.
-        val tt = (Math.floorMod(t, length(col)) / STEP) * STEP
+        // At the full frame rate: the atlas records the clips every [STEP], the matrix shows every frame in between.
+        val tt = Math.floorMod(t, length(col))
         runCatching { hero.draw(c, col, tt, stage.ordinal, tilt) }
         val v = c.ints()
         for (i in v.indices) if (v[i] > frame[i]) frame[i] = v[i]
@@ -669,6 +669,7 @@ private object Swarm : Anomaly(
         }
     }
     private var flock: Flock? = null
+    private var flockT = 0L
 
     override fun draw(c: Cv, col: String, t: Long, st: Int, tilt: Float) {
         val n = N[st]; val s = 3f + 2.4f * st
@@ -740,9 +741,10 @@ private object Swarm : Anomaly(
             }
             "tilt", "charging" -> {
                 if (col == "tilt") {
-                    if (t == 0L) { flock = Flock(n, st).also { it.step(0f, 25f, 2000) } }
+                    // A new run (the clip started over, or the first frame): pour the swarm in afresh. Then step by the real time.
+                    if (flock == null || t < flockT || t == 0L) { flock = Flock(n, st).also { it.step(0f, 25f, 2000) }; flockT = t }
                     val f = flock!!
-                    f.step(tilt * 30f, 22f, Drawn.STEP)
+                    f.step(tilt * 30f, 22f, (t - flockT).coerceIn(0L, 200L)); flockT = t
                     for (i in 0 until n) c.put(f.x[i], f.y[i], blink(i, t) * 0.8f + 0.2f)
                 } else {
                     val p = seg(t, 0, 2900)
@@ -1522,7 +1524,7 @@ private object LavaLamp : Anomaly(
         Blob(x, y, r)
     }
 
-    private var bx = 12f; private var bv = 0f
+    private var bx = 12f; private var bv = 0f; private var blobT = 0L
 
     override fun draw(c: Cv, col: String, t: Long, st: Int, tilt: Float) {
         val r = RB[st]
@@ -1578,8 +1580,9 @@ private object LavaLamp : Anomaly(
                 lava(c, listOf(m), b = 1f + 0.4f * k, eyes = if (t < 900) 3 else 1)
             }
             "game" -> {
-                if (t == 0L) { bx = 12f; bv = 0f }
-                bv += tilt * 40f * Drawn.STEP / 1000f; bv *= 0.85f; bx = (bx + bv * Drawn.STEP / 1000f * 6f).coerceIn(6f, 18f)
+                if (t == 0L || t < blobT) { bx = 12f; bv = 0f; blobT = t }
+                val dt = (t - blobT).coerceIn(0L, 200L) / 1000f; blobT = t
+                bv += tilt * 40f * dt; bv *= 0.85f.pow(dt / 0.16f); bx = (bx + bv * dt * 6f).coerceIn(6f, 18f)
                 val eaten = (t / 1280).toInt()
                 val drops = List(5) { i -> Blob(4f + rnd(i, 121) * 16f, 8f + rnd(i, 122) * 9f, 0.8f) }.drop(eaten)
                 lava(c, listOf(Blob(bx, 13f, r * (1f + 0.12f * eaten))) + drops, eyes = 0)

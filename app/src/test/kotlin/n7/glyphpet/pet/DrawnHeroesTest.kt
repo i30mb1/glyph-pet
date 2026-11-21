@@ -151,3 +151,13 @@ class StateFadeTest {
         }
     }
 }
+
+/** On the matrix a drawn hero moves at the full frame rate, not on the atlas's 160 ms beat. */
+class DrawnFrameRateTest {
+    @Test
+    fun `frames between two atlas steps are frames of their own`() {
+        val a = Drawn.frame("phoenix", "calm", 1600, Stage.TEEN)
+        val b = Drawn.frame("phoenix", "calm", 1640, Stage.TEEN)
+        assertTrue(!a.contentEquals(b))
+    }
+}
