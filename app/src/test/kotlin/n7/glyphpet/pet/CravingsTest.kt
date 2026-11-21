@@ -43,6 +43,30 @@ class CravingsTest {
     }
 
     @Test
+    fun `dizzy gags stay crisp - they never smear the pet into in-between brightness`() {
+        // The ghost's double and the chameleon's colours change brightness on purpose.
+        val own = setOf("ghost", "chameleon")
+        val smeared = mutableListOf<String>()
+        for (s in SpeciesForms.all) {
+            if (s.kind in own) continue
+            val base = IntArray(625)
+            val g = SpeciesRenderer.carve(s, Face.DIZZY)
+            g.forEachIndexed { y, row -> row.forEachIndexed { x, c ->
+                val v = when (c) { '#' -> SpeciesRenderer.BODY; 'o' -> SpeciesRenderer.BRIGHT; else -> 0 }
+                if (v > 0 && n7.glyph.ui.matrix.GlyphMatrixSpec.isVisible(s.ox + x, s.oy + y)) base[(s.oy + y) * 25 + s.ox + x] = v
+            } }
+            val allowed = base.toSet() + setOf(0, SpeciesRenderer.BODY, SpeciesRenderer.BRIGHT)
+            for (t in 0 until 2400L step 40) {
+                val f = base.copyOf()
+                Gags.dizzy(f, s, s.ox, s.oy, t)
+                val odd = f.filter { it !in allowed }.toSet()
+                if (odd.isNotEmpty()) { smeared += "${s.id}@$t: $odd"; break }
+            }
+        }
+        assertTrue("smeared: $smeared", smeared.isEmpty())
+    }
+
+    @Test
     fun `every kind has its own way of being tired, sad and dizzy`() {
         for (s in SpeciesCatalog.all) assertTrue("${s.id} lacks a mood sign", MoodSigns.hasAll(s.kind))
     }

@@ -70,7 +70,8 @@ table.atlas { border-collapse: separate; border-spacing: 0; font-size: 12px }
 .atlas thead th.pet { z-index: 3 }
 .pet .n { font: 600 14px var(--display); display: block }
 .pet .r { font: 500 10px var(--body); letter-spacing: .08em; text-transform: uppercase }
-.r.COMMON { color: var(--muted) } .r.RARE { color: #8fc3ff } .r.LEGENDARY { color: #f2b35b } .r.MYTHIC { color: #e79bff }
+.r.COMMON { color: var(--muted) } .r.RARE { color: #8fc3ff } .r.LEGENDARY { color: #f2b35b } .r.MYTHIC { color: #e79bff } .r.ANOMALY { color: #ff7a6b }
+.pet .u { display: block; color: var(--muted); font-size: 11px; line-height: 1.35; margin-top: 4px; max-width: 120px }
 .pet .k { color: var(--muted); font-size: 11px }
 td.cell { padding: 8px 6px 7px; text-align: center; vertical-align: top; cursor: pointer; transition: opacity .15s }
 td.cell canvas { display: block; margin: 0 auto; width: 76px; height: 76px }
@@ -96,6 +97,7 @@ dialog button { background: none; border: 1px solid var(--line); color: var(--in
   <header>
     <h1>Атлас Glyph Pet</h1>
     <p class="lede">Все питомцы по вертикали, все анимации по горизонтали. Кадры записаны из настоящего движка игры (<code>AtlasExport</code>), так что здесь видно ровно то, что играет на матрице. Метка под кадром показывает, общая это анимация или своя у питомца. Тап по клетке открывает её крупно.</p>
+    <p class="lede"><b style="color:#ff7a6b">Аномалии</b> — новый тир выше мифических, пока концепт: кадры нарисованы отдельным генератором (<code>Anomalies</code>), в игре их ещё нет. Каждая занимает всю матрицу, у каждой своё правило и свой секретный способ открыть.</p>
   </header>
 
   <section class="top">
@@ -195,7 +197,7 @@ const COLS = [
   ["charging", "Зарядка", "Телефон на зарядке", "Система"],
   ["grow", "Рост", "Яйцо: 5 нажатий. Рост: тряска, когда готов", "Система"],
 ];
-const RAR = { COMMON: "Обычный", RARE: "Редкий", LEGENDARY: "Легендарный", MYTHIC: "Мифический" };
+const RAR = { COMMON: "Обычный", RARE: "Редкий", LEGENDARY: "Легендарный", MYTHIC: "Мифический", ANOMALY: "Аномалия · концепт" };
 const STAGE = { baby: "BABY", teen: "TEEN", adult: "ADULT" };
 
 let meta, mask, stage = "teen", frames = {}, focus = false, query = "", rarityOn = new Set(Object.keys(RAR));
@@ -233,6 +235,7 @@ const TILT_RU = { TURN: "поворачивается головой вверх"
   FLOAT: "плывёт", HOP: "скачет", SCUTTLE: "семенит", SKATE: "скользит со следом", GLITCH: "глитч-прыжки", STOMP: "топает" };
 // How much each column of a hero is its own, the shared one, a repeat, or missing.
 function tagOf(pet, col, form) {
+  if (pet.concept) return ["own", (pet.tags && pet.tags[col]) || "своя"];
   const stageForm = pet.forms[STAGE[stage]];
   switch (col) {
     case "eating": {
@@ -351,7 +354,7 @@ function render() {
   h += COLS.map(([, n, w]) => `<th><span class="n">${n}</span><span class="w">${w}</span></th>`).join("") + `</tr></thead><tbody>`;
   for (const p of pets) {
     const form = p.forms[STAGE[stage]];
-    h += `<tr><th class="pet" scope="row"><span class="r ${p.rarity}">${RAR[p.rarity]}</span><span class="n">${form.name}</span><span class="k">${p.kind}</span></th>`;
+    h += `<tr><th class="pet" scope="row"><span class="r ${p.rarity}">${RAR[p.rarity]}</span><span class="n">${form.name}</span><span class="k">${p.kind}</span>${p.concept ? `<span class="u" title="${p.idea}">Открыть: ${p.unlock}</span>` : ""}</th>`;
     for (const [id, name] of COLS) {
       const data = frames[p.kind] && frames[p.kind][id];
       if (!data) { h += `<td class="empty" title="Нет у этого питомца">–</td>`; continue; }

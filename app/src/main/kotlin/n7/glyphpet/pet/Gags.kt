@@ -2,6 +2,7 @@ package n7.glyphpet.pet
 
 import n7.glyph.ui.matrix.GlyphMatrixSpec
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -37,6 +38,8 @@ object Gags {
         val cy get() = (t + b) / 2f
         val w get() = r - l + 1
         val h get() = b - t + 1
+        /** The box grown by [n] on every side: room for a pet turned on its side. */
+        fun grown(n: Int) = Box(l - n, r + n, t - n, b + n)
     }
 
     /**
@@ -68,7 +71,26 @@ object Gags {
         if (y in from..to) (box.l + Math.floorMod(x - box.l - k, box.w)) to y else x to y
     }
 
-    private fun turn(f: IntArray, box: Box, angle: Float) = TiltStyle.rotate(f, box.l, box.r, box.t, box.b, angle)
+    /**
+     * [k] quarter turns clockwise about the box's middle, cell for cell: no blending, so the pet stays crisp (a blended
+     * turn by any angle smears a small sprite into mush).
+     */
+    private fun quarter(f: IntArray, box: Box, k: Int) {
+        val q = Math.floorMod(k, 4)
+        if (q == 0) return
+        val cx = (box.l + box.r) / 2f
+        val cy = (box.t + box.b) / 2f
+        remap(f, box, abs(box.w - box.h) / 2 + 1) { x, y ->
+            var dx = x - cx
+            var dy = y - cy
+            repeat(q) { val o = dx; dx = dy; dy = -o }
+            (cx + dx).roundToInt() to (cy + dy).roundToInt()
+        }
+    }
+
+    /** A sway without blending: each row slides sideways by how far it is from the row that stays put ([pivot]). */
+    private fun sway(f: IntArray, box: Box, amount: Float, pivot: Int) =
+        rows(f, box) { y -> (amount * (y - pivot) / box.h).roundToInt() }
 
     private fun hash(n: Long): Int = ((n * 2654435761L) ushr 16 and 0xffff).toInt()
 
@@ -100,8 +122,15 @@ object Gags {
                 val side = if ((t / 300) % 2 == 0L) 1 else -1
                 for (i in 0 until len) light(f, ox + mx + 1 + side * (i / 2), oy + my + 2 + i, BRIGHT)
             }
-            // Keels over onto its side and back up.
-            "dino" -> turn(f, box, (sin(phase * 2 * PI) * 1.2).toFloat())
+            // Totters, keels over onto its side, lies there kicking, gets back up.
+            "dino" -> {
+                val p = (t % 2400) / 2400f
+                when {
+                    p < 0.3f -> sway(f, box, (sin(p / 0.3f * 2 * PI) * 2.5).toFloat(), box.b)
+                    p < 0.8f -> { quarter(f, box, 1); if ((t / 150) % 2 == 0L) move(f, box.grown(abs(box.w - box.h) / 2 + 1), 0, -1) }
+                    else -> sway(f, box, (sin((p - 0.8f) / 0.2f * PI) * -1.5).toFloat(), box.b)
+                }
+            }
             // Its tentacles get tangled: the lower rows jiggle against each other.
             "jelly" -> rows(f, box) { y -> if (y < box.t + box.h / 2) 0 else if ((y + t / 140) % 2 == 0L) 1 else -1 }
             // Its ears flop from side to side.
@@ -131,7 +160,10 @@ object Gags {
                 }
             }
             // Slips over and slides along on its side.
-            "penguin" -> { turn(f, box, (PI / 2 * minOf(1f, phase * 3)).toFloat()); move(f, box, if (phase > 0.4f) ((phase - 0.4f) * 6).roundToInt() - 2 else 0, 0) }
+            "penguin" -> {
+                if (phase < 0.2f) sway(f, box, phase / 0.2f * 3f, box.b)
+                else { quarter(f, box, 1); move(f, box.grown(abs(box.w - box.h) / 2 + 1), ((phase - 0.2f) * 6).roundToInt() - 2, 0) }
+            }
             // Splats flat and springs back.
             "slime" -> if ((t / 200) % 3 != 0L) remap(f, box, 0) { x, y -> if (y < box.t + 2) null else x to (y - 2) }
             // Wobbles about wildly.
@@ -140,21 +172,25 @@ object Gags {
             "toast" -> if ((t / 250) % 2 == 1L) { flip(f, box); move(f, box, 0, -2) }
             // Wobbles like a spinning coin, sparks flying off below.
             "ufo" -> {
-                turn(f, box, (sin(t / 110.0) * 0.5).toFloat())
+                sway(f, box, (sin(t / 110.0) * 3).toFloat(), (box.t + box.b) / 2)
                 if ((t / 100) % 2 == 0L) light(f, box.l + (hash(t / 100) % box.w), box.b + 2, BRIGHT)
             }
-            // Spins like a top, round and round.
-            "snail" -> turn(f, box, t / 160f)
+            // Spins like a top, round and round, a quarter at a time.
+            "snail" -> quarter(f, box, (t / 160).toInt())
             // Rolls like a wheel, the other way, faster.
-            "hedgehog" -> turn(f, box, -t / 110f)
+            "hedgehog" -> quarter(f, box, -(t / 110).toInt())
             // Runs from wall to wall and bumps into them.
             "crab" -> move(f, box, (((t / 90) % 8).let { if (it < 4) it else 8 - it } - 2).toInt(), 0)
             // Floats belly up.
             "whale" -> { flip(f, box); move(f, box, 0, if ((t / 300) % 2 == 0L) 0 else -1) }
             // Flies in a zigzag.
             "bee" -> move(f, box, (hash(t / 100) % 5) - 2, (hash(t / 100 + 3) % 3) - 1)
-            // Hangs upside down, swinging.
-            "bat" -> { flip(f, box); turn(f, box, (sin(t / 200.0) * 0.4).toFloat()) }
+            // Hangs upside down from a branch, swinging like a pendulum: its feet stay put on top.
+            "bat" -> {
+                flip(f, box)
+                sway(f, box, (sin(t / 200.0) * 3).toFloat(), box.t)
+                for (x in box.l + box.w / 2 - 2..box.l + box.w / 2 + 2) light(f, x, box.t - 1, SpeciesRenderer.BODY)
+            }
             // Flashes through its colours.
             "chameleon" -> for (y in box.t..box.b) for (x in box.l..box.r) {
                 val v = at(f, x, y)
@@ -181,7 +217,7 @@ object Gags {
             }
             // Its moons fly round it in a whirl, and it wobbles.
             "planet" -> {
-                turn(f, box, (sin(t / 150.0) * 0.3).toFloat())
+                sway(f, box, (sin(t / 150.0) * 2).toFloat(), (box.t + box.b) / 2)
                 for (k in 0 until 4) {
                     val a = t / 90.0 + k * PI / 2
                     light(f, (box.cx + (box.w / 2f + 2) * cos(a)).roundToInt(), (box.cy + (box.h / 2f + 1) * sin(a)).roundToInt(), BRIGHT)

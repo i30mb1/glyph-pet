@@ -78,6 +78,15 @@ class AtlasExport {
             }
             meta.append("}}")
         }
+        // The anomalies: concepts drawn by [Anomalies], not the engine.
+        for (a in Anomalies.all) {
+            meta.append(",{\"kind\":\"${a.kind}\",\"name\":\"${a.names[1]}\",\"rarity\":\"ANOMALY\",\"concept\":true")
+            meta.append(",\"unlock\":").append(js(a.unlock)).append(",\"idea\":").append(js(a.idea))
+            meta.append(",\"tags\":{").append(a.tags.entries.joinToString(",") { "\"${it.key}\":\"${it.value}\"" }).append("}")
+            meta.append(",\"tilt\":\"OWN\",\"sig\":null,\"sigShared\":[],\"trick\":null,\"trickShared\":[],\"feast\":false,\"meal\":null,\"forms\":{")
+            meta.append(Stage.entries.mapIndexed { j, st -> "\"${st.name}\":{\"name\":\"${a.names[j]}\",\"habit\":\"own\",\"habitShared\":1,\"charge\":null}" }.joinToString(","))
+            meta.append("}}")
+        }
         meta.append("]}")
         File(dir, "meta.json").writeText(meta.toString())
 
@@ -101,9 +110,23 @@ class AtlasExport {
                 }
                 sb.append('}')
             }
+            for (a in Anomalies.all) {
+                sb.append(",\"${a.kind}\":{")
+                sb.append(Anomalies.COLS.joinToString(",") { (id, _) -> clipJson(id, Anomalies.clip(a, id, st.ordinal)) })
+                sb.append('}')
+            }
             sb.append('}')
             File(dir, "frames-${st.name.lowercase()}.json").writeText(sb.toString())
         }
+    }
+
+    private fun clipJson(id: String, frames: List<IntArray>): String {
+        // Anomaly clips are drawn one frame per 160 ms already.
+        val uniq = LinkedHashMap<String, Int>()
+        val seq = frames.map { f -> uniq.getOrPut(encode(f)) { uniq.size } }
+        val sb = StringBuilder("\"$id\":{\"f\":[").append(uniq.keys.joinToString(",") { "\"$it\"" }).append("],\"s\":\"")
+        seq.forEach { sb.append(Character.forDigit(it % 36, 36)).append(if (it >= 36) "!" else "") }
+        return sb.append("\"}").toString()
     }
 
     /** Every column of the atlas for one form: null where the form has no such animation. */
