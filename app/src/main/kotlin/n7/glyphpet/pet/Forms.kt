@@ -283,7 +283,7 @@ object SpeciesForms {
                 "#################", "#################", "#################", "#################", ".###############.",
                 "..#############..", "###.##.....##.###",
             ),
-            ox = 4, oy = 7, eyes = listOf(2 to 2, 13 to 2), mouth = 7 to 7,
+            ox = 4, oy = 7, eyes = listOf(2 to 3, 13 to 3), mouth = 7 to 7,
         ),
         // dino: spiked rex
         "dino" to Sprite(

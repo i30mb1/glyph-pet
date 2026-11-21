@@ -13,8 +13,9 @@ import kotlin.math.sin
 
 /**
  * A mythic body (the ray-cast gem or planet, [n7.glyphpet.pet.Mythic3D]) spun like a top by the sideways lean: the lean
- * pushes, friction slows it. Each full turn ticks; keep it spinning fast and it dazzles with a ring of sparkles and a
- * stronger tick. [extra] adds what the kind does on top.
+ * pushes, friction slows it. Each full turn ticks. A gauge along the top rim fills with the speed, a bright mark on it
+ * shows how fast is fast: keep it past the mark for [DAZZLE_MS] and it dazzles with a ring of sparkles, a stronger
+ * tick, six of those a little party ([Score]). [extra] adds what the kind does on top.
  */
 internal abstract class MythicSpinTrick : Trick(0L) {
     companion object {
@@ -22,7 +23,12 @@ internal abstract class MythicSpinTrick : Trick(0L) {
         const val FRICTION = 0.7f
         const val MAX_SPIN = 14f
         const val FAST = 8f
-        const val DAZZLE_MS = 1800L
+        const val DAZZLE_MS = 1200L
+        /** The speed gauge: cells along the top rim, between these angles (radians, screen y down: -π/2 is the top). */
+        const val GAUGE = 9
+        const val GAUGE_FROM = -2.5f
+        const val GAUGE_TO = -0.64f
+        const val GAUGE_R = 11.2f
         const val FLASH_MS = 700L
         const val TWO_PI = (2 * Math.PI).toFloat()
     }
@@ -32,6 +38,7 @@ internal abstract class MythicSpinTrick : Trick(0L) {
     protected var omega = 0f
     private var fastMs = 0L
     protected var flash = 0L
+    private val score = Score()
 
     override fun reset() {
         spin = 0f
@@ -40,6 +47,7 @@ internal abstract class MythicSpinTrick : Trick(0L) {
         flash = 0L
         view.spin = 0f
         view.moonTurn = 0f
+        score.reset()
     }
 
     /** Called every playing frame after the spin moved by [turned] radians. */
@@ -68,7 +76,9 @@ internal abstract class MythicSpinTrick : Trick(0L) {
                 fastMs = 0L
                 flash = FLASH_MS
                 gate.feel(input, HapticKind.BALL_HIT, 1f)
+                if (score.win()) { flash = Score.PARTY_MS; gate.feel(input, HapticKind.STOMP, 0.8f) }
             }
+            score.tick(ms)
             extra(input, spin - before, dt)
         }
         if (flash > 0L) flash -= ms
@@ -94,14 +104,32 @@ internal abstract class MythicSpinTrick : Trick(0L) {
         val cy = TrickKit.homeCy(sp)
         val rad = maxOf(sp.width, sp.height) / 2f + 1.5f
         val speed = abs(omega) / MAX_SPIN
+        val cx0 = 12f
+        val cy0 = 12f
         if (speed > 0.35f && r <= 0f) {
             for (k in 0 until 3) {
                 val a = spin * 0.5f + k * TWO_PI / 3f
                 lit(frame, cx + cos(a) * rad, cy + sin(a) * rad * 0.6f, (1200f + 2000f * speed).toInt())
             }
         }
+        if (r <= 0f) {
+            // The gauge: lit up to the speed; the mark where "fast" starts pulses; past it, the lit part is brighter.
+            val mark = ((FAST / MAX_SPIN) * (GAUGE - 1)).toInt()
+            val upTo = (speed * (GAUGE - 1) + 0.5f).toInt()
+            for (j in 0 until GAUGE) {
+                val a = GAUGE_FROM + (GAUGE_TO - GAUGE_FROM) * j / (GAUGE - 1)
+                val gx = cx0 + GAUGE_R * cos(a)
+                val gy = cy0 + GAUGE_R * sin(a)
+                val v = when {
+                    j == mark -> if (j <= upTo) 3800 else (1400 + 900 * sin(t / 120f)).toInt()
+                    j <= upTo -> if (upTo >= mark) 3000 else 1500
+                    else -> 300
+                }
+                lit(frame, gx + 0.5f, gy + 0.5f, v)
+            }
+        }
         if (flash > 0L) {
-            val k = 1f - flash.toFloat() / FLASH_MS
+            val k = (1f - flash.toFloat() / FLASH_MS).coerceIn(0f, 1f)
             for (j in 0 until 8) {
                 val a = j * TWO_PI / 8f + k
                 lit(frame, cx + cos(a) * (rad + 2f * k), cy + sin(a) * (rad + 2f * k), (3800f * (1f - k * 0.7f)).toInt())

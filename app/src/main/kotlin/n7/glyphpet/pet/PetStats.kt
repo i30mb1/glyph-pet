@@ -10,6 +10,8 @@ data class PetStats(
     val updatedAtMs: Long,
     /** The pet is asleep: it sleeps on until its energy is back to [PetRules.NAP_WAKE_ENERGY]. */
     val napping: Boolean = false,
+    /** When the toy last said the pet was on the matrix (lit and seen); 0 when it said it was not. See [PetRules.advance]. */
+    val seenAtMs: Long = 0,
 ) {
     fun ageDays(nowMs: Long): Int = ((nowMs - bornAtMs) / DAY_MS).toInt().coerceAtLeast(0)
 
@@ -42,8 +44,8 @@ enum class Mood { SLEEPING, HUNGRY, TIRED, SAD, HAPPY, CONTENT }
  * When the pet calls for its owner by itself: a need has run down to [CALL_DOTS] dots or fewer and nobody has come.
  * The toy lights the matrix up and gives one soft [HapticKind.CALL] — the beep of 1996, without the noise.
  *
- * Deliberately rare: with needs falling at [PetRules.SATIETY_PER_HOUR] and [PetRules.JOY_PER_HOUR], a full pet reaches
- * the threshold in seven to nine hours, so a call comes two or three times a day. A sleeping pet never calls, and
+ * Deliberately rare: with needs falling at [PetRules.AWAY_SATIETY_PER_HOUR] and [PetRules.AWAY_JOY_PER_HOUR], a full pet reaches
+ * the threshold in two or three hours away: about when the next short visit is due anyway, so a call is an invitation. A sleeping pet never calls, and
  * [REPEAT_MS] keeps an unanswered one from asking again too soon.
  */
 object CallRules {
@@ -69,82 +71,137 @@ object CallRules {
     }
 }
 
-/** The rules of pet life. Pure functions: the time source is passed in, so they are easy to test. */
+/**
+ * The rules of pet life. Pure functions: the time source is passed in, so they are easy to test.
+ *
+ * Built for short visits: a couple of minutes on the matrix at a time, a few times a day, an hour or two in all before
+ * the owner moves on to the next pet. So there are two clocks:
+ * - away (the matrix dark, the phone face up or in a pocket): food and joy drift down slowly in real time
+ *   ([AWAY_SATIETY_PER_HOUR], [AWAY_JOY_PER_HOUR]) and the pet rests, its energy back within a minute or two. Whoever
+ *   comes back after an hour or two finds it rested but hungry or bored: there is something to do at once.
+ * - on the matrix: everything moves in minutes ([SEEN_PER_HOUR]), so even a two-minute visit sees it change.
+ * One action is one dot: a meal gives a dot of food ([FEED_SATIETY]), a game a dot of joy for a dot of energy and half
+ * a dot of food ([PLAY_JOY], [PLAY_ENERGY], [PLAY_SATIETY]). Worn out, it sleeps on the matrix for well under a minute
+ * ([SLEEP_ENERGY_PER_HOUR]); the charger fills it faster still, awake. Nothing is ever lost for good: no illness, no
+ * death, a neglected pet only gets sad and waits.
+ */
 object PetRules {
-    const val SATIETY_PER_HOUR = 10f
-    const val JOY_PER_HOUR = 8f
-    const val ENERGY_AWAKE_PER_HOUR = 120f
+    /** One dot of the [NeedDots.MAX] a meter shows: what one meal or one game is worth. */
+    const val DOT = 100f / NeedDots.MAX
 
-    /**
-     * A pet that runs out of energy (below [NAP_ENERGY]) sleeps until it is nearly full again ([NAP_WAKE_ENERGY]), so
-     * it does not doze off again right after waking. Awake it spends a dot of its five every ten minutes
-     * ([ENERGY_AWAKE_PER_HOUR]) and asleep it fills one a minute, so it is awake about forty minutes and asleep four.
-     */
+    /** Away: a dot of food every 30 minutes, a dot of joy every 40, and a dot of energy back every 20 seconds. */
+    const val AWAY_SATIETY_PER_HOUR = DOT * 2
+    const val AWAY_JOY_PER_HOUR = DOT * 1.5f
+    const val AWAY_ENERGY_PER_HOUR = DOT * 180
+
+    /** On the matrix, awake: food, joy and energy each lose a dot every four minutes. */
+    const val SEEN_PER_HOUR = DOT * 15
+
+    /** Asleep on the matrix it fills a dot of energy every ten seconds; the charger, a dot every five. */
+    const val SLEEP_ENERGY_PER_HOUR = DOT * 360
+    const val CHARGE_ENERGY_PER_HOUR = DOT * 720
+
+    /** A pet that runs out of energy (below [NAP_ENERGY]) sleeps until it is nearly full again ([NAP_WAKE_ENERGY]). */
     const val NAP_ENERGY = 10f
     const val NAP_WAKE_ENERGY = 90f
-    const val ENERGY_SLEEP_PER_HOUR = 1200f
 
-    /** The charger fills the pet faster than its own sleep: a dot of its five every ten seconds. */
-    const val ENERGY_CHARGE_PER_HOUR = 7200f
-
-    const val FEED_SATIETY = 35f
-    const val FEED_JOY = 5f
+    const val FEED_SATIETY = DOT
     const val FULL = 90f
+    const val PLAY_JOY = DOT
+    const val PLAY_ENERGY = DOT
+    const val PLAY_SATIETY = DOT / 2
+    /** Stroked (the hold menu's heart): half a dot of joy. */
+    const val PET_JOY = DOT / 2
+    /** Too tired to play below this: the mood is [Mood.TIRED]. */
+    const val TIRED = 20f
+    const val HUNGRY = 25f
 
+    /** Time counts as on the matrix only this long after the toy last said so; a longer silence was time away. */
+    const val SEEN_GAP_MS = 3 * 60_000L
 
-    private const val STEP_MS = 10 * 60 * 1000L
+    private const val AWAY_STEP_MS = 10 * 60 * 1000L
+    private const val SEEN_STEP_MS = 5_000L
     private const val MAX_CATCH_UP_MS = 14 * PetStats.DAY_MS
     private const val HOUR_MS = 60 * 60 * 1000f
 
     /**
      * The pet sleeps when it is worn out, and at no hour of the clock: a night owl who wants to play at three in the
-     * morning finds it awake, as long as it has slept its [NAP_ENERGY] to [NAP_WAKE_ENERGY] some time before.
-     * A pet on the charger stays awake whatever its energy: it works out, see [ChargeRenderer].
+     * morning finds it awake. A pet on the charger stays awake whatever its energy: it works out, see [ChargeRenderer].
      */
     fun isAsleep(stats: PetStats): Boolean =
         stats.energy < NAP_ENERGY || (stats.napping && stats.energy < NAP_WAKE_ENERGY)
 
     /**
-     * Moves [stats] forward to [nowMs] in 10-minute steps. [charging] counts only for the latest step:
-     * the charger fills the pet's energy at [ENERGY_CHARGE_PER_HOUR], awake or asleep, faster than any sleep.
+     * Moves [stats] forward to [nowMs]: up to [SEEN_GAP_MS] after [PetStats.seenAtMs] it was on the matrix, the rest
+     * of the time away. [charging] counts for the time on the matrix: the charger fills it at [CHARGE_ENERGY_PER_HOUR].
      */
     fun advance(stats: PetStats, nowMs: Long, charging: Boolean = false): PetStats {
         if (nowMs <= stats.updatedAtMs) return stats
         var s = stats.copy(updatedAtMs = maxOf(stats.updatedAtMs, nowMs - MAX_CATCH_UP_MS))
+        val seenUntil = if (stats.seenAtMs > 0) stats.seenAtMs + SEEN_GAP_MS else 0L
         while (s.updatedAtMs < nowMs) {
-            val stepEnd = minOf(s.updatedAtMs + STEP_MS, nowMs)
-            val hours = (stepEnd - s.updatedAtMs) / HOUR_MS
-            val asleep = isAsleep(s)
-            val charged = charging && stepEnd == nowMs
-            val hungry = s.satiety < 25f
-            val gain = when {
-                charged -> ENERGY_CHARGE_PER_HOUR
-                asleep -> ENERGY_SLEEP_PER_HOUR
-                else -> -ENERGY_AWAKE_PER_HOUR
-            }
-            // A sleep fills only up to its waking point; the rest of the step is spent awake. The charger has no such cap.
-            val energy = (s.energy + gain * hours).let { if (asleep && !charged) minOf(it, maxOf(s.energy, NAP_WAKE_ENERGY)) else it }.clamp()
-            s = s.copy(
-                satiety = (s.satiety - SATIETY_PER_HOUR * hours * (if (asleep) 0.5f else 1f)).clamp(),
-                joy = (s.joy - JOY_PER_HOUR * hours * (if (hungry) 1.5f else 1f) * (if (asleep) 0.3f else 1f)).clamp(),
-                energy = energy,
-                updatedAtMs = stepEnd,
-                napping = energy < NAP_ENERGY || (asleep && energy < NAP_WAKE_ENERGY),
-            )
+            val seen = s.updatedAtMs < seenUntil
+            val stepEnd = minOf(s.updatedAtMs + if (seen) SEEN_STEP_MS else AWAY_STEP_MS, nowMs, if (seen) seenUntil else nowMs)
+            s = step(s, stepEnd, seen, charging && seen)
         }
         return s
     }
 
-    /** Returns the new stats and whether the pet ate (a full pet refuses). */
+    private fun step(s: PetStats, stepEnd: Long, seen: Boolean, charged: Boolean): PetStats {
+        val hours = (stepEnd - s.updatedAtMs) / HOUR_MS
+        val asleep = isAsleep(s)
+        val hungry = s.satiety < HUNGRY
+        val food: Float
+        val joy: Float
+        val gain: Float
+        if (seen) {
+            food = SEEN_PER_HOUR * (if (asleep) 0.5f else 1f)
+            joy = if (asleep) 0f else SEEN_PER_HOUR
+            gain = when {
+                charged -> CHARGE_ENERGY_PER_HOUR
+                asleep -> SLEEP_ENERGY_PER_HOUR
+                else -> -SEEN_PER_HOUR
+            }
+        } else {
+            food = AWAY_SATIETY_PER_HOUR
+            joy = AWAY_JOY_PER_HOUR
+            gain = AWAY_ENERGY_PER_HOUR
+        }
+        // A sleep on the matrix fills only up to its waking point; the charger and rest away have no such cap.
+        val raw = s.energy + gain * hours
+        val energy = (if (seen && asleep && !charged) minOf(raw, maxOf(s.energy, NAP_WAKE_ENERGY)) else raw).clamp()
+        return s.copy(
+            satiety = (s.satiety - food * hours).clamp(),
+            joy = (s.joy - joy * hours * (if (hungry) 2f else 1f)).clamp(),
+            energy = energy,
+            updatedAtMs = stepEnd,
+            napping = energy < NAP_ENERGY || (asleep && energy < NAP_WAKE_ENERGY),
+        )
+    }
+
+    /** Returns the new stats and whether the pet ate a dot of food (a full pet refuses). */
     fun feed(stats: PetStats): Pair<PetStats, Boolean> {
         if (stats.satiety >= FULL) return stats to false
-        return stats.copy(satiety = (stats.satiety + FEED_SATIETY).clamp(), joy = (stats.joy + FEED_JOY).clamp()) to true
+        return stats.copy(satiety = (stats.satiety + FEED_SATIETY).clamp()) to true
     }
+
+    /** Whether it is awake and has the energy for a game. */
+    fun canPlay(stats: PetStats): Boolean = !isAsleep(stats) && stats.energy >= TIRED
+
+    /** A game: a dot of joy, for a dot of energy and half a dot of food. */
+    fun play(stats: PetStats): PetStats = stats.copy(
+        joy = (stats.joy + PLAY_JOY).clamp(),
+        energy = (stats.energy - PLAY_ENERGY).clamp(),
+        satiety = (stats.satiety - PLAY_SATIETY).clamp(),
+    )
+
+    /** Stroked: half a dot of joy. */
+    fun stroke(stats: PetStats): PetStats = stats.copy(joy = (stats.joy + PET_JOY).clamp())
 
     fun mood(stats: PetStats, asleep: Boolean): Mood = when {
         asleep -> Mood.SLEEPING
-        stats.satiety < 25f -> Mood.HUNGRY
-        stats.energy < 20f -> Mood.TIRED
+        stats.satiety < HUNGRY -> Mood.HUNGRY
+        stats.energy < TIRED -> Mood.TIRED
         stats.joy < 25f -> Mood.SAD
         stats.joy > 70f && stats.satiety > 50f -> Mood.HAPPY
         else -> Mood.CONTENT

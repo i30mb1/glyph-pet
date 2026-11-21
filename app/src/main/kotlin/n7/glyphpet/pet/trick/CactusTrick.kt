@@ -11,8 +11,9 @@ import kotlin.math.hypot
 import kotlin.math.sin
 
 /**
- * Cactus: lean and its spines bristle up on that side, then needles fly off along the lean. Balloons drift up past
- * it; prick one with a needle and it pops (a tick) in a little burst, and another balloon floats in.
+ * Cactus: lean and its spines bristle up on that side, a dotted line shows where they will fly, then needles fly off
+ * along the lean. Balloons, solid bright discs, drift up past it; prick one with a needle (thin, dim: never mistaken
+ * for a balloon) and it pops (a tick) in a little burst, and another floats in. Six popped make the cactus beam ([Score]).
  */
 internal class CactusTrick : Trick(0L) {
     companion object {
@@ -25,6 +26,11 @@ internal class CactusTrick : Trick(0L) {
         const val RISE = 2.2f
         const val BALLOON_R = 1.5f
         const val POP_MS = 350L
+        /** The balloon is the brightest thing; the needle a faint streak; the aim a dotted line fainter still. */
+        const val BALLOON = 3400f
+        const val NEEDLE = 1700f
+        const val NEEDLE_TAIL = 450f
+        const val AIM = 520f
     }
 
     private val nx = FloatArray(NEEDLES)
@@ -40,6 +46,7 @@ internal class CactusTrick : Trick(0L) {
     private var happy = 0L
     private var seed = 0
     private val homing = Homing()
+    private val score = Score()
     private val canvas = Canvas()
     private val layer = Canvas()
 
@@ -54,6 +61,7 @@ internal class CactusTrick : Trick(0L) {
             by[i] -= i * 8f
         }
         homing.reset()
+        score.reset()
     }
 
     override fun scene(frame: IntArray, input: SignatureInput) {
@@ -75,6 +83,7 @@ internal class CactusTrick : Trick(0L) {
 
         if (r <= 0f && grow >= 1f) {
             if (happy > 0L) happy -= ms
+            score.tick(ms)
             shoot += ms
             if (bristle > 0.6f && shoot >= SHOOT_MS && lean > 0.1f) {
                 shoot = 0L
@@ -107,6 +116,7 @@ internal class CactusTrick : Trick(0L) {
                     pop[b] = POP_MS
                     happy = 700L
                     gate.feel(input, HapticKind.BALL_HIT, 0.8f)
+                    if (score.win()) { happy = Score.PARTY_MS; gate.feel(input, HapticKind.STOMP, 0.8f) }
                     break
                 }
             }
@@ -137,11 +147,21 @@ internal class CactusTrick : Trick(0L) {
             }
         }
         if (!going && grow >= 1f) {
+            // Where the needles will fly: a dotted line out along the lean.
+            if (bristle > 0.6f && lean > 0.1f) {
+                val ux = tilt.x / lean
+                val uy = tilt.y / lean
+                var d = halfW + 2f
+                while (d < 14f) {
+                    if (((d + t / 90f).toInt() % 2) == 0) canvas.max(kotlin.math.round(homing.x + ux * d).toInt(), kotlin.math.round(homing.y + uy * d).toInt(), AIM)
+                    d += 1f
+                }
+            }
             for (i in 0 until NEEDLES) {
                 if (!nOn[i]) continue
                 val l = hypot(nvx[i], nvy[i]).coerceAtLeast(0.01f)
-                canvas.splat(nx[i], ny[i], 3600f)
-                canvas.splat(nx[i] - nvx[i] / l, ny[i] - nvy[i] / l, 1300f)
+                canvas.splat(nx[i], ny[i], NEEDLE)
+                canvas.splat(nx[i] - nvx[i] / l, ny[i] - nvy[i] / l, NEEDLE_TAIL)
             }
             for (b in 0 until BALLOONS) {
                 if (pop[b] > 0L) {
@@ -152,14 +172,15 @@ internal class CactusTrick : Trick(0L) {
                     }
                     continue
                 }
-                for (j in 0 until 8) {
-                    val a = j * 0.785f
-                    canvas.splat(bx[b] + cos(a) * BALLOON_R, by[b] + sin(a) * BALLOON_R * 1.15f, 1700f)
-                }
-                canvas.splat(bx[b] - 0.5f, by[b] - 0.5f, 1200f)
-                for (j in 1..3) canvas.splat(bx[b] + 0.3f * sin(t / 200f + j), by[b] + BALLOON_R + j, 600f)
+                // A solid bright disc, whole cells, with a faint string under it.
+                val cx = kotlin.math.round(bx[b]).toInt()
+                val cy = kotlin.math.round(by[b]).toInt()
+                for (yy in -1..1) for (xx in -1..1) canvas.max(cx + xx, cy + yy, BALLOON)
+                for ((xx, yy) in listOf(0 to -2, -2 to 0, 2 to 0)) canvas.max(cx + xx, cy + yy, BALLOON * 0.8f)
+                for (j in 2..3) canvas.max(cx, cy + j, 380f)
             }
         }
+
         canvas.toFrame(frame)
     }
 

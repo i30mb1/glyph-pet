@@ -13,6 +13,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -36,6 +37,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
@@ -307,219 +309,317 @@ private fun PetScreen(
         refresh()
     }
 
-    LaunchedEffect(lifecycleOwner) {
+    // The phone's own sensors: on the Play tab the pet on the screen answers a lean and a shake the way the one on the
+    // matrix does, so a phone without a Glyph matrix plays the whole game here.
+    val motion = remember { n7.glyphpet.toy.MotionSensor(context) }
+    val reactions = remember { n7.glyphpet.toy.Reactions() }
+    var tab by rememberSaveable { mutableIntStateOf(TAB_PLAY) }
+    val found = remember { HashSet<String>() }
+    val glyphPhone = remember { hasGlyphToys(context) }
+
+    /** A shake, as on the matrix: a step toward growing when ready, else the signature, or dizzy stars. */
+    fun shaken() {
+        val n = nursery
+        val list = reactions.frame(
+            n7.glyphpet.toy.Gestures(shake = true),
+            n7.glyphpet.toy.Attention(
+                hasPet = n.active != null,
+                eggOnMatrix = n.eggOnMatrix != null,
+                ready = n.ready,
+                mood = PetRules.mood(n.stats, store.asleep(n.stats)),
+                hasSignature = n.activeForm?.let { Signatures.has(it.kind) } == true,
+                signatureFresh = engine.signatureFresh,
+            ),
+        )
+        for (r in list) when (r) {
+            n7.glyphpet.toy.Reaction.Grow -> {
+                if (store.growShake() == n7.glyphpet.pet.GrowResult.SHOOK) engine.surge()
+                refresh()
+            }
+            n7.glyphpet.toy.Reaction.Signature -> engine.signatureNow()
+            n7.glyphpet.toy.Reaction.Dizzy -> engine.shake()
+        }
+    }
+
+    LaunchedEffect(lifecycleOwner, tab) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            var sinceSync = Long.MAX_VALUE
-            while (true) {
-                if (sinceSync >= 1000) { refresh(); sinceSync = 0 }
-                val scene = Scene(
-                    species = nursery.activeForm,
-                    mood = PetRules.mood(nursery.stats, store.asleep(nursery.stats)),
-                    charging = power.plugged,
-                    egg = nursery.eggView,
-                    watts = power.watts,
-                    battery = power.level,
-                    missedCall = notifications && PetAlerts.missedCalls > 0,
-                    ready = nursery.ready,
-                )
-                frame = PetEngine.toCells(engine.tick(80, scene))
-                delay(80)
-                sinceSync += 80
+            val playing = tab == TAB_PLAY
+            if (playing) motion.start()
+            try {
+                var sinceSync = Long.MAX_VALUE
+                var sinceSeen = Long.MAX_VALUE
+                while (true) {
+                    if (sinceSync >= 1000) { refresh(); sinceSync = 0 }
+                    // Time on the Play tab is time together, as on the matrix: the needs run on its fast clock.
+                    if (sinceSeen >= SEEN_EVERY_MS) { store.together(seen = playing && nursery.active != null); sinceSeen = 0 }
+                    if (playing && motion.consumeShake()) shaken()
+                    val scene = Scene(
+                        species = nursery.activeForm,
+                        mood = PetRules.mood(nursery.stats, store.asleep(nursery.stats)),
+                        // The screen faces the owner, the matrix faces away: a lean to the left is the other way round.
+                        tilt = if (playing) -motion.tilt else 0f,
+                        tiltY = if (playing) motion.tiltY else 1f,
+                        charging = power.plugged,
+                        egg = nursery.eggView,
+                        watts = power.watts,
+                        battery = power.level,
+                        missedCall = notifications && PetAlerts.missedCalls > 0,
+                        ready = nursery.ready,
+                    )
+                    frame = PetEngine.toCells(engine.tick(FRAME_MS, scene))
+                    // What the pet shows on the Play tab opens in the album, as on the matrix.
+                    val formId = nursery.activeForm?.id
+                    if (playing && formId != null && nursery.active != null) {
+                        val seen = n7.glyphpet.pet.Discovery.seenNow(engine).filter { found.add("$formId/${it.id}") }
+                        if (seen.isNotEmpty()) store.discover(formId, seen)
+                    }
+                    delay(FRAME_MS)
+                    sinceSync += FRAME_MS
+                    sinceSeen += FRAME_MS
+                }
+            } finally {
+                if (playing) motion.stop()
             }
         }
     }
 
     val mood = PetRules.mood(nursery.stats, store.asleep(nursery.stats, now))
     val action = ButtonRules.decide(nursery.active != null, mood, eggOnMatrix = nursery.eggOnMatrix != null)
-    val feedLabel = stringResource(R.string.action_feed)
     val eggDescription = "${stringResource(R.string.egg_title)}: ${stringResource(R.string.egg_crack_action)}"
 
-    // The open "All states" card sticks to the top once it scrolls past it, so heroes picked further down show their
-    // states right away. It is one movable piece of UI: it keeps its page and its live preview when it moves.
-    var statesOpen by rememberSaveable { mutableStateOf(false) }
-    var viewportTop by remember { mutableStateOf(0f) }
-    var slotTop by remember { mutableStateOf(Float.MAX_VALUE) }
-    var statesHeight by remember { mutableStateOf(0) }
-    val form = nursery.activeForm?.takeIf { nursery.active != null }
-    val statesCard = remember {
-        movableContentOf { m: Modifier, f: Species, open: Boolean ->
-            // Everything this pet can show, each played by its own engine: never the saved pet.
-            StatesCard(species = f, open = open, onOpen = { statesOpen = it }, modifier = m)
+    var statesOpen by rememberSaveable { mutableStateOf(true) }
+
+    /** Holding the circle is holding the Glyph button: cracks the egg, feeds, or a full pet plays its game. */
+    fun press() {
+        if (engine.playingTrick) {
+            // As on the button: a press during the game ends it.
+            engine.stopTrick()
+            return
         }
+        when (action) {
+            ButtonAction.CRACK_EGG -> if (store.pressEgg() == n7.glyphpet.pet.PressResult.CRACKED) engine.crack()
+            ButtonAction.FEED -> {
+                val accepted = store.feed().ate
+                val kind = nursery.activeForm?.kind
+                // Full: it shows off its game instead of refusing; too tired for one (PetStore.play), it refuses.
+                if (accepted || kind == null || !n7.glyphpet.pet.Tricks.has(kind) || !store.play() || !engine.trick(kind)) engine.feed(accepted)
+            }
+            ButtonAction.STIR -> engine.pet()
+            ButtonAction.NOTHING -> Unit
+        }
+        refresh()
     }
-    val sticky = form != null && statesOpen && slotTop < viewportTop
 
     Surface(modifier = Modifier.fillMaxSize(), color = N7Colors.Ground) {
-      Box(
+      Column(
           Modifier
               .fillMaxSize()
-              // The status bar stays outside the scroll, so scrolled cards never run under the clock.
-              .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
-              .onGloballyPositioned { viewportTop = it.positionInWindow().y },
+              .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
       ) {
+        // The Nursery's album of the pet on the matrix stays on top while the heroes scroll under it.
+        val form = nursery.activeForm?.takeIf { nursery.active != null }
+        if (tab == TAB_NURSERY && form != null) {
+            Box(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 16.dp)) {
+                // Everything this pet can show, each played by its own engine: never the saved pet. What the owner
+                // has not seen yet is a question.
+                StatesCard(species = form, found = store.found(form.id), open = statesOpen, onOpen = { statesOpen = it })
+            }
+        }
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .weight(1f)
+                .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                // The gesture bar is inside it: the content scrolls under it, and the end of the page clears it.
-                .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Bottom))
                 .padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // The name and, right under it, one line that says what the app is; the supporter button in the corner.
-            var supporterOpen by rememberSaveable { mutableStateOf(false) }
-            val supporter = supporterOwned || nursery.supporter
-            Row(verticalAlignment = Alignment.Top) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    DotHeadline(lines = listOf("GLYPH", "PET"), fontSize = 32.sp)
+            when (tab) {
+                TAB_PLAY -> {
+                    // The name and, right under it, one line that says what the app is; the supporter button in the corner.
+                    var supporterOpen by rememberSaveable { mutableStateOf(false) }
+                    val supporter = supporterOwned || nursery.supporter
+                    Row(verticalAlignment = Alignment.Top) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            DotHeadline(lines = listOf("GLYPH", "PET"), fontSize = 32.sp)
+                            Text(
+                                stringResource(R.string.tagline),
+                                style = N7Type.BodyS,
+                                color = N7Colors.InkMuted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        SupporterButton(owned = supporter, onClick = { supporterOpen = true })
+                    }
+                    if (supporterOpen) {
+                        SupporterDialog(
+                            owned = supporter,
+                            price = supporterPrice,
+                            onBuy = { supporterOpen = false; onBuySupporter() },
+                            onDismiss = { supporterOpen = false },
+                        )
+                    }
+
+                    if (glyphPhone && !toyOpened) {
+                        N7Card(Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(stringResource(R.string.setup_title), style = N7Type.Title, color = N7Colors.Ink)
+                                Text(stringResource(R.string.setup_text), style = N7Type.BodyS, color = N7Colors.InkMuted)
+                                N7Button(text = stringResource(R.string.setup_button), onClick = onActivateToy, modifier = Modifier.fillMaxWidth())
+                            }
+                        }
+                    }
+
+                    // Its name right over it, so the pet sits under its name.
+                    val title = if (nursery.eggOnMatrix != null) stringResource(R.string.egg_title) else nursery.active?.name
+                    if (title != null) {
+                        Text(
+                            title.uppercase(),
+                            style = N7Type.DisplayS,
+                            color = N7Colors.Ink,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    // The circle is the Glyph button, held as on the back of the phone, and nothing more: the lean and
+                    // the shake are read off the phone, as on the matrix.
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        GlyphMatrix(
+                            cells = frame,
+                            modifier = Modifier
+                                .fillMaxWidth(0.86f)
+                                .aspectRatio(1f)
+                                .clip(CircleShape)
+                                .combinedClickable(
+                                    enabled = action != ButtonAction.NOTHING || engine.playingTrick,
+                                    role = Role.Button,
+                                    onLongClickLabel = stringResource(R.string.action_press),
+                                    onLongClick = ::press,
+                                    onClick = {},
+                                ),
+                            contentDescription = if (nursery.eggOnMatrix != null) eggDescription else nursery.active?.name ?: eggDescription,
+                        )
+                    }
                     Text(
-                        stringResource(R.string.tagline),
-                        style = N7Type.BodyS,
-                        color = N7Colors.InkMuted,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        stringResource(R.string.play_hint),
+                        style = N7Type.Caption,
+                        color = N7Colors.InkSubtle,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+
+                    if (nursery.active != null) NeedsCard(nursery.stats)
+
+                    NowCard(nursery = nursery, mood = mood, action = action, onPutOnMatrix = ::putOnMatrix)
+                }
+
+                TAB_NURSERY -> {
+                    Collection(
+                        nursery = nursery,
+                        onShow = { kind, stage ->
+                            // The picked form goes on the matrix: an egg there steps aside, keeping its presses.
+                            if (nursery.eggOnMatrix != null) store.takeEggOffMatrix()
+                            if (nursery.active?.id != kind) store.setActive(kind)
+                            store.setShown(kind, stage)
+                            refresh()
+                        },
+                        onEgg = { putOnMatrix(it.id) },
                     )
                 }
-                SupporterButton(owned = supporter, onClick = { supporterOpen = true })
-            }
-            if (supporterOpen) {
-                SupporterDialog(
-                    owned = supporter,
-                    price = supporterPrice,
-                    onBuy = { supporterOpen = false; onBuySupporter() },
-                    onDismiss = { supporterOpen = false },
-                )
-            }
 
-            if (!toyOpened) {
-                N7Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(stringResource(R.string.setup_title), style = N7Type.Title, color = N7Colors.Ink)
-                        Text(stringResource(R.string.setup_text), style = N7Type.BodyS, color = N7Colors.InkMuted)
-                        N7Button(text = stringResource(R.string.setup_button), onClick = onActivateToy, modifier = Modifier.fillMaxWidth())
+                else -> {
+                    SettingsCard(
+                        glyphPhone = glyphPhone,
+                        hideUnseen = hideUnseen,
+                        onHideUnseen = { store.hideWhenUnseen = it; hideUnseen = it },
+                        vibration = vibration,
+                        onVibration = { store.vibration = it; vibration = it },
+                        notifications = notifications,
+                        onNotifications = { context.startActivity(PetAlerts.settingsIntent(context)) },
+                    )
+
+                    if (glyphPhone) {
+                        N7Button(
+                            text = stringResource(R.string.activate_toy),
+                            variant = N7ButtonVariant.Secondary,
+                            onClick = onActivateToy,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                     }
+
+                    if (BuildConfig.DEBUG) {
+                        // Debug builds only: one button that opens every hero and every form.
+                        N7Button("Unlock all", { store.unlockAll(); store.discoverAll(); refresh() }, Modifier.fillMaxWidth(), N7ButtonVariant.Secondary)
+                        // Debug builds only: every need full or empty at once, to try the moods, weather and tricks.
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            N7Button(
+                                "Needs 100",
+                                { store.update { it.copy(satiety = 100f, joy = 100f, energy = 100f, napping = false) }; refresh() },
+                                Modifier.weight(1f),
+                                N7ButtonVariant.Secondary,
+                            )
+                            N7Button(
+                                "Needs 0",
+                                { store.update { it.copy(satiety = 0f, joy = 0f, energy = 0f) }; refresh() },
+                                Modifier.weight(1f),
+                                N7ButtonVariant.Secondary,
+                            )
+                        }
+                        // Debug builds only: the active pet gets experience at once, to try growing.
+                        N7Button("XP +100", { store.debugXp(100); refresh() }, Modifier.fillMaxWidth(), N7ButtonVariant.Secondary)
+                    }
+
+                    MoreFromN7(Modifier.fillMaxWidth())
+
+                    SignatureLabel(Modifier.align(Alignment.CenterHorizontally))
                 }
             }
+        }
+        TabBar(selected = tab, onSelect = { tab = it })
+      }
+    }
+}
 
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                // A long press feeds, like holding the Glyph button. An egg on the matrix is cracked only by the
-                // Glyph button itself.
-                val canFeed = nursery.active != null && nursery.eggOnMatrix == null && mood != Mood.SLEEPING
-                GlyphMatrix(
-                    cells = frame,
-                    modifier = Modifier
-                        .size(208.dp)
-                        .clip(CircleShape)
-                        .combinedClickable(
-                            enabled = canFeed,
-                            role = Role.Button,
-                            onLongClickLabel = feedLabel,
-                            onLongClick = {
-                                // As on the Glyph button: a full pet shows its trick instead of refusing, and a long
-                                // press during the trick ends it.
-                                if (engine.playingTrick) {
-                                    engine.stopTrick()
-                                    return@combinedClickable
-                                }
-                                val accepted = store.feed().ate
-                                val kind = nursery.activeForm?.kind
-                                if (!accepted && kind != null && engine.trick(kind)) {
-                                    store.update { it.copy(joy = (it.joy + n7.glyphpet.pet.Tricks.JOY).coerceIn(0f, 100f)) }
-                                } else {
-                                    engine.feed(accepted)
-                                }
-                                refresh()
-                            },
-                            onClick = {},
-                        ),
-                    contentDescription = if (nursery.eggOnMatrix != null) eggDescription else nursery.active?.name ?: eggDescription,
-                )
-            }
+private const val TAB_PLAY = 0
+private const val TAB_NURSERY = 1
+private const val TAB_SETTINGS = 2
+private const val FRAME_MS = 40L
+private const val SEEN_EVERY_MS = 2000L
 
-            // Each need says in a few words how to fill it: the controls live on the phone, not in buttons here.
-            if (nursery.active != null) NeedsCard(nursery.stats)
+/** Whether this phone has Nothing's Glyph Toys, so the pet can live on a matrix too; elsewhere it lives here alone. */
+private fun hasGlyphToys(context: Context): Boolean = try {
+    context.packageManager.getPackageInfo("com.nothing.thirdparty", 0)
+    true
+} catch (e: Exception) {
+    false
+}
 
-            NowCard(nursery = nursery, mood = mood, action = action, onPutOnMatrix = ::putOnMatrix)
-
-            if (form != null) {
-                // The card's place in the page; while it sticks to the top an empty space of its height keeps the place.
+/** Play, Nursery, Settings along the bottom; the picked one in full white, the others dimmed. */
+@Composable
+private fun TabBar(selected: Int, onSelect: (Int) -> Unit) {
+    val labels = listOf(R.string.tab_play, R.string.tab_nursery, R.string.tab_settings)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(N7Colors.Ground)
+            .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Bottom)),
+    ) {
+        N7Divider()
+        Row(Modifier.fillMaxWidth()) {
+            labels.forEachIndexed { i, label ->
+                val on = i == selected
                 Box(
                     Modifier
-                        .fillMaxWidth()
-                        .onGloballyPositioned { slotTop = it.positionInWindow().y },
+                        .weight(1f)
+                        .clickable(role = Role.Tab) { onSelect(i) }
+                        .padding(vertical = 16.dp)
+                        .semantics { stateDescription = if (on) "selected" else "" },
+                    contentAlignment = Alignment.Center,
                 ) {
-                    if (sticky) {
-                        Spacer(Modifier.fillMaxWidth().height(with(LocalDensity.current) { statesHeight.toDp() }))
-                    } else {
-                        statesCard(Modifier.onSizeChanged { statesHeight = it.height }, form, statesOpen)
-                    }
+                    Text(stringResource(label).uppercase(), style = N7Type.Label, color = if (on) N7Colors.Ink else N7Colors.InkSubtle)
                 }
             }
-
-            Collection(
-                nursery = nursery,
-                onShow = { kind, stage ->
-                    // The picked form goes on the matrix: an egg there steps aside, keeping its presses.
-                    if (nursery.eggOnMatrix != null) store.takeEggOffMatrix()
-                    if (nursery.active?.id != kind) store.setActive(kind)
-                    store.setShown(kind, stage)
-                    refresh()
-                },
-                onEgg = { putOnMatrix(it.id) },
-            )
-
-            SettingsCard(
-                hideUnseen = hideUnseen,
-                onHideUnseen = { store.hideWhenUnseen = it; hideUnseen = it },
-                vibration = vibration,
-                onVibration = { store.vibration = it; vibration = it },
-                notifications = notifications,
-                onNotifications = { context.startActivity(PetAlerts.settingsIntent(context)) },
-            )
-
-            if (toyOpened) {
-                N7Button(
-                    text = stringResource(R.string.activate_toy),
-                    variant = N7ButtonVariant.Secondary,
-                    onClick = onActivateToy,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-
-            if (BuildConfig.DEBUG) {
-                // Debug builds only: one button that opens every hero and every form.
-                N7Button("Unlock all", { store.unlockAll(); refresh() }, Modifier.fillMaxWidth(), N7ButtonVariant.Secondary)
-                // Debug builds only: every need full or empty at once, to try the moods, weather and tricks.
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    N7Button(
-                        "Needs 100",
-                        { store.update { it.copy(satiety = 100f, joy = 100f, energy = 100f, napping = false) }; refresh() },
-                        Modifier.weight(1f),
-                        N7ButtonVariant.Secondary,
-                    )
-                    N7Button(
-                        "Needs 0",
-                        { store.update { it.copy(satiety = 0f, joy = 0f, energy = 0f) }; refresh() },
-                        Modifier.weight(1f),
-                        N7ButtonVariant.Secondary,
-                    )
-                }
-                // Debug builds only: the active pet gets experience at once, to try growing.
-                N7Button("XP +100", { store.debugXp(100); refresh() }, Modifier.fillMaxWidth(), N7ButtonVariant.Secondary)
-                // Debug builds only: depth experiments on the Glyph toy (n7.glyphpet.lab).
-                n7.glyphpet.lab.LabPanel()
-            }
-
-            MoreFromN7(Modifier.fillMaxWidth())
-
-            SignatureLabel(Modifier.align(Alignment.CenterHorizontally))
         }
-        if (sticky) {
-            Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(horizontal = 20.dp).padding(top = 8.dp)) {
-                statesCard(Modifier.shadow(12.dp, RoundedCornerShape(20.dp)), form!!, statesOpen)
-            }
-        }
-      }
     }
 }
 
@@ -568,20 +668,20 @@ private fun NeedsCard(stats: PetStats) {
  */
 @Composable
 private fun NeedNote(need: Need, cardWidth: Int, column: Int, onDismiss: () -> Unit) {
-    /** How long a need takes to lose one dot of [NeedDots.MAX], in whole minutes. */
-    fun minutesPerDot(perHour: Float): Int = (100f / NeedDots.MAX / perHour * 60f).roundToInt()
+    /** How long a need takes to lose one dot while the matrix is dark, in whole minutes. */
+    fun minutesPerDot(perHour: Float): Int = (PetRules.DOT / perHour * 60f).roundToInt()
     // Plurals, so every figure reads right in every language whatever these constants become.
     @Composable
     fun line(@PluralsRes id: Int, n: Int) = pluralStringResource(id, n, n)
-    // How long a whole meter of five dots lasts: that is what the owner feels, not the pace of one dot.
-    fun hours(perHour: Float) = minutesPerDot(perHour) * NeedDots.MAX / 60
+    // A whole nap on the matrix, from worn out to awake again, in seconds.
+    val napSeconds = ((PetRules.NAP_WAKE_ENERGY - PetRules.NAP_ENERGY) / PetRules.SLEEP_ENERGY_PER_HOUR * 3600f).roundToInt()
     val lines = when (need) {
-        Need.FOOD -> listOf(line(R.plurals.need_food_fill, 1), line(R.plurals.need_food_drain, hours(PetRules.SATIETY_PER_HOUR)))
-        Need.JOY -> listOf(line(R.plurals.need_joy_fill, 1), line(R.plurals.need_joy_drain, hours(PetRules.JOY_PER_HOUR)))
+        Need.FOOD -> listOf(line(R.plurals.need_food_fill, 1), line(R.plurals.need_food_drain, minutesPerDot(PetRules.AWAY_SATIETY_PER_HOUR)))
+        Need.JOY -> listOf(line(R.plurals.need_joy_fill, 1), line(R.plurals.need_joy_drain, minutesPerDot(PetRules.AWAY_JOY_PER_HOUR)))
         Need.SLEEP -> listOf(
             line(R.plurals.need_sleep_rest, 1),
             line(R.plurals.need_sleep_charge, 1),
-            line(R.plurals.need_sleep_drain, minutesPerDot(PetRules.ENERGY_AWAKE_PER_HOUR) * NeedDots.MAX),
+            line(R.plurals.need_sleep_drain, napSeconds),
         )
     }
     // Hung under the meter that was tapped, then slid sideways so the note spans the whole card: its middle goes from
@@ -645,16 +745,20 @@ private fun NowCard(nursery: Nursery, mood: Mood, action: ButtonAction, onPutOnM
     val presses = egg?.let { nursery.pressesOf(it.id) } ?: 0
     val growing = egg == null && nursery.ready
     N7Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            // 1. What is happening
+        Column(
+            Modifier.fillMaxWidth().padding(vertical = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            // 1. What is happening; the name is already over the circle.
             val headline = when {
                 nursery.justHatched != null -> stringResource(R.string.now_hatched, nursery.justHatched.name)
                 pet == null && egg != null -> stringResource(R.string.now_egg_first)
                 pet != null && egg != null -> stringResource(R.string.now_egg_on_matrix, pet.name)
-                pet != null -> stringResource(moodLine(mood), pet.name)
+                pet != null -> stringResource(moodText(mood))
                 else -> ""
             }
-            Text(headline, style = N7Type.Title, color = N7Colors.Ink)
+            Text(headline, style = N7Type.Title, color = N7Colors.Ink, textAlign = TextAlign.Center)
 
             // 2. The egg's presses and what the button does; or the pet's experience, that shakes grow it, and how to
             // grow it. Feeding and playing are explained by the needs card.
@@ -666,12 +770,13 @@ private fun NowCard(nursery: Nursery, mood: Mood, action: ButtonAction, onPutOnM
                         stringResource(R.string.button_now, stringResource(buttonLine(action, EggRules.PRESSES_TO_HATCH - presses))),
                         style = N7Type.Caption,
                         color = N7Colors.InkMuted,
+                        textAlign = TextAlign.Center,
                     )
                 }
             } else {
                 XpBar(pet.id, growth)
                 when {
-                    growing -> Text(stringResource(R.string.grow_ready), style = N7Type.Caption, color = N7Colors.Ink)
+                    growing -> Text(stringResource(R.string.grow_ready), style = N7Type.Caption, color = N7Colors.Ink, textAlign = TextAlign.Center)
                     growth.threshold == null -> NextLine(nursery)
                 }
             }
@@ -691,7 +796,7 @@ private fun NextLine(nursery: Nursery) {
             else -> R.string.next_egg_tomorrow
         },
     )
-    Text(text, style = N7Type.Caption, color = N7Colors.InkSubtle)
+    Text(text, style = N7Type.Caption, color = N7Colors.InkSubtle, textAlign = TextAlign.Center)
 }
 
 /**
@@ -750,7 +855,7 @@ private fun EggOnMatrixAction(nursery: Nursery, onPutOnMatrix: (String?) -> Unit
 }
 
 /**
- * The heroes, three to a row. A collected hero's tile pages through its three forms ([HeroTile]): swipe it, three dots
+ * The heroes, four to a row, every tile the same height. A collected hero's tile pages through its three forms ([HeroTile]): swipe it, three dots
  * under it, a lock on a form not reached yet; a tap puts the form on the page on the matrix ([onShow]). A tap on an
  * egg puts it on the matrix.
  */
@@ -780,8 +885,6 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
             s.id to PetEngine.toCells(frame)
         }
     }
-    // The hero tapped last: a small strip under its row shows how far it has grown.
-    var selected by rememberSaveable { mutableStateOf<String?>(null) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             SectionLabel(stringResource(R.string.collection_title, found, SpeciesCatalog.all.size), Modifier.weight(1f))
@@ -791,8 +894,8 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
         // within a status.
         SpeciesCatalog.all.groupBy { it.rarity }.toSortedMap().forEach { (rarity, heroes) ->
           RarityHeader(rarity, found = heroes.count { (nursery.collection[it.id] ?: 0) > 0 }, total = heroes.size)
-          heroes.chunked(3).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+          heroes.chunked(TILES_PER_ROW).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 row.forEach { s ->
                     val count = nursery.collection[s.id] ?: 0
                     val growth = nursery.growth[s.id]
@@ -801,14 +904,11 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
                             hero = s,
                             growth = growth,
                             count = count,
-                            active = nursery.active?.id == s.id,
                             live = nursery.eggOnMatrix == null && nursery.active?.id == s.id,
                             cells = cells,
                             shadows = shadows,
                             onShow = { onShow(s.id, it) },
-                            onSelect = { selected = if (selected == s.id) null else s.id },
-                            selected = selected == s.id,
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.weight(1f).height(TILE_HEIGHT),
                         )
                         return@forEach
                     }
@@ -826,61 +926,39 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
                     Column(
                         Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(20.dp))
+                            .height(TILE_HEIGHT)
+                            .clip(RoundedCornerShape(16.dp))
                             .background(N7Colors.SurfaceRaised)
-                            .then(if (framed) Modifier.border(1.dp, N7Colors.ControlBorder, RoundedCornerShape(20.dp)) else Modifier)
+                            .then(if (framed) Modifier.border(1.dp, N7Colors.ControlBorder, RoundedCornerShape(16.dp)) else Modifier)
                             .clickable(enabled = egg, role = Role.Button) { onEgg(s) }
-                            .padding(vertical = 10.dp)
+                            .padding(vertical = 8.dp)
                             .semantics(mergeDescendants = true) { contentDescription = description },
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
                     ) {
                         // A hero not met yet shows nothing of itself: a question mark until it hatches.
                         val picture = if (egg) eggPicture(EggView(EggRules.stage(presses), nursery.supporter)) else unknown
-                        GlyphMatrix(cells = picture, glow = false, modifier = Modifier.size(60.dp))
-                        Text(label.uppercase(), style = N7Type.Label, color = if (egg) N7Colors.Ink else N7Colors.InkSubtle, textAlign = TextAlign.Center)
-                        Text(stringResource(rarityName(s.rarity)), style = N7Type.Caption, color = N7Colors.InkSubtle)
-                        // Same height as a hero tile with its three page dots.
-                        Spacer(Modifier.height(7.dp))
+                        GlyphMatrix(cells = picture, glow = false, modifier = Modifier.size(TILE_MATRIX))
+                        // Nothing under a hero not met yet: its question mark says it all, its status is the group's.
+                        if (egg) Text(label.uppercase(), style = N7Type.Caption, color = N7Colors.Ink, textAlign = TextAlign.Center, maxLines = 1)
                     }
                 }
-                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
-            }
-            row.firstOrNull { it.id == selected }?.let { hero ->
-                nursery.growth[hero.id]?.let { HeroGrowth(hero, it, active = nursery.active?.id == hero.id && nursery.eggOnMatrix == null) }
+                repeat(TILES_PER_ROW - row.size) { Spacer(Modifier.weight(1f)) }
             }
           }
         }
     }
 }
 
+private const val TILES_PER_ROW = 4
+private val TILE_MATRIX = 52.dp
+/** Every tile the same height: a hero's picture, its name, its experience and the page dots. */
+private val TILE_HEIGHT = 108.dp
+
 /**
  * The header of a status group in the collection: as many LED dots as the status is high (one for common, four for
  * mythic), its name and how many of its heroes are collected.
  */
-/** The strip under a tapped hero: its name, its experience bar and, when it is ready, how to grow it. */
-@Composable
-private fun HeroGrowth(hero: Species, growth: Growth, active: Boolean) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(N7Colors.SurfaceRaised)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Text(hero.name.uppercase(), style = N7Type.Label, color = N7Colors.Ink, maxLines = 1)
-        XpBar(hero.id, growth)
-        if (growth.ready && growth.reached.next != null) {
-            Text(
-                stringResource(if (active) R.string.grow_ready else R.string.grow_ready_pick),
-                style = N7Type.Caption,
-                color = N7Colors.Ink,
-            )
-        }
-    }
-}
-
 @Composable
 private fun RarityHeader(rarity: Rarity, found: Int, total: Int) {
     Row(
@@ -902,109 +980,75 @@ private fun rarityGroupName(rarity: Rarity): Int = when (rarity) {
 }
 
 /**
- * A collected hero: its three forms on pages, swiped inside the tile, three dots under it for the page. It opens on the
- * form shown on the matrix. A form not reached yet is a dim silhouette with a lock. A tap puts the form on the page on
- * the matrix; the one there now is framed when [live] (the hero is the active pet and no egg is on the matrix).
- * Its status is shown by the group it sits in ([RarityHeader]).
+ * A collected hero: only its picture swipes between its three forms, the name, the experience and the dots stay put.
+ * It opens on the form shown on the matrix. A form not reached yet is a dim silhouette with a lock. A tap puts the
+ * form on the page on the matrix; the one there now is framed when [live] (the hero is the active pet and no egg is on
+ * the matrix). Under the name its experience toward the next form, "max" for an adult, "ready" when it may grow.
  */
 @Composable
 private fun HeroTile(
     hero: Species,
     growth: Growth,
     count: Int,
-    active: Boolean,
     live: Boolean,
     cells: Map<String, List<Cell>>,
     shadows: Map<String, List<Cell>>,
     onShow: (Stage) -> Unit,
-    onSelect: () -> Unit,
-    selected: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val forms = SpeciesForms.all(hero.id)
     val pager = rememberPagerState(initialPage = growth.shown.ordinal) { forms.size }
     val ready = growth.ready && growth.reached.next != null
-    val onMatrix = stringResource(R.string.form_on_matrix)
-    // Only the pet on the matrix feels the shakes: its next form says how to grow it.
-    val readyLine = stringResource(if (active) R.string.form_shake else R.string.form_ready)
-    val rarity = stringResource(rarityName(hero.rarity))
-    // A reached form names the kind's signature effect; the status is the group the tile sits in ([RarityHeader]).
-    val signature = SignatureNames.name(hero.kind)?.takeIf { Signatures.has(hero.kind) }?.let { stringResource(it) }
-    val reachedLines = if (signature != null) listOf(signature) else listOf(rarity)
-    // A form not reached yet: the experience still to gather to reach it, the stages between counted in.
-    fun xpTo(stage: Stage): Int =
-        (Stage.entries.filter { it >= growth.reached && it < stage }.sumOf { XpRules.threshold(it) ?: 0 } - growth.xp).coerceAtLeast(0)
-    val xpLines = Stage.entries.associateWith { stringResource(R.string.form_xp_left, xpTo(it)) }
-    fun status(stage: Stage): String = when {
-        live && stage == growth.shown -> onMatrix
-        stage <= growth.reached -> rarity
-        ready && stage == growth.reached.next -> readyLine
-        else -> xpLines.getValue(stage)
+    val need = growth.threshold
+    val xpLine = when {
+        ready -> stringResource(R.string.form_ready)
+        need == null -> stringResource(R.string.xp_full)
+        else -> "${growth.xp}/$need"
     }
     val stage = forms[pager.currentPage].stage
     val reached = stage <= growth.reached
     val framed = live && stage == growth.shown
     val stageName = stringResource(stageName(stage))
-    // The whole tile swipes between the forms; the dots stay put at the bottom.
-    Box(
+    val onMatrix = stringResource(R.string.form_on_matrix)
+    Column(
         modifier
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(N7Colors.SurfaceRaised)
-            .then(
-                when {
-                    framed -> Modifier.border(1.dp, N7Colors.ControlBorder, RoundedCornerShape(20.dp))
-                    selected -> Modifier.border(1.dp, N7Colors.LedOff, RoundedCornerShape(20.dp))
-                    else -> Modifier
-                },
-            )
-            .clickable(role = Role.Button) {
-                // A tap shows how far it has grown; on a form it has reached it also puts that form on the matrix.
-                if (reached && !framed) {
-                    onShow(stage)
-                    if (!selected) onSelect()
-                } else {
-                    onSelect()
-                }
-            }
+            .then(if (framed) Modifier.border(1.dp, N7Colors.ControlBorder, RoundedCornerShape(16.dp)) else Modifier)
+            .clickable(enabled = reached && !framed, role = Role.Button) { onShow(stage) }
+            .padding(top = 8.dp, bottom = 7.dp)
             .semantics(mergeDescendants = true) {
-                contentDescription = "${hero.name}, $stageName: ${if (reached && !framed) reachedLines.first() else status(stage)}"
+                contentDescription = "${hero.name}, $stageName, $xpLine${if (framed) ", $onMatrix" else ""}"
             },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         HorizontalPager(state = pager, modifier = Modifier.fillMaxWidth()) { page ->
             val form = forms[page]
             val open = form.stage <= growth.reached
-            Column(
-                Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 21.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    GlyphMatrix(cells = (if (open) cells else shadows).getValue(form.id), glow = false, modifier = Modifier.size(60.dp))
-                    if (!open) Lock(Modifier.size(18.dp))
-                }
-                Text(
-                    (if (count > 1) "${hero.name} ×$count" else hero.name).uppercase(),
-                    style = N7Type.Label,
-                    color = N7Colors.Ink,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                )
-                if (open && !(live && form.stage == growth.shown)) {
-                    FitCaption(reachedLines, Modifier.fillMaxWidth().padding(horizontal = 6.dp))
-                } else Text(
-                    status(form.stage),
-                    style = N7Type.Caption,
-                    color = if (ready && form.stage == growth.reached.next) N7Colors.Ink else N7Colors.InkSubtle,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                GlyphMatrix(cells = (if (open) cells else shadows).getValue(form.id), glow = false, modifier = Modifier.size(TILE_MATRIX))
+                if (!open) Lock(Modifier.size(18.dp))
             }
         }
-        Row(
-            Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
+        Text(
+            (if (count > 1) "${hero.name} ×$count" else hero.name).uppercase(),
+            style = N7Type.Caption,
+            color = N7Colors.Ink,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
+        Text(
+            xpLine,
+            style = N7Type.Caption,
+            color = if (ready) N7Colors.Ink else N7Colors.InkSubtle,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+        )
+        Spacer(Modifier.weight(1f))
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             forms.indices.forEach { i ->
                 Box(
                     Modifier
@@ -1073,6 +1117,7 @@ private fun Lock(modifier: Modifier = Modifier) {
  */
 @Composable
 private fun SettingsCard(
+    glyphPhone: Boolean,
     hideUnseen: Boolean,
     onHideUnseen: (Boolean) -> Unit,
     vibration: Boolean,
@@ -1080,19 +1125,21 @@ private fun SettingsCard(
     notifications: Boolean,
     onNotifications: () -> Unit,
 ) {
-    var open by rememberSaveable { mutableStateOf(false) }
+    var open by rememberSaveable { mutableStateOf(true) }
     N7Card(Modifier.fillMaxWidth()) {
         ExpandRow(stringResource(R.string.settings_title), open) { open = !open }
         if (open) {
             Column(Modifier.padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                SectionLabel(stringResource(R.string.matrix_title))
-                ToggleRow(
-                    title = stringResource(R.string.matrix_hide_title),
-                    text = stringResource(R.string.matrix_hide_text),
-                    checked = hideUnseen,
-                    onChange = onHideUnseen,
-                )
-                N7Divider()
+                if (glyphPhone) {
+                    SectionLabel(stringResource(R.string.matrix_title))
+                    ToggleRow(
+                        title = stringResource(R.string.matrix_hide_title),
+                        text = stringResource(R.string.matrix_hide_text),
+                        checked = hideUnseen,
+                        onChange = onHideUnseen,
+                    )
+                    N7Divider()
+                }
                 ToggleRow(
                     title = stringResource(R.string.matrix_vibration_title),
                     text = stringResource(R.string.matrix_vibration_text),
@@ -1289,6 +1336,16 @@ private fun rarityName(rarity: Rarity): Int = when (rarity) {
     Rarity.RARE -> R.string.rarity_rare
     Rarity.LEGENDARY -> R.string.rarity_legendary
     Rarity.MYTHIC -> R.string.rarity_mythic
+}
+
+/** The pet's mood in a few words with what to do about it, under its name. */
+private fun moodText(mood: Mood): Int = when (mood) {
+    Mood.SLEEPING -> R.string.mood_sleeping
+    Mood.HUNGRY -> R.string.mood_hungry
+    Mood.TIRED -> R.string.mood_tired
+    Mood.SAD -> R.string.mood_sad
+    Mood.HAPPY -> R.string.mood_happy
+    Mood.CONTENT -> R.string.mood_content
 }
 
 private fun moodLine(mood: Mood): Int = when (mood) {

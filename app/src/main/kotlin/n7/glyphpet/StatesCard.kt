@@ -56,7 +56,7 @@ private class LiveFrame(val speciesId: String, val page: Int, val cells: List<Ce
  * to one row ("All states") by default. The "Signature" page, right after Calm, is there only for kinds that have one.
  */
 @Composable
-internal fun StatesCard(species: Species, open: Boolean, onOpen: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+internal fun StatesCard(species: Species, found: Set<String>, open: Boolean, onOpen: (Boolean) -> Unit, modifier: Modifier = Modifier) {
     val states = remember(species.kind) {
         PetState.entries.filter { (it != PetState.SIGNATURE || Signatures.has(species.kind)) && (it != PetState.GAME || n7.glyphpet.pet.Tricks.has(species.kind)) && (it != PetState.TRICK || !species.habit.none) }
     }
@@ -71,6 +71,8 @@ internal fun StatesCard(species: Species, open: Boolean, onOpen: (Boolean) -> Un
     LaunchedEffect(species.id, playing, onScreen, open, lifecycleOwner) {
         live = null
         if (!onScreen || !open) return@LaunchedEffect
+        // Nothing plays behind a question.
+        if (states.getOrNull(playing)?.id !in found) return@LaunchedEffect
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             // From the start each time the page comes back on screen.
             val preview = StatePreview(species, states.getOrNull(playing) ?: return@repeatOnLifecycle)
@@ -87,7 +89,8 @@ internal fun StatesCard(species: Species, open: Boolean, onOpen: (Boolean) -> Un
             // Clipped by the scrolling screen: zero height once the card is scrolled away.
             .onGloballyPositioned { onScreen = it.boundsInWindow().height > 0f },
     ) {
-        ExpandRow(stringResource(R.string.states_all), open) { onOpen(!open) }
+        val opened = states.count { it.id in found }
+        ExpandRow(stringResource(R.string.states_found, opened, states.size), open) { onOpen(!open) }
         if (open) Column(Modifier.padding(bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Box {
                 // The tallest page decides the height, so the card does not jump while swiping. These copies are
@@ -102,14 +105,24 @@ internal fun StatesCard(species: Species, open: Boolean, onOpen: (Boolean) -> Un
                 }
                 HorizontalPager(state = pager, modifier = Modifier.matchParentSize(), pageSpacing = 8.dp) { page ->
                     val state = states[page]
-                    val frame = live?.takeIf { it.speciesId == species.id && it.page == page }?.cells
-                        ?: stills.getOrPut(state) { PetEngine.toCells(StatePreview(species, state).still()) }
-                    StatePage(
-                        cells = frame,
-                        name = stringResource(stateName(state, species)),
-                        whenLine = stateWhenText(state, species),
-                        modifier = Modifier.fillMaxSize(),
-                    )
+                    if (state.id in found) {
+                        val frame = live?.takeIf { it.speciesId == species.id && it.page == page }?.cells
+                            ?: stills.getOrPut(state) { PetEngine.toCells(StatePreview(species, state).still()) }
+                        StatePage(
+                            cells = frame,
+                            name = stringResource(stateName(state, species)),
+                            whenLine = stateWhenText(state, species),
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    } else {
+                        // Not seen yet: a question mark on the matrix, and a question instead of the answer.
+                        StatePage(
+                            cells = QUESTION,
+                            name = "???",
+                            whenLine = stringResource(stateAsk(state)),
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
                 }
             }
             N7PagerDots(count = states.size, current = pager.currentPage, modifier = Modifier.fillMaxWidth())
@@ -137,7 +150,36 @@ private fun StatePage(cells: List<Cell>?, name: String, whenLine: String, modifi
     }
 }
 
-private val PREVIEW_SIZE = 84.dp
+private val PREVIEW_SIZE = 64.dp
+
+/** A big dim question mark on the matrix, for a state not seen yet. */
+private val QUESTION: List<Cell> by lazy {
+    val frame = IntArray(PetEngine.SIZE * PetEngine.SIZE)
+    n7.glyphpet.pet.SpeciesRenderer.glyph(
+        frame,
+        listOf(".#####.", "##...##", ".....##", "....##.", "...##..", "...##..", ".......", "...##..", "...##.."),
+        9, 8, hashValue = n7.glyphpet.pet.SpeciesRenderer.BODY,
+    )
+    PetEngine.toCells(frame)
+}
+
+/** The question a state not seen yet asks instead of saying when it happens. */
+@StringRes
+internal fun stateAsk(state: PetState): Int = when (state) {
+    PetState.CALM -> R.string.state_calm_ask
+    PetState.SIGNATURE -> R.string.state_signature_ask
+    PetState.HAPPY -> R.string.state_happy_ask
+    PetState.HUNGRY -> R.string.state_hungry_ask
+    PetState.SAD -> R.string.state_sad_ask
+    PetState.TIRED -> R.string.state_tired_ask
+    PetState.ASLEEP -> R.string.state_asleep_ask
+    PetState.EATING -> R.string.state_eating_ask
+    PetState.GAME -> R.string.state_game_ask
+    PetState.LOVED -> R.string.state_loved_ask
+    PetState.DIZZY -> R.string.state_dizzy_ask
+    PetState.TRICK -> R.string.state_trick_ask
+    PetState.CHARGING -> R.string.state_charging_ask
+}
 
 /** The page title of a state; the trick is named after the species' own habit when it has a name. */
 @StringRes

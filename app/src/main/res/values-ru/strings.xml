@@ -7,34 +7,34 @@
     <string name="need_joy">Радость</string>
     <string name="need_sleep">Сон</string>
     <plurals name="need_food_fill">
-        <item quantity="other">Зажми кнопку сзади — поест</item>
+        <item quantity="other">Зажми кнопку сзади: одна еда — одна точка</item>
     </plurals>
     <plurals name="need_food_drain">
-        <item quantity="one">Хватает на час</item>
-        <item quantity="few">Хватает на %d часа</item>
-        <item quantity="many">Хватает на %d часов</item>
-        <item quantity="other">Хватает на %d часа</item>
+        <item quantity="one">Без тебя тает точка за %d минуту, в играх быстрее</item>
+        <item quantity="few">Без тебя тает точка за %d минуты, в играх быстрее</item>
+        <item quantity="many">Без тебя тает точка за %d минут, в играх быстрее</item>
+        <item quantity="other">Без тебя тает точка за %d минуты, в играх быстрее</item>
     </plurals>
     <plurals name="need_joy_fill">
-        <item quantity="other">Накорми досыта и нажми кнопку Glyph — мини-игра</item>
+        <item quantity="other">Сытому нажми кнопку: игра — точка радости</item>
     </plurals>
     <plurals name="need_joy_drain">
-        <item quantity="one">Хватает на час</item>
-        <item quantity="few">Хватает на %d часа</item>
-        <item quantity="many">Хватает на %d часов</item>
-        <item quantity="other">Хватает на %d часа</item>
+        <item quantity="one">Без тебя тает точка за %d минуту</item>
+        <item quantity="few">Без тебя тает точка за %d минуты</item>
+        <item quantity="many">Без тебя тает точка за %d минут</item>
+        <item quantity="other">Без тебя тает точка за %d минуты</item>
     </plurals>
     <plurals name="need_sleep_rest">
-        <item quantity="other">Устанет — поспит сам</item>
+        <item quantity="other">Каждая игра тратит точку, пока тебя нет — отдыхает</item>
     </plurals>
     <plurals name="need_sleep_charge">
-        <item quantity="other">На зарядке быстрее</item>
+        <item quantity="other">Переверни телефон или поставь на зарядку — быстро наберётся</item>
     </plurals>
     <plurals name="need_sleep_drain">
-        <item quantity="one">Хватает на минуту</item>
-        <item quantity="few">Хватает на %d минуты</item>
-        <item quantity="many">Хватает на %d минут</item>
-        <item quantity="other">Хватает на %d минуты</item>
+        <item quantity="one">Устанет — уснёт на %d секунду</item>
+        <item quantity="few">Устанет — уснёт на %d секунды</item>
+        <item quantity="many">Устанет — уснёт на %d секунд</item>
+        <item quantity="other">Устанет — уснёт на %d секунды</item>
     </plurals>
     <string name="need_what">что это</string>
     <string name="action_feed">Покормить</string>
@@ -107,34 +107,34 @@
     <string name="next_complete">У тебя все 28 питомцев. Яиц больше не будет.</string>
     <string name="next_supporter">Все питомцы, которых у тебя нет, уже ждут в яйцах.</string>
 
-    <string name="mood_sleeping">Спит. Проснётся утром или когда отдохнёт.</string>
-    <string name="mood_hungry">Голодный. Зажми кнопку Glyph.</string>
-    <string name="mood_tired">Устал и скоро уснёт.</string>
-    <string name="mood_sad">Скучает. Накорми досыта и нажми кнопку Glyph: поиграете.</string>
-    <string name="mood_happy">Сытый и довольный.</string>
-    <string name="mood_content">Всё хорошо.</string>
+    <string name="mood_sleeping">Спит. Скоро проснётся отдохнувшим</string>
+    <string name="mood_hungry">Хочет есть. Зажми кнопку Glyph</string>
+    <string name="mood_tired">Устал. Переверни телефон или поставь на зарядку</string>
+    <string name="mood_sad">Скучает. Накорми досыта и зажми кнопку Glyph: поиграете</string>
+    <string name="mood_happy">Счастлив</string>
+    <string name="mood_content">Всё хорошо</string>
 
     <string name="states_title">Состояния</string>
     <string name="state_calm">Спокоен</string>
     <string name="state_calm_when">Когда Еды, Радости и Сна хватает</string>
     <string name="state_happy">Счастлив</string>
-    <string name="state_happy_when">Когда Радости много, а Еды больше половины</string>
+    <string name="state_happy_when">Когда радости много и он сыт: игры радуют</string>
     <string name="state_hungry">Голоден</string>
     <string name="state_hungry_when">Когда Еды меньше четверти</string>
     <string name="state_sad">Грустит</string>
     <string name="state_sad_when">Когда Радости меньше четверти</string>
     <string name="state_tired">Устал</string>
-    <string name="state_tired_when">Когда Сна меньше пятой части</string>
+    <string name="state_tired_when">Когда энергии меньше точки: игры её тратят</string>
     <string name="state_asleep">Спит</string>
-    <string name="state_asleep_when">Ночью с 0:00 до 6:00 или когда Сон почти на нуле</string>
+    <string name="state_asleep_when">Когда энергия кончилась: спит меньше минуты</string>
     <string name="state_eating">Ест</string>
-    <string name="state_eating_when">Когда зажимаешь кнопку Glyph</string>
+    <string name="state_eating_when">Зажми кнопку Glyph: одна еда — одна точка</string>
     <string name="state_loved">Его гладят</string>
-    <string name="state_loved_when">Когда качаешь телефон из стороны в сторону</string>
+    <string name="state_loved_when">Сердечко в меню, если держать кнопку Glyph на матрице</string>
     <string name="state_dizzy">Голова кругом</string>
     <string name="state_dizzy_when">Когда трясёшь слишком часто, прямо во время фишки или сразу после, или когда ему не до фишек</string>
     <string name="state_game">Мини-игра</string>
-    <string name="state_game_when">Сытый и зажали кнопку Glyph: играете до минуты, наклоняя телефон. Нажми кнопку ещё раз, и он пойдёт домой</string>
+    <string name="state_game_when">Сытый и зажали кнопку: игра даёт точку радости и тратит точку энергии. Зажми ещё раз — пойдёт домой</string>
     <string name="state_trick">Свой трюк</string>
     <string name="state_trick_when">Часто, когда он спокоен: после 10 секунд тишины</string>
     <string name="state_charging">На зарядке</string>
@@ -272,4 +272,24 @@
     <string name="sig_planet_about">Планета с кольцом вращается в 3D</string>
     <string name="sig_raccoon">Полоскун</string>
     <string name="sig_raccoon_about">Полощет блестяшку в луже и прячет её</string>
+    <string name="tab_play">Играть</string>
+    <string name="tab_nursery">Питомник</string>
+    <string name="tab_settings">Настройки</string>
+    <string name="action_press">нажать кнопку Glyph</string>
+    <string name="play_hint">Удержи — как кнопка Glyph · наклоняй и тряси телефон</string>
+    <string name="states_found">Анимации · %1$d из %2$d</string>
+    <string name="state_calm_ask">Каким он бывает, когда всё хорошо?</string>
+    <string name="state_signature_ask">Что он умеет, если потрясти телефон?</string>
+    <string name="state_happy_ask">А если с ним много играть?</string>
+    <string name="state_hungry_ask">А если долго не кормить?</string>
+    <string name="state_sad_ask">А если долго с ним не играть?</string>
+    <string name="state_tired_ask">Что будет после многих игр подряд?</string>
+    <string name="state_asleep_ask">А когда энергия совсем кончится?</string>
+    <string name="state_eating_ask">Что будет, если зажать кнопку Glyph?</string>
+    <string name="state_game_ask">А если зажать кнопку, когда он сыт?</string>
+    <string name="state_loved_ask">А если его приласкать?</string>
+    <string name="state_dizzy_ask">А если трясти слишком часто?</string>
+    <string name="state_trick_ask">Что он делает, когда его не трогают?</string>
+    <string name="state_charging_ask">А если поставить телефон на зарядку?</string>
+    <string name="xp_full">макс.</string>
 </resources>

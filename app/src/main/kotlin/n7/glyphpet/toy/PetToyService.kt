@@ -41,7 +41,7 @@ import n7.glyphpet.pet.XpSource
  * till the next one; a notification wakes it for a moment too.
  * Nobody sees the matrix while the phone lies screen up or is in a pocket: then it stays dark (a setting, on by default).
  * The phone answers with short, soft vibrations ([Haptics], a setting, on by default): never for a sleeping pet (only its
- * egg and hatch), never in Always-on frames or the Lab.
+ * egg and hatch), never in Always-on frames.
  */
 class PetToyService : Service(), GlyphMatrixManager.Callback {
 
@@ -142,7 +142,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         override fun run() {
             if (!running) return
             renderLive()
-            main.postDelayed(this, if (lab?.running == true) n7.glyphpet.lab.LabToy.FRAME_MS else FRAME_MS)
+            main.postDelayed(this, FRAME_MS)
         }
     }
 
@@ -199,9 +199,15 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
                 engine.feed(fed.ate)
                 feel(if (fed.ate) HapticKind.FEED else HapticKind.REFUSE)
             }
-            HoldMenu.Item.GAME -> if (kind != null && engine.trick(kind)) feel(HapticKind.PLAY)
+            HoldMenu.Item.GAME -> if (kind != null && n7.glyphpet.pet.Tricks.has(kind) && store.play() && engine.trick(kind)) {
+                feel(HapticKind.PLAY)
+            } else {
+                // Too tired for a game: it turns the offer down.
+                engine.feed(false)
+                feel(HapticKind.REFUSE)
+            }
             HoldMenu.Item.SPARK -> engine.signatureNow()
-            HoldMenu.Item.LOVE -> { engine.pet(); feel(HapticKind.TICKLE) }
+            HoldMenu.Item.LOVE -> { store.stroke(); engine.pet(); feel(HapticKind.TICKLE) }
             HoldMenu.Item.DIZZY -> engine.shake()
         }
         sync(force = true)
@@ -209,7 +215,6 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
 
     /** Holding the button cracks the egg on the matrix, otherwise feeds (a sleeper only opens one eye). */
     private fun onLongPress() {
-        if (labPress()) return
         // The button was pressed: someone has the phone in hand. Light up now, hide again later if it is put away.
         burstUntil = 0
         aodBurst = false
@@ -231,9 +236,9 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
                 val accepted = fed.ate
                 gained(XpSource.FEED, fed.xp)
                 val kind = n.activeForm?.kind
-                if (!accepted && kind != null && engine.trick(kind)) {
-                    // Full: it shows off its trick instead of refusing, and the owner plays along by tilting.
-                    store.update { it.copy(joy = (it.joy + n7.glyphpet.pet.Tricks.JOY).coerceIn(0f, 100f)) }
+                if (!accepted && kind != null && n7.glyphpet.pet.Tricks.has(kind) && store.play() && engine.trick(kind)) {
+                    // Full: it shows off its trick instead of refusing, and the owner plays along by tilting. Too
+                    // tired for one ([PetStore.play]), it refuses.
                     feel(HapticKind.PLAY)
                     Log.d(TAG, "event trick $kind")
                 } else {
@@ -268,7 +273,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
      */
     private fun feel(kind: HapticKind, strength: Float = 1f) {
         // Always-on's minute of life is to be seen, not felt: no buzz every minute.
-        if (labOn() || aodBurst) return
+        if (aodBurst) return
         val egg = kind == HapticKind.CRACK || kind == HapticKind.HATCH_SWING || kind == HapticKind.HATCH_RISE ||
             kind == HapticKind.HATCH_FLASH
         if (mood == Mood.SLEEPING && !egg) return
@@ -282,7 +287,6 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             events.clear()
         }
         val done = engine.events ?: return
-        if (labOn()) { done.clear(); return }
         for (e in done) when (e.kind) {
             PetEvent.Kind.SIGNATURE -> award(XpRules.SIGNATURE, XpSource.SIGNATURE)
             PetEvent.Kind.TRICK -> award(XpRules.trick(e.ms), XpSource.TRICK)
@@ -306,8 +310,8 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         burstUntil = 0
         stopLive()
         sync(force = true)
-        // The Lab keeps its still frame; the pet lives for a moment, then the calm frame is back (renderLive).
-        if (labOn() || !connected) { drawStill(); return }
+        // The pet lives for a moment, then the calm frame is back (renderLive).
+        if (!connected) { drawStill(); return }
         burstUntil = SystemClock.uptimeMillis() + AOD_BURST_MS
         aodBurst = true
         startLive()
@@ -315,7 +319,6 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
 
     /** The calm Always-on frame, or darkness if nobody can see the matrix right now. */
     private fun drawStill() {
-        if (labStill()) return
         if (!hideUnseen) { send(engine.still(scene())); return }
         motion.readPose { pose ->
             if (running) return@readPose
@@ -328,7 +331,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
      * frame is back. Live, it is already there.
      */
     private fun onNotification() {
-        if (!connected || labOn() || running) return
+        if (!connected || running) return
         sync(force = true)
         burstUntil = SystemClock.uptimeMillis() + BURST_MS
         aodBurst = false
@@ -346,7 +349,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
      */
     private fun callIfNeeded() {
         val now = SystemClock.uptimeMillis()
-        if (!connected || labOn()) return
+        if (!connected) return
         val n = store.nursery()
         if (n.active == null || n.eggOnMatrix != null) return
         if (!CallRules.wants(n.stats, store.asleep(n.stats))) {
@@ -402,14 +405,12 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         running = false
         main.removeCallbacks(frameLoop)
         if (::motion.isInitialized) motion.stop()
-        lab?.stop()
     }
 
     private fun renderLive() {
         val now = SystemClock.uptimeMillis()
         val dt = (now - lastFrameAt).coerceIn(0, 250)
         lastFrameAt = now
-        if (renderLab(dt)) return
         if (holdMenu.current(now) != null) {
             holdMenu.steer(motion.tilt, now)
             if (holdMenu.changed(now)) haptics.play(HapticEvent(HapticKind.CRACK, 0.15f))
@@ -452,6 +453,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         updateToward(dt)
         val frame = engine.tick(dt, scene(tilt = motion.tilt, tiltY = motion.tiltY, desk = desk, spin = if (desk) motion.spin else 0f, toward = toward,
             yaw = if (posture == Posture.HAND) motion.yaw else 0f))
+        discover(n?.activeForm?.id)
         // DEMO inertia: the whole picture thrown about by the phone's moves.
         val inertia = motion.inertia
         if (inertia.landed) { inertia.landed = false; feel(HapticKind.STOMP, 0.3f) }
@@ -573,8 +575,8 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         val now = SystemClock.uptimeMillis()
         if (!force && now - lastSyncAt < SYNC_MS) return
         lastSyncAt = now
-        // Time together: the pet is on the matrix while it is lit and not given over to the Lab.
-        gained(XpSource.TIME, store.together(seen = connected && !dark && !labOn()))
+        // Time together: the pet is on the matrix while it is lit.
+        gained(XpSource.TIME, store.together(seen = connected && !dark))
         val n = store.nursery()
         nursery = n
         mood = PetRules.mood(n.stats, store.asleep(n.stats))
@@ -593,6 +595,16 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         }
     }
 
+    /** What this toy already put in the album, so the save is written only when something is new. */
+    private val found = HashSet<String>()
+
+    /** Opens in the album what the pet on the matrix shows now ([Discovery]). */
+    private fun discover(formId: String?) {
+        if (formId == null) return
+        val now = n7.glyphpet.pet.Discovery.seenNow(engine).filter { found.add("$formId/${it.id}") }
+        if (now.isNotEmpty()) store.discover(formId, now)
+    }
+
     private fun send(frame: IntArray) {
         if (!connected) return
         if (frame.any { it > 0 }) dark = false
@@ -601,50 +613,5 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         } catch (e: Exception) {
             Log.e(TAG, "Frame failed", e)
         }
-    }
-
-    // ---- Lab (debug builds only, n7.glyphpet.lab): depth experiments instead of the pet; never touches the save. ----
-
-    private var lab: n7.glyphpet.lab.LabToy? = null
-
-    private fun labOn(): Boolean = n7.glyphpet.lab.LabPrefs.on(this)
-
-    private fun labToy(): n7.glyphpet.lab.LabToy = lab ?: n7.glyphpet.lab.LabToy(this).also { lab = it }
-
-    /** While the Lab is on: draws its frame instead of the pet, with its own sensor; the pet's sensors rest. */
-    private fun renderLab(dtMs: Long): Boolean {
-        if (!labOn()) {
-            val l = lab
-            if (l != null && l.running) {
-                l.stop()
-                motion.start()
-                // Nothing that happened in the Lab reaches the pet.
-                motion.consumeShake()
-            }
-            return false
-        }
-        val l = labToy()
-        if (!l.running) {
-            motion.stop()
-            l.start()
-        }
-        engine.haptics?.clear()
-        send(l.frame(dtMs))
-        return true
-    }
-
-    /** The Glyph button in the Lab: the next experiment. */
-    private fun labPress(): Boolean {
-        if (!labOn()) return false
-        labToy().next()
-        if (!running) startLive()
-        return true
-    }
-
-    /** Always-on in the Lab: a still frame of the current experiment. */
-    private fun labStill(): Boolean {
-        if (!labOn()) return false
-        send(labToy().still())
-        return true
     }
 }

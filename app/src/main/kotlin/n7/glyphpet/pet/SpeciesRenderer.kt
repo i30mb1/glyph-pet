@@ -71,7 +71,6 @@ object SpeciesRenderer {
     val Z = listOf("oo.", ".o.", ".oo")
     private val FOOD = listOf("oo", "oo")
     private val VEIN = listOf("o.o", ".o.", "o.o")
-    private val BANG = listOf("o", "o", "o", ".", "o")
     private val STAR = listOf(".o.", "ooo", ".o.")
     private val SPARK = listOf("o.....o")
 
@@ -150,6 +149,8 @@ object SpeciesRenderer {
      * @param painter draws the body in 3D instead of flat (see [Living3D]); null, the default, draws it flat.
      * @param badges draws the face's badge (a happy spark, a heart, a "z"); off while the pet slides down a lean,
      *   where a spark over its jumping head read as its eyes slipping off.
+     * @param spout plays the whale's spout, waves of light through its drops (only the pet at rest: not in a habit, a lean,
+     *   a meal or a game, where the drawing stays as it is).
      * @param cover if given, gets [COVER_BODY] for every visible cell of the silhouette (the carved eye and mouth holes
      *   included) and [COVER_FACE] for the eye and mouth slots with a cell of margin around them.
      */
@@ -168,6 +169,7 @@ object SpeciesRenderer {
         cover: ByteArray? = null,
         painter: BodyPainter? = null,
         badges: Boolean = true,
+        spout: Boolean = false,
     ): IntArray {
         val look = LOOKS.getValue(face)
         val eyesDx = habit?.eyeDx?.takeIf { it != 0 } ?: safeEyeDx(species, habit?.rows ?: species.rows, eyeDx)
@@ -179,6 +181,9 @@ object SpeciesRenderer {
             rows = rows,
         )
 
+        // The whale's spout: its still drops are wiped and drawn playing instead, below.
+        val spoutAt = if (spout && habit == null) Spout.of(species) else null
+        if (spoutAt != null) for (y in 0 until spoutAt.rows) grid[y].fill('.')
         val ox = species.ox + dx + (habit?.dx ?: 0)
         val oy = species.oy - look.jump - lift + (habit?.dy ?: 0)
         if (cover != null) cover(cover, species, rows, ox, oy, eyesDx)
@@ -201,6 +206,8 @@ object SpeciesRenderer {
                 }
             }
         }
+
+        spoutAt?.cells(timeMs, face in ASLEEP)?.forEach { (x, y, v) -> put(frame, ox + spoutAt.base + x, oy + y, v) }
 
         // A sleeper's opened eye is the one thing at full brightness on its dimmed body, so the peek reads at a glance.
         if (face == Face.PEEK && !painted) species.eyes.firstOrNull()?.let { (ex, ey) ->
@@ -230,7 +237,6 @@ object SpeciesRenderer {
                 Face.HUNGRY -> thoughtSpot(species, dx)?.let { (rows, x, y) -> glyph(frame, rows, x, y, hashValue = THOUGHT_DIM) }
                 Face.SAD -> tear(frame, species, ox, oy, timeMs)
                 Face.ANGRY -> badge(frame, VEIN, zX, zY)
-                Face.SCARED -> badge(frame, BANG, zX + 1, zY)
                 Face.DIZZY -> { badge(frame, STAR, heartX - 3, heartY + 1); badge(frame, STAR, heartX + 5, heartY + 1) }
                 else -> Unit
             }
@@ -509,5 +515,64 @@ object SpeciesRenderer {
     /** Clears the cells a species draws, so its eye and mouth holes stay dark over anything drawn before. */
     fun silhouette(species: Species): List<Pair<Int, Int>> = buildList {
         species.rows.forEachIndexed { y, row -> row.forEachIndexed { x, c -> if (c != '.') add(species.ox + x to species.oy + y) } }
+    }
+
+    /**
+     * The whale's spout, always playing: every drop of the drawing stays, dim, and waves of light run through it, up the
+     * jet from the blowhole and out along the drops, each drop flaring as a wave passes and fading back. Never bald, and
+     * dimmer at its peak than the bright drops of its habit, so the big spout stays an event. Asleep, the waves run slow
+     * and faint.
+     * @property rows how many rows of the sprite the spout takes (the rows above the body).
+     * @property base the column of the blowhole.
+     * @property drops each drop: (column from the blowhole, row of the sprite, how far along the wave's way it is).
+     */
+    class Spout(val rows: Int, val base: Int, val drops: List<Triple<Int, Int, Int>>) {
+        companion object {
+            const val STEP_MS = 140L
+            const val SLEEP_STEP_MS = 420L
+            /** A wave's light fades over this many steps behind it; a new wave starts this many steps after the last drop. */
+            const val TAIL = 3f
+            const val GAP = 3
+            const val DIM = 1100
+            const val PEAK = 3400
+            const val SLEEP_DIM = 500
+            const val SLEEP_PEAK = 1300
+
+            /** The spout of a whale form, from its drawing; null for any other pet or a whale drawn without one. */
+            fun of(species: Species): Spout? {
+                if (species.kind != "whale") return null
+                val rows = species.rows.takeWhile { '#' !in it }.size
+                if (rows == 0) return null
+                val bottom = rows - 1
+                val base = species.rows[bottom].indexOf('o').takeIf { it >= 0 } ?: return null
+                // The jet: the drops straight up from the blowhole; the light climbs it, then runs out along the rest.
+                val jetTop = (0..bottom).first { species.rows[it].getOrNull(base) == 'o' }
+                val drops = (0..bottom).flatMap { y ->
+                    species.rows[y].withIndex().filter { it.value == 'o' }.map { (x, _) ->
+                        val d = if (x == base) bottom - y else bottom - jetTop + kotlin.math.abs(x - base)
+                        Triple(x - base, y, d)
+                    }
+                }
+                return Spout(rows, base, drops)
+            }
+        }
+
+        /** How many steps one wave takes, from the blowhole to past the farthest drop. */
+        val steps get() = drops.maxOf { it.third } + 1 + GAP
+
+        /** Every drop at [timeMs]: (column from the blowhole, row of the sprite, brightness). */
+        fun cells(timeMs: Long, asleep: Boolean): List<Triple<Int, Int, Int>> {
+            val step = if (asleep) SLEEP_STEP_MS else STEP_MS
+            val dim = if (asleep) SLEEP_DIM else DIM
+            val peak = if (asleep) SLEEP_PEAK else PEAK
+            val w = Math.floorMod(timeMs, step * steps).toFloat() / step
+            return drops.map { (x, y, d) ->
+                // Steps since the wave passed this drop (wrapping round to the wave before).
+                var since = w - d
+                if (since < 0f) since += steps
+                val flare = (1f - since / TAIL).coerceIn(0f, 1f)
+                Triple(x, y, (dim + (peak - dim) * flare).toInt())
+            }
+        }
     }
 }

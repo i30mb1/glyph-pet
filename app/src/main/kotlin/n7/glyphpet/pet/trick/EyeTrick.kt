@@ -10,8 +10,9 @@ import kotlin.math.hypot
 import kotlin.math.sin
 
 /**
- * Eye: the big eye sits in the middle and its pupil follows the lean. Sparks blink up around it; hold the gaze on one
- * and the eye zaps it with a beam (a tick). A sharp jolt of the phone makes it squint, cross, for a moment.
+ * Eye: the big eye sits in the middle and its pupil follows the lean. A spark shines near the rim; hold the gaze on it
+ * and a ring of light fills round it ("keep looking"), and when it closes the eye zaps the spark with a beam (a tick).
+ * Six zapped make it beam ([Score]). A sharp jolt makes it squint, cross, for a moment.
  */
 internal class EyeTrick : Trick(0L) {
     companion object {
@@ -20,9 +21,17 @@ internal class EyeTrick : Trick(0L) {
         const val LOOK = 1.6f
         const val JOLT = 4.5f
         const val SQUINT_MS = 800L
-        const val AIM_MS = 650L
+        const val AIM_MS = 600L
+        /** The gaze is on the spark within this much of its direction (cosine). */
+        const val ON_TARGET = 0.86f
+        const val SPARK = 3600f
+        /** The ring filling round the spark while it is looked at: lit, and still to fill. */
+        const val RING = 2600f
+        const val RING_DIM = 260f
+        /** The eight cells round the spark, clockwise from the top. */
+        val AROUND = listOf(0 to -1, 1 to -1, 1 to 0, 1 to 1, 0 to 1, -1 to 1, -1 to 0, -1 to -1)
         const val ZAP_MS = 260L
-        const val SPARK_R = 10.3f
+        const val SPARK_R = 8.8f
     }
 
     private var lastGx = Float.NaN
@@ -33,6 +42,7 @@ internal class EyeTrick : Trick(0L) {
     private var sparkA = 0f
     private var seed = 0
     private val homing = Homing()
+    private val score = Score()
     private val canvas = Canvas()
     private val layer = Canvas()
 
@@ -44,6 +54,7 @@ internal class EyeTrick : Trick(0L) {
         seed = freshSeed()
         sparkA = TrickKit.hash01(seed) * 6.28f
         homing.reset()
+        score.reset()
     }
 
     override fun scene(frame: IntArray, input: SignatureInput) {
@@ -76,6 +87,7 @@ internal class EyeTrick : Trick(0L) {
                 }
             }
             if (squint > 0L) squint -= ms
+            score.tick(ms)
             if (zap > 0L) {
                 zap -= ms
                 if (zap <= 0L) {
@@ -91,12 +103,13 @@ internal class EyeTrick : Trick(0L) {
                 val dy = fy - pcy
                 val d = hypot(dx, dy).coerceAtLeast(0.01f)
                 val dot = if (l > 0.3f) (lx * dx + ly * dy) / (l * d) else 0f
-                if (dot > 0.9f) {
+                if (dot > ON_TARGET) {
                     aim += ms
                     if (aim >= AIM_MS) {
                         aim = 0L
                         zap = ZAP_MS
                         gate.feel(input, HapticKind.BALL_HIT, 0.8f)
+                        if (score.win()) gate.feel(input, HapticKind.STOMP, 0.8f)
                     }
                 } else {
                     aim = (aim - ms).coerceAtLeast(0L)
@@ -108,6 +121,7 @@ internal class EyeTrick : Trick(0L) {
 
         val face = when {
             going -> Face.CONTENT
+            score.party -> Face.HAPPY
             squint > 0L -> Face.ANGRY
             else -> Face.IDLE
         }
@@ -157,8 +171,13 @@ internal class EyeTrick : Trick(0L) {
                     canvas.splat(fx + cos(a) * d, fy + sin(a) * d, 2500f)
                 }
             } else {
+                // The spark, always bright, and the ring round it filling while it is looked at.
                 val k = aim.toFloat() / AIM_MS
-                canvas.splat(fx, fy, 1000f + 2600f * k + 400f * sin(t / 70f))
+                val sx = kotlin.math.round(fx).toInt()
+                val sy = kotlin.math.round(fy).toInt()
+                canvas.max(sx, sy, SPARK)
+                val lit = (AROUND.size * k).toInt()
+                for ((n, c) in AROUND.withIndex()) canvas.max(sx + c.first, sy + c.second, if (n < lit) RING else RING_DIM)
             }
         }
         canvas.toFrame(frame)

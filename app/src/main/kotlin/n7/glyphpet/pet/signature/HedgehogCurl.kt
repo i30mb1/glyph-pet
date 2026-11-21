@@ -13,7 +13,7 @@ import kotlin.math.sqrt
 
 /**
  * The hedgehog curled up into a spiky ball, sized to the form: drawn by its signature and its mini-game, the spines
- * and nose turning as it rolls. (The Lab's "Клубок".)
+ * and nose turning as it rolls. (The Lab's "Клубок", see docs/research/lab.md.)
  */
 object HedgehogCurl {
     /** Ball radius per cell of the form's width (teen ≈ 3.4 cells). */

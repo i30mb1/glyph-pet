@@ -12,7 +12,7 @@ import kotlin.math.sin
 /**
  * Jelly: it swims toward the lean in pulses (a squeeze, then a glide) and its two short tentacles trail behind, dim.
  * Bright twinkling plankton crosses drift about; swim through one to eat it (a tick, a ring bursts, the jelly glows),
- * and the dots along the bottom rim count them: every six it lights up all over.
+ * and every six it lights up all over.
  */
 internal class JellyTrick : Trick(0L) {
     companion object {
@@ -31,10 +31,6 @@ internal class JellyTrick : Trick(0L) {
         const val GLOW_MS = 500L
         const val PARTY_MS = 1400L
         const val BURST_MS = 320L
-        /** The count of eaten plankton: a dot each along the bottom rim, between these angles (radians, 0 = right). */
-        const val COUNT_FROM = 2.2f
-        const val COUNT_TO = 0.94f
-        const val COUNT_R = 11.3f
     }
 
     private var x = MID
@@ -199,12 +195,6 @@ internal class JellyTrick : Trick(0L) {
                     val a = j * 0.785f
                     canvas.splat(bx + rr * cos(a), by + rr * sin(a), 2600f * (1f - k))
                 }
-            }
-            // How many so far, out of [FULL]: a dot each along the bottom rim.
-            for (j in 0 until FULL) {
-                val a = COUNT_FROM + (COUNT_TO - COUNT_FROM) * j / (FULL - 1)
-                val lit = party > 0L || j < eaten
-                canvas.splat(MID + COUNT_R * cos(a), MID + COUNT_R * sin(a), if (lit) 2800f else 380f)
             }
         }
         canvas.toFrame(frame)

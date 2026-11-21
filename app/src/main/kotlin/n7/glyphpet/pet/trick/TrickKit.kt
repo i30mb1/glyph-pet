@@ -330,3 +330,70 @@ internal abstract class Trick(@Suppress("UNUSED_PARAMETER") planned: Long) : Sig
         Kit.drawPet(out, input.species, Face.CONTENT, input.blink && lift == 0, input.dx, lift)
     }
 }
+
+/**
+ * A game's progress: how many won toward a set of [full]; a full set is a little party ([PARTY_MS]: the pet beams, a
+ * stronger tick) and the count starts over. Not drawn: dots on the rim read as litter, the owner said. ([draw] is
+ * kept for a game that may want them.)
+ */
+internal class Score(private val full: Int = 6) {
+    companion object {
+        const val PARTY_MS = 1200L
+        private const val FROM = 2.2f
+        private const val TO = 0.94f
+        private const val R = 11.3f
+        private const val LIT = 2800f
+        private const val DIM = 380f
+    }
+
+    var got = 0
+        private set
+    var partyMs = 0L
+        private set
+
+    fun reset() { got = 0; partyMs = 0L }
+
+    /** One more won; true when that made a full set (the flash starts and the count starts over). */
+    fun win(): Boolean {
+        got++
+        if (got < full) return false
+        got = 0
+        partyMs = PARTY_MS
+        return true
+    }
+
+    fun tick(ms: Long) { if (partyMs > 0L) partyMs -= ms }
+
+    val party: Boolean get() = partyMs > 0L
+
+    /** The same dots straight into a finished [frame]. */
+    fun draw(frame: IntArray, gain: Float = 1f) {
+        for (j in 0 until full) {
+            val a = FROM + (TO - FROM) * j / (full - 1)
+            val lit = if (party) (partyMs / 120) % 2 == 0L else j < got
+            n7.glyphpet.pet.SpeciesRenderer.put(
+                frame, kotlin.math.round(MID + R * kotlin.math.cos(a)).toInt(), kotlin.math.round(MID + R * kotlin.math.sin(a)).toInt(),
+                ((if (lit) LIT else DIM) * gain).toInt(),
+            )
+        }
+    }
+
+    /** @param carve over something lit (the slime's goo): a dot still to win is cut out dark instead of drawn dim. */
+    fun draw(canvas: n7.glyphpet.pet.signature.Canvas, gain: Float = 1f, carve: Boolean = false) {
+        for (j in 0 until full) {
+            val a = FROM + (TO - FROM) * j / (full - 1)
+            val lit = if (party) (partyMs / 120) % 2 == 0L else j < got
+            if (carve) {
+                val x = kotlin.math.round(MID + R * kotlin.math.cos(a)).toInt()
+                val y = kotlin.math.round(MID + R * kotlin.math.sin(a)).toInt()
+                if (x in 0 until Kit.N && y in 0 until Kit.N) {
+                    canvas.v[y * Kit.N + x] = if (lit) Kit.BRIGHT * gain else 0f
+                    canvas.cov[y * Kit.N + x] = 1f
+                }
+                continue
+            }
+            // Whole cells: blended between two, a dot read as a smudge.
+            canvas.max(kotlin.math.round(MID + R * kotlin.math.cos(a)).toInt(), kotlin.math.round(MID + R * kotlin.math.sin(a)).toInt(), (if (lit) LIT else DIM) * gain)
+        }
+    }
+}

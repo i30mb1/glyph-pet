@@ -150,6 +150,23 @@ class PetStore(context: Context) {
     }
 
     /**
+     * A game, if the pet has the energy for one ([PetRules.canPlay]): a dot of joy for a dot of energy and half a dot
+     * of food ([PetRules.play]). Returns false, changing nothing, when it is too tired.
+     */
+    @Synchronized
+    fun play(nowMs: Long = GameClock.now()): Boolean {
+        var played = false
+        update(nowMs) { if (PetRules.canPlay(it)) PetRules.play(it).also { played = true } else it }
+        return played
+    }
+
+    /** Stroked: half a dot of joy ([PetRules.stroke]). */
+    @Synchronized
+    fun stroke(nowMs: Long = GameClock.now()) {
+        update(nowMs, PetRules::stroke)
+    }
+
+    /**
      * The active pet earns [base] experience, if it gains now (awake, neither hungry nor sick, see [XpRules.gains]),
      * times [XpRules.FULL_MULTIPLIER] while all its needs are full. Returns what it really gained; never throws.
      */
@@ -169,7 +186,8 @@ class PetStore(context: Context) {
      */
     @Synchronized
     fun together(seen: Boolean, nowMs: Long = GameClock.now()): Int = runCatching {
-        val stats = update(nowMs)
+        // The needs run on the matrix's fast clock from now on while it is seen, on the slow one once it is not.
+        val stats = update(nowMs) { it.copy(seenAtMs = if (seen) nowMs else 0L) }
         val gains = seen && XpRules.gains(stats, asleep(stats, nowMs))
         val before = loadState(nowMs)
         val (after, gained) = GrowthRules.together(before, nowMs, gains, XpRules.multiplied(XpRules.PER_MINUTE, stats))
@@ -189,6 +207,24 @@ class PetStore(context: Context) {
     @Synchronized
     fun setShown(kind: String, stage: Stage, nowMs: Long = GameClock.now()) {
         saveState(GrowthRules.setShown(loadState(nowMs), kind, stage))
+    }
+
+    /** The ids of the states of form [formId] the owner has seen ([Discovery]); they stay open for good. */
+    fun found(formId: String): Set<String> = prefs.getStringSet(KEY_FOUND + formId, null)?.toSet() ?: emptySet()
+
+    /** Opens [states] of form [formId] in the album; true when one was new. */
+    @Synchronized
+    fun discover(formId: String, states: Collection<PetState>): Boolean {
+        val have = found(formId)
+        val new = states.map { it.id }.filter { it !in have }
+        if (new.isEmpty()) return false
+        prefs.edit().putStringSet(KEY_FOUND + formId, have + new).apply()
+        return true
+    }
+
+    /** Debug builds: every state of every form open. */
+    fun discoverAll() {
+        for (form in SpeciesForms.all) discover(form.id, PetState.entries)
     }
 
     /** Debug builds: the active pet gets [amount] experience at once, whatever its needs. */
@@ -270,6 +306,7 @@ class PetStore(context: Context) {
             bornAtMs = prefs.getLong(KEY_BORN, nowMs),
             updatedAtMs = prefs.getLong(KEY_UPDATED, nowMs),
             napping = prefs.getBoolean(KEY_NAPPING, false),
+            seenAtMs = prefs.getLong(KEY_SEEN_AT, 0),
         )
     }
 
@@ -281,6 +318,7 @@ class PetStore(context: Context) {
             .putLong(KEY_BORN, stats.bornAtMs)
             .putLong(KEY_UPDATED, stats.updatedAtMs)
             .putBoolean(KEY_NAPPING, stats.napping)
+            .putLong(KEY_SEEN_AT, stats.seenAtMs)
             .apply()
     }
 
@@ -398,6 +436,8 @@ class PetStore(context: Context) {
         const val KEY_BORN = "born_at"
         const val KEY_UPDATED = "updated_at"
         const val KEY_NAPPING = "napping"
+        const val KEY_SEEN_AT = "seen_at"
+        const val KEY_FOUND = "found_"
         const val KEY_ACTIVE = "active_species"
         const val KEY_SEEN = "seen_"
         const val KEY_SUPPORTER = "supporter"

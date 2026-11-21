@@ -157,7 +157,7 @@ object SpeciesCatalog {
                 "#############", "#############", ".###########.", "##.##...##.##",
             ),
             // Centred on the matrix: rows 8..16. The eyes sit in the bumps on top, with body round them.
-            ox = 6, oy = 8, eyes = listOf(2 to 0, 9 to 0), mouth = 5 to 5,
+            ox = 6, oy = 8, eyes = listOf(2 to 1, 9 to 1), mouth = 5 to 5,
             extras = mapOf(Face.EAT to listOf(Overlay(listOf("....o.o", ".....o.", "ooooo.."), 17, 11))),
             replaces = setOf(Face.EAT),
             habit = Habits::frog,

@@ -735,6 +735,7 @@ class PetEngine(
             habit = if (painter != null) living.habitFor(species, own) else own,
             eyeDx = look(centerX, scene, asleep), shadow = true, cover = cover, painter = painter,
             badges = !(sliding && own == null) || tiltStyle == TiltStyle.STICK,
+            spout = own == null && !sliding,
         )
         if (sliding && own == null) {
             // On its way through the edge: the part already out comes in from the other side.

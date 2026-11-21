@@ -34,14 +34,13 @@ class FirstMinutesTest {
     fun `a newborn asks for its owner at once, and stops once it is fed and played with`() {
         assertTrue(CallRules.wants(newborn, asleep = false))
         assertFalse("a sleeping pet never calls", CallRules.wants(newborn, asleep = true))
-        // Fed, then a mini-game, which cheers it up by Tricks.JOY.
-        val fed = PetRules.feed(newborn).first
-        val cared = fed.copy(joy = fed.joy + Tricks.JOY)
+        // Fed, then a mini-game: a dot of joy.
+        val cared = PetRules.play(PetRules.feed(newborn).first)
         assertFalse(CallRules.wants(cared, asleep = false))
     }
 
     @Test
-    fun `a full pet takes hours to call, so a call comes a few times a day`() {
+    fun `a full pet calls after two or three hours away, an invitation to the next visit`() {
         val full = newborn.copy(satiety = 100f, joy = 100f, energy = 100f)
         var hours = 0
         var s = full
@@ -49,7 +48,7 @@ class FirstMinutesTest {
             hours++
             s = PetRules.advance(s, hours * 60L * 60_000L)
         }
-        assertTrue("called after $hours h, expected the better part of a day", hours in 5..12)
+        assertTrue("called after $hours h, expected two or three, about when a visit is due anyway", hours in 2..3)
     }
 
     @Test

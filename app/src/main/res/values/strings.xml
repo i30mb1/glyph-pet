@@ -9,28 +9,28 @@
     <string name="need_joy">Joy</string>
     <string name="need_sleep">Sleep</string>
     <plurals name="need_food_fill">
-        <item quantity="other">Hold the button on the back to feed</item>
+        <item quantity="other">Hold the button on the back: one meal, one dot</item>
     </plurals>
     <plurals name="need_food_drain">
-        <item quantity="one">Lasts an hour</item>
-        <item quantity="other">Lasts %d hours</item>
+        <item quantity="one">Away, a dot lasts %d minute; games use it faster</item>
+        <item quantity="other">Away, a dot lasts %d minutes; games use it faster</item>
     </plurals>
     <plurals name="need_joy_fill">
-        <item quantity="other">Feed it full and press the Glyph button for a mini-game</item>
+        <item quantity="other">Fed full, press the button: a game, a dot of joy</item>
     </plurals>
     <plurals name="need_joy_drain">
-        <item quantity="one">Lasts an hour</item>
-        <item quantity="other">Lasts %d hours</item>
+        <item quantity="one">Away, a dot lasts %d minute</item>
+        <item quantity="other">Away, a dot lasts %d minutes</item>
     </plurals>
     <plurals name="need_sleep_rest">
-        <item quantity="other">It sleeps when tired</item>
+        <item quantity="other">Every game costs a dot; it rests while you are away</item>
     </plurals>
     <plurals name="need_sleep_charge">
-        <item quantity="other">Faster on the charger</item>
+        <item quantity="other">Turn the phone over or charge it to fill up fast</item>
     </plurals>
     <plurals name="need_sleep_drain">
-        <item quantity="one">Lasts a minute</item>
-        <item quantity="other">Lasts %d minutes</item>
+        <item quantity="one">Worn out, it naps for %d second</item>
+        <item quantity="other">Worn out, it naps for %d seconds</item>
     </plurals>
     <string name="need_what">what it is</string>
     <string name="action_feed">Feed</string>
@@ -103,34 +103,34 @@
     <string name="next_complete">You have all 28 pets. There are no more eggs.</string>
     <string name="next_supporter">Every pet you do not have yet is already waiting in an egg.</string>
 
-    <string name="mood_sleeping">Sleeping. It wakes up in the morning or once it has rested.</string>
-    <string name="mood_hungry">Hungry. Hold the Glyph button.</string>
-    <string name="mood_tired">Tired. It will nap soon.</string>
-    <string name="mood_sad">Bored. Feed it full and press the Glyph button to play.</string>
-    <string name="mood_happy">Happy and full.</string>
-    <string name="mood_content">Doing fine.</string>
+    <string name="mood_sleeping">Asleep. It wakes up rested soon</string>
+    <string name="mood_hungry">Hungry. Hold the Glyph button</string>
+    <string name="mood_tired">Tired. Turn the phone over or charge it</string>
+    <string name="mood_sad">Bored. Feed it full and hold the Glyph button to play</string>
+    <string name="mood_happy">Happy</string>
+    <string name="mood_content">Doing fine</string>
 
     <string name="states_title">States</string>
     <string name="state_calm">Calm</string>
     <string name="state_calm_when">When Food, Joy and Sleep are all fine</string>
     <string name="state_happy">Happy</string>
-    <string name="state_happy_when">When Joy is high and Food is above half</string>
+    <string name="state_happy_when">When it is full and joyful: games cheer it up</string>
     <string name="state_hungry">Hungry</string>
     <string name="state_hungry_when">When Food is below a quarter</string>
     <string name="state_sad">Sad</string>
     <string name="state_sad_when">When Joy is below a quarter</string>
     <string name="state_tired">Tired</string>
-    <string name="state_tired_when">When Sleep is below a fifth</string>
+    <string name="state_tired_when">When it has less than a dot of energy: games use it up</string>
     <string name="state_asleep">Asleep</string>
-    <string name="state_asleep_when">At night from 0:00 to 6:00, or when Sleep is almost empty</string>
+    <string name="state_asleep_when">When its energy runs out: it naps for under a minute</string>
     <string name="state_eating">Eating</string>
-    <string name="state_eating_when">When you hold the Glyph button</string>
+    <string name="state_eating_when">Hold the Glyph button: one meal, one dot</string>
     <string name="state_loved">Loved</string>
-    <string name="state_loved_when">When you rock the phone gently side to side</string>
+    <string name="state_loved_when">The heart in the menu when you hold the Glyph button on the matrix</string>
     <string name="state_dizzy">Dizzy</string>
     <string name="state_dizzy_when">When you shake too often, during its signature or just after, or when it is in no mood for one</string>
     <string name="state_game">Mini-game</string>
-    <string name="state_game_when">Full and the Glyph button held: you play for up to a minute by leaning the phone. Press the button again to send it home</string>
+    <string name="state_game_when">Full, and the button held: a game gives a dot of joy for a dot of energy. Hold again to send it home</string>
     <string name="state_trick">Its own trick</string>
     <string name="state_trick_when">Often, when it is calm: after 10 s of quiet</string>
     <string name="state_charging">On the charger</string>
@@ -268,4 +268,24 @@
     <string name="sig_planet_about">A ringed planet turns in 3D</string>
     <string name="sig_raccoon">Washer</string>
     <string name="sig_raccoon_about">Rinses something shiny in a puddle and hides it away</string>
+    <string name="tab_play">Play</string>
+    <string name="tab_nursery">Nursery</string>
+    <string name="tab_settings">Settings</string>
+    <string name="action_press">press the Glyph button</string>
+    <string name="play_hint">Hold: the Glyph button · tilt and shake the phone</string>
+    <string name="states_found">Animations · %1$d of %2$d</string>
+    <string name="state_calm_ask">What is it like when all is well?</string>
+    <string name="state_signature_ask">What can it do if you shake the phone?</string>
+    <string name="state_happy_ask">And if you play with it a lot?</string>
+    <string name="state_hungry_ask">And if you do not feed it for a long time?</string>
+    <string name="state_sad_ask">And if nobody plays with it for a long time?</string>
+    <string name="state_tired_ask">What happens after many games in a row?</string>
+    <string name="state_asleep_ask">And when its energy runs out?</string>
+    <string name="state_eating_ask">What happens if you hold the Glyph button?</string>
+    <string name="state_game_ask">And if you hold the button when it is full?</string>
+    <string name="state_loved_ask">And if you cuddle it?</string>
+    <string name="state_dizzy_ask">And if you shake it too often?</string>
+    <string name="state_trick_ask">What does it do when left alone?</string>
+    <string name="state_charging_ask">And if you put the phone on the charger?</string>
+    <string name="xp_full">max</string>
 </resources>

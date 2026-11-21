@@ -279,11 +279,12 @@ class PetStoreOldSaveTest {
         assertEquals(stats, n.stats)
         assertEquals(Mood.HUNGRY, PetRules.mood(n.stats, asleep = false))
         assertTrue(store.feed(now).ate)
+        assertTrue(store.feed(now).ate)
         val fed = store.nursery(now)
-        // 3 + 35 Food, 2 + 5 Joy: no longer hungry, only sad.
+        // 3 + two meals of a dot each: no longer hungry, only sad.
         assertEquals(Mood.SAD, PetRules.mood(fed.stats, asleep = false))
-        assertEquals(38f, prefs.map["satiety"])
-        assertEquals(7f, prefs.map["joy"])
+        assertEquals(43f, prefs.map["satiety"])
+        assertEquals(2f, prefs.map["joy"])
     }
 
     /** Exactly what 1.2's saveStats + saveState put into the "pet" prefs (save_version 2, before growth stages). */
@@ -376,12 +377,13 @@ class PetStoreOldSaveTest {
         val prefs = MemoryPrefs()
         write12(prefs, now, active = "cat", seen = mapOf("cat" to 1))
         // Three dots of Food or fewer: the meal is worth something (see XpRules.FEED_MAX_DOTS).
-        // High enough that one meal fills the pet past PetRules.FULL.
+        // High enough that two meals fill the pet past PetRules.FULL; the second, at four dots, is worth nothing.
         prefs.map["satiety"] = 60f
         val store = PetStore(fakeContext(prefs))
         val fed = store.feed(now)
         assertTrue(fed.ate)
         assertEquals(XpRules.FEED, fed.xp)
+        assertEquals(0, store.feed(now).xp)
         assertEquals(XpRules.FEED, store.nursery(now).activeGrowth?.xp)
         // Full now: the next meal is refused and brings nothing.
         val refused = store.feed(now + 1000)
@@ -405,8 +407,9 @@ class PetStoreOldSaveTest {
         assertEquals(Mood.HUNGRY, PetRules.mood(store.nursery(now).stats, asleep = false))
         assertEquals("a hungry pet earns nothing from time", 0, store.gain(XpRules.SIGNATURE, now))
         for (key in listOf("care_day", "care_fed", "care_sick")) assertFalse(key, prefs.map.containsKey(key))
-        // The meal that cures it still counts: it was down to its last dot of Food.
-        assertEquals(XpRules.FEED, store.feed(now + 1000).xp)
+        // A meal is a dot: the first leaves it hungry, earning nothing; the one that cures it counts.
+        assertEquals(0, store.feed(now + 1000).xp)
+        assertEquals(XpRules.FEED, store.feed(now + 2000).xp)
     }
 
     @Test

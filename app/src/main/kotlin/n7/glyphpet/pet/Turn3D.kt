@@ -9,7 +9,7 @@ import kotlin.math.sin
 /**
  * A pet turning around its vertical axis in pseudo-3D, for [Moments.evolve]. The sprite is "inflated" into a voxel
  * volume (thicker toward the middle of the silhouette, like a pillow), turned, z-buffered and splatted sub-pixel onto
- * the matrix; nearer surfaces are brighter. The same idea as the Lab's voxel hedgehog, for any species.
+ * the matrix; nearer surfaces are brighter. The same idea as the Lab's voxel hedgehog (docs/research/lab.md), for any species.
  */
 internal object Turn3D {
     private const val N = GlyphMatrixSpec.SIZE

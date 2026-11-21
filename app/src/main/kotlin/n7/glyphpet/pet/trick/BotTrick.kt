@@ -14,8 +14,9 @@ import kotlin.math.sin
 
 /**
  * Bot: it becomes a spirit level. Its screen shows a bubble that floats to the high side, opposite to the tilt, with
- * a damped wobble, and a centre mark that brightens while the bubble rests in it. Held level for about a second, the
- * screen smiles, the antenna flashes and it beeps (a click in the hand); then the bubble gets a nudge for another go.
+ * a damped wobble, and a target (two brackets) somewhere on the screen that brightens while the bubble rests in it.
+ * Held there for a moment it beeps (a click in the hand), and the target jumps elsewhere;
+ * six, and the screen smiles and the antenna flashes.
  */
 internal class BotTrick : Trick(DURATION) {
     companion object {
@@ -26,7 +27,7 @@ internal class BotTrick : Trick(DURATION) {
         /** Level means the bubble within [LEVEL_R] cells of the centre and slower than [LEVEL_SPEED] cells/s for [LEVEL_MS]. */
         const val LEVEL_R = 0.5f
         const val LEVEL_SPEED = 1.6f
-        const val LEVEL_MS = 1000L
+        const val LEVEL_MS = 700L
         const val SMILE_MS = 1300L
         /** The nudge that starts each go (cells/s). */
         const val KICK = 9f
@@ -51,6 +52,10 @@ internal class BotTrick : Trick(DURATION) {
     private var smileMs = -1L
     private var kicked = false
     private var kicks = 0
+    private var goalX = 0f
+    private var goalY = 0f
+    private var goals = 0
+    private val score = Score()
     private val canvas = Canvas()
 
     override fun reset() {
@@ -62,6 +67,10 @@ internal class BotTrick : Trick(DURATION) {
         smileMs = -1
         kicked = false
         kicks = 0
+        goalX = 0f
+        goalY = 0f
+        goals = freshSeed()
+        score.reset()
     }
 
     override fun scene(frame: IntArray, input: SignatureInput) {
@@ -71,11 +80,13 @@ internal class BotTrick : Trick(DURATION) {
         val left = sp.ox + input.dx
         val top = sp.oy
 
+        score.tick(input.dtMs.coerceIn(0L, 100L))
         // Done: the plain bot with a smile on its screen.
         if (r > 0.3f || smileMs >= 0) {
             val antenna = smileMs >= 0 && (smileMs / 120L) % 2L == 0L
             Kit.drawPet(frame, sp, Face.CONTENT, false, input.dx)
             if (smileMs >= 0) flashAntenna(frame, sp, left, top, antenna)
+
             if (smileMs >= 0) {
                 smileMs += input.dtMs.coerceIn(0L, 100L)
                 if (smileMs >= SMILE_MS) {
@@ -113,12 +124,27 @@ internal class BotTrick : Trick(DURATION) {
             by = by.coerceIn(-rangeY, rangeY)
             vy *= -0.3f
         }
-        val level = hypot(bx, by) < LEVEL_R && hypot(vx, vy) < LEVEL_SPEED && kicked
+        val level = hypot(bx - goalX, by - goalY) < LEVEL_R && hypot(vx, vy) < LEVEL_SPEED && kicked
         levelMs = if (level) levelMs + input.dtMs.coerceIn(0L, 100L) else maxOf(0L, levelMs - 2 * input.dtMs)
         if (levelMs >= LEVEL_MS && t < playEndMs) {
             levelMs = 0
-            smileMs = 0
-            gate.feel(input, HapticKind.FEED, 1f)
+            if (score.win()) {
+                smileMs = 0
+                gate.feel(input, HapticKind.FEED, 1f)
+            } else {
+                gate.feel(input, HapticKind.BALL_HIT, 0.7f)
+            }
+            // The next target, somewhere else on the screen.
+            goals++
+            var nx: Float
+            var ny: Float
+            var tries = 0
+            do {
+                nx = (TrickKit.hash01(goals * 7 + tries) * 2f - 1f) * rangeX * 0.8f
+                ny = (TrickKit.hash01(goals * 13 + tries + 3) * 2f - 1f) * rangeY * 0.8f
+            } while (hypot(nx - goalX, ny - goalY) < 1.2f && ++tries < 6)
+            goalX = kotlin.math.round(nx)
+            goalY = kotlin.math.round(ny)
         }
 
         // The bot's body without its face, then the vial on its screen.
@@ -128,9 +154,9 @@ internal class BotTrick : Trick(DURATION) {
         val cxs = left + scr.x0 + (scr.w - 1) / 2f
         val cys = top + scr.y0 + (scr.h - 1) / 2f
         val mark = (MARK_DIM + (MARK_LIT - MARK_DIM) * (levelMs.toFloat() / LEVEL_MS)) * fade
-        // The centre mark: a frame one cell around a centred bubble.
-        val mx0 = floor(cxs - bw / 2f + 0.5f).toInt() - 1
-        val my0 = floor(cys - bh / 2f + 0.5f).toInt() - 1
+        // The target: a frame one cell around the bubble resting where it should.
+        val mx0 = floor(cxs + goalX - bw / 2f + 0.5f).toInt() - 1
+        val my0 = floor(cys + goalY - bh / 2f + 0.5f).toInt() - 1
         val mx1 = mx0 + bw + 1
         val my1 = my0 + bh + 1
         for (x in mx0..mx1) for (y in my0..my1) {

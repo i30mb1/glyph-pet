@@ -15,7 +15,9 @@ import kotlin.math.sin
 /**
  * Slime: it melts into a ring of goo along the round edge. The goo behaves like liquid in a glass: tilting the phone
  * makes it pool on the low side and slosh back with inertia (each slice of the ring springs toward the pooled shape,
- * tied to its neighbours so the wave runs around). Its two eyes ride in the deepest pool. Then it gathers back.
+ * tied to its neighbours so the wave runs around). Its two eyes ride in the deepest pool. A bright drop shines inside
+ * the ring: lean so the goo pools over it and the slime soaks it up (a tick) and the goo
+ * glows a little brighter; another drop appears elsewhere. Then it gathers back.
  */
 internal class SlimeTrick : Trick(DURATION) {
     companion object {
@@ -35,6 +37,11 @@ internal class SlimeTrick : Trick(DURATION) {
         /** The goo's outer wall (cells from the centre): just past the outermost LEDs. */
         const val OUTER = 12.75f
         const val SURFACE = 2100f
+        /** The drop: how far in from the middle (cells), how bright, and how much brighter the goo is per drop. */
+        const val DROP_R = 8.6f
+        const val DROP = 3600f
+        const val GLOW_PER_DROP = 0.07f
+        const val SOAK_MS = 300L
 
         private val cellBin = FloatArray(Kit.N * Kit.N)
         private val cellDepth = FloatArray(Kit.N * Kit.N)
@@ -61,6 +68,11 @@ internal class SlimeTrick : Trick(DURATION) {
     private var carry = 0f
     private var eyeX = 0f
     private var eyeY = 1f
+    private var dropA = 0f
+    private var drops = 0
+    private var soakMs = -1L
+    private var happyMs = 0L
+    private val score = Score()
 
     override fun reset() {
         h.fill(MEAN)
@@ -68,6 +80,11 @@ internal class SlimeTrick : Trick(DURATION) {
         carry = 0f
         eyeX = 0f
         eyeY = 1f
+        drops = freshSeed()
+        dropA = TrickKit.hash01(drops) * 6.283f
+        soakMs = -1L
+        happyMs = 0L
+        score.reset()
     }
 
     override fun scene(frame: IntArray, input: SignatureInput) {
@@ -78,7 +95,34 @@ internal class SlimeTrick : Trick(DURATION) {
         val amount = minOf(melt, 1f - r)
 
         ring.clear()
-        if (amount > 0.01f) paintRing(amount, t)
+        val ms = input.dtMs.coerceIn(0L, 100L)
+        score.tick(ms)
+        if (happyMs > 0L) happyMs -= ms
+        if (amount > 0.01f) paintRing(amount * (1f + GLOW_PER_DROP * score.got), t, amount)
+        if (r <= 0f && melt >= 1f) {
+            val dx = MID + DROP_R * cos(dropA)
+            val dy = MID + DROP_R * sin(dropA)
+            if (soakMs >= 0L) {
+                // Soaked up: it shrinks into the goo.
+                soakMs += ms
+                if (soakMs >= SOAK_MS) {
+                    soakMs = -1L
+                    drops++
+                    dropA += 1.6f + 3f * TrickKit.hash01(drops)
+                }
+            } else {
+                var a = dropA / (2 * PI).toFloat() % 1f
+                if (a < 0f) a += 1f
+                if (thickness(a * BINS) >= OUTER - DROP_R - 0.3f) {
+                    soakMs = 0L
+                    happyMs = 600L
+                    gate.feel(input, n7.glyphpet.pet.HapticKind.BALL_HIT, 0.8f)
+                    if (score.win()) { happyMs = Score.PARTY_MS; gate.feel(input, n7.glyphpet.pet.HapticKind.STOMP, 0.8f) }
+                }
+            }
+            val v = if (soakMs >= 0L) DROP * (1f - soakMs.toFloat() / SOAK_MS) else DROP * (0.85f + 0.15f * sin(t / 120f))
+            ring.max(dx.roundToInt(), dy.roundToInt(), v)
+        }
 
         // The slime itself while it melts down and while it gathers back up, at home.
         val sp = input.species
@@ -141,7 +185,8 @@ internal class SlimeTrick : Trick(DURATION) {
         return h[((b0 % BINS) + BINS) % BINS] * (1f - f) + h[(((b0 + 1) % BINS) + BINS) % BINS] * f
     }
 
-    private fun paintRing(amount: Float, t: Long) {
+    /** [gain] brightens the goo (it glows more with every drop), [amount] how far it has melted out. */
+    private fun paintRing(gain: Float, t: Long, amount: Float) {
         val ripple = t / 1000f
         for (i in 0 until Kit.N * Kit.N) {
             if (!Kit.VISIBLE[i]) continue
@@ -150,7 +195,7 @@ internal class SlimeTrick : Trick(DURATION) {
             val inside = hh - cellDepth[i]
             if (inside <= -0.5f) continue
             val c = (inside + 0.5f).coerceAtMost(1f)
-            ring.v[i] = (if (inside < 1f) SURFACE else Kit.BODY) * c
+            ring.v[i] = ((if (inside < 1f) SURFACE else Kit.BODY) * c * gain / amount).coerceAtMost(Kit.BRIGHT)
             ring.cov[i] = c
         }
         if (amount < 0.5f) return

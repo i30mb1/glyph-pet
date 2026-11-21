@@ -92,6 +92,25 @@ enum class PetState(val id: String, val stage: Staging) {
 }
 
 /**
+ * The album: a state of a form opens for good once the live pet has shown it, on the matrix or on the app's Play
+ * tab. The previews in the app never count, or everything would open by itself.
+ */
+object Discovery {
+    /** The states the live pet shows in this frame ([PetEngine.shown] and what it is playing). */
+    fun seenNow(shown: Shown, playingSignature: Boolean, playingTrick: Boolean): Set<PetState> =
+        PetState.entries.filterTo(mutableSetOf()) {
+            when (it) {
+                PetState.SIGNATURE -> playingSignature
+                PetState.GAME -> playingTrick
+                else -> it.isShownBy(shown)
+            }
+        }
+
+    /** [seenNow] of [engine]'s last frame. */
+    fun seenNow(engine: PetEngine): Set<PetState> = seenNow(engine.shown, engine.playingSignature, engine.playingTrick)
+}
+
+/**
  * One state of one species, played by its own [PetEngine] in a forced scene, so the preview can only show what the
  * toy does. Pure: it never reads or writes the saved pet. The engine runs on without restarts (no jump between
  * loops) and the state's [Staging.cue] repeats every [loopMs]; for the same species and state the frames are always
