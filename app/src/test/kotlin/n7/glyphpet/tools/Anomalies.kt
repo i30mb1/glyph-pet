@@ -1093,32 +1093,48 @@ private object MoonRabbit : Anomaly(
         }
     }
 
-    /** ears: 0 up, 1 twitch, 2 drooped, 3 folded back. eyes: 0 open, 1 closed, 2 glowing. */
-    fun rabbit(c: Cv, st: Int, cx: Float = 9f, bottom: Float = 20f, ears: Int = 0, eyes: Int = 0, b: Float = 1f, mouth: Boolean = false, big: Boolean = false) {
-        val s = if (big) SPRITES[2] else SPRITES[st]
+    /**
+     * ears: 0 up, 1 twitch (one ear's tip flicks), 2 drooped (hanging out to the sides), 3 laid back (spread wide),
+     * 4 flat along the back (lying down). The ears keep the sprite's own thickness whatever way they point, so a big
+     * rabbit never loses them. eyes: 0 open, 1 closed, 2 glowing.
+     */
+    fun rabbit(c: Cv, st: Int, cx: Float = 9f, bottom: Float = 20f, ears: Int = 0, eyes: Int = 0, b: Float = 1f, mouth: Boolean = false, big: Boolean = false, lie: Boolean = false) {
+        val s0 = if (big) SPRITES[2] else SPRITES[st]
         val e = if (big) EARS[2] else EARS[st]
-        val w = s[0].length
-        val x0 = (cx - w / 2f).roundToInt(); val y0 = (bottom - s.size + 1).roundToInt()
-        val rows = s.mapIndexed { i, r ->
-            var row = r
-            if (i < e && ears != 0) row = when (ears) {
-                1 -> if (i == 0) row.replaceFirst('#', '.') else row
-                else -> row.replace('#', '.')
+        val body = s0.drop(e)
+        val w = s0[0].length
+        val x0 = (cx - w / 2f).roundToInt()
+        val by0 = (bottom - body.size + 1).roundToInt() + (if (lie) 2 else 0)
+        val rows = (if (lie) body.drop(2) else body).map { r -> if (eyes == 0) r else r.replace('-', '#') }
+        c.rows(rows, x0, by0, BODY * b)
+        // the ears: the columns the sprite's ears stand on, each ear drawn as a thick stroke at its own angle
+        val base = s0[1]
+        val cols = base.indices.filter { base[it] == '#' }
+        val left = cols.filter { it < w / 2 }; val right = cols.filter { it >= w / 2 }
+        val len = e.toFloat()
+        for ((side, ear) in listOf(-1 to left, 1 to right)) {
+            if (ear.isEmpty()) continue
+            val (dx, dy) = when (ears) {
+                1 -> if (side == 1) 0.25f to -1f else 0f to -1f
+                2 -> side * 0.7f to 0.72f
+                3 -> side * 0.75f to -0.66f
+                4 -> 1f to 0.15f
+                else -> 0f to -1f
             }
-            if (eyes != 0) row = row.replace('-', if (eyes == 1 && i == (e + 2).coerceAtMost(s.size - 1)) '#' else '-')
-            row
+            for (col in ear) {
+                val bx = (x0 + col).toFloat(); val bY = by0.toFloat() - 0.5f
+                c.line(bx, bY, bx + dx * len, bY + dy * len, BODY * b)
+            }
+            if (ears == 1 && side == 1) c.put(x0 + ear.last() + 1f, by0 - len, BODY * b)
         }
-        c.rows(rows, x0, y0, BODY * b)
-        if (ears == 2) for (k in 0 until e) { c.put(x0 + 1 - k * 0.6f, y0 + e + 0f + k * 0.4f, BODY * b); c.put(x0 + w - 2 + k * 0.6f, y0 + e + 0f + k * 0.4f, BODY * b) }
-        if (ears == 3) for (k in 0 until e - 1) { c.put(x0 + w / 2f - 1 - k * 0.9f, y0 + e - 0.5f, BODY * b); c.put(x0 + w / 2f + 1 + k * 0.9f, y0 + e - 0.5f, BODY * b) }
-        val eyeRow = y0 + s.indexOfFirst { it.contains('-') }
-        val eyeCols = s[eyeRow - y0].withIndex().filter { it.value == '-' }.map { it.index }.take(2)
+        val eyeRow = s0.indexOfFirst { it.contains('-') } - e
+        val eyeCols = s0[eyeRow + e].withIndex().filter { it.value == '-' }.map { it.index }.take(2)
+        val ey = by0 + eyeRow - (if (lie) 2 else 0)
         when (eyes) {
-            1 -> for (x in eyeCols) c.set(x0 + x, eyeRow, BODY * b)
-            2 -> for (x in eyeCols) c.set(x0 + x, eyeRow, 1f)
+            1 -> for (x in eyeCols) { c.set(x0 + x, ey, BODY * b); c.cut(x0 + x, ey + 1) }
+            2 -> for (x in eyeCols) c.set(x0 + x, ey, 1f)
         }
-        if (eyes == 1) for (x in eyeCols) c.set(x0 + x, eyeRow + 1, 0f)
-        if (mouth) c.cut(x0 + w / 2, eyeRow + 2)
+        if (mouth) c.cut(x0 + w / 2, ey + 2)
     }
 
     private fun stars(c: Cv, t: Long, n: Int = 5) {
@@ -1129,19 +1145,25 @@ private object MoonRabbit : Anomaly(
         val ph = today
         when (col) {
             "calm" -> { stars(c, t); moon(c, st, ph); rabbit(c, st, ears = if (t % 2400 < 300) 1 else 0, eyes = if (t % 3200 in 2000..2160) 1 else 0) }
-            "happy" -> { stars(c, t, 8); moon(c, st, ph); val hop = sin(((t % 1200) / 1200f) * PI.toFloat()) * 5f; rabbit(c, st, bottom = 20f - hop, ears = if (hop > 2) 3 else 0) }
+            "happy" -> { stars(c, t, 8); moon(c, st, ph); val hop = sin(((t % 1200) / 1200f) * PI.toFloat()) * 5f; rabbit(c, st, bottom = 20f - hop) }
             "habit" -> {
-                moon(c, st, ph)
-                val hit = (t % 800) / 800f
-                val up = if (hit < 0.6f) hit / 0.6f else 1 - (hit - 0.6f) / 0.4f
-                rabbit(c, st, cx = 8f)
-                val mx = 15f; val my = 19f
-                c.rows(listOf("#####", ".###."), 13, 19, 0.35f)
-                c.put(15f, 18.6f, 0.8f)
-                val hx = 12f; val hy = 14f
-                val ex = mx + 0.5f; val ey = mix(my - 1, my - 5, 1 - up)
-                c.line(hx, hy, ex, ey, 0.3f); c.line(ex - 1, ey, ex + 1, ey, 0.5f)
-                if (hit in 0.55f..0.7f) { c.put(13f, 17f, 0.8f); c.put(17f, 17f, 0.8f) }
+                // Pounds mochi: a mortar on the right, a big mallet swung up over its head and down onto the rice cake.
+                moon(c, st, ph, cx = 20f, cy = 5f, r = 2.2f)
+                rabbit(c, st, cx = 7f)
+                val p = (t % 1000) / 1000f
+                val swing = if (p < 0.55f) ease(p / 0.55f) else 1f - ease((p - 0.55f) / 0.45f) * 0.999f
+                val hit = p in 0.5f..0.65f
+                // the mortar: a bowl, the white mochi dome inside, squashed flat on the hit
+                c.rows(listOf("#.....#", "#######", ".#####.", "..###.."), 14, 18, 0.4f)
+                if (hit) c.rows(listOf("ooooo"), 15, 18, 0.3f) else c.rows(listOf(".ooo.", "ooooo"), 15, 17, 0.3f)
+                // the mallet: a handle from its paws, a heavy head at the end
+                val px = 11f; val py = 15f
+                val ang = mix(-1.75f, 0.35f, swing)
+                val hx = px + cos(ang) * 6.5f; val hy = py + sin(ang) * 6.5f
+                c.line(px, py, hx, hy, 0.45f)
+                val nx = -sin(ang); val ny = cos(ang)
+                for (k in -1..1) for (d in 0..1) c.put(hx + nx * k + cos(ang) * d, hy + ny * k + sin(ang) * d, 0.6f)
+                if (hit) { c.put(13f, 15f, 1f); c.put(21f, 15f, 1f); c.put(17f, 14f, 0.8f) }
             }
             "signature" -> {
                 val p = ease(seg(t, 0, 1400))
@@ -1163,10 +1185,7 @@ private object MoonRabbit : Anomaly(
             "tired" -> { moon(c, st, ph, cy = mix(6f, 12f, seg(t, 0, 3200)), b = 0.7f); rabbit(c, st, ears = 2, eyes = if (t > 1600) 1 else 0, mouth = t in 1000..1800) }
             "asleep" -> {
                 stars(c, t, 7); moon(c, st, 0.2f, b = 0.8f)
-                val s = SPRITES[st]; val e = EARS[st]
-                val body = s.drop(e)
-                c.rows(body.map { it.replace('-', '#') }, 9 - body[0].length / 2, 21 - body.size, BODY * (0.8f + 0.2f * sin(t / 4000f * TAU)))
-                for (k in 0 until e) c.put(9f + body[0].length / 2f + k * 0.8f, 21f - body.size + 1, BODY * 0.8f)
+                rabbit(c, st, ears = 4, eyes = 1, lie = true, b = 0.8f + 0.2f * sin(t / 4000f * TAU))
             }
             "eating" -> {
                 moon(c, st, ph)
@@ -1181,7 +1200,7 @@ private object MoonRabbit : Anomaly(
                 val x = 12f + tilt * 7f
                 val hop = sin(((t % 1300) / 1300f) * PI.toFloat()) * 7f
                 for (i in 0 until 5) { val sx = 3 + rnd(i, 81) * 18; val sy = 6 + rnd(i, 82) * 6; val got = ((t / 1300) + i) % 5 == 0L; if (!got) c.put(sx, sy, 0.5f + 0.5f * sin(t / 200f + i)) }
-                rabbit(c, 0, cx = x, bottom = 20f - hop, ears = if (hop > 3) 3 else 0)
+                rabbit(c, 0, cx = x, bottom = 20f - hop)
             }
             "loved" -> { moon(c, st, ph); c.ring(18f, 6f, MR[st] + 1.5f, 0.25f); rabbit(c, st, ears = 3, eyes = 1); sparks(c, 9f, 10f, t, 3, 3f, 4f, 5) }
             "dizzy" -> {
@@ -1194,7 +1213,7 @@ private object MoonRabbit : Anomaly(
                 moon(c, st, ph)
                 val x = 12f + tilt * 6f
                 val hop = sin(((t % 1600) / 1600f) * PI.toFloat()) * 4f
-                rabbit(c, st, cx = x, bottom = 20f - hop, ears = if (hop > 1) 3 else 0)
+                rabbit(c, st, cx = x, bottom = 20f - hop)
             }
             "charging" -> { val p = seg(t, 0, 2900); stars(c, t, 3); moon(c, st, p * 0.5f, cx = 17f, cy = 7f, r = MR[st] + 1); rabbit(c, st, cx = 8f, eyes = if (p > 0.9f) 2 else 0) }
             "grow" -> {
