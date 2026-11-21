@@ -134,3 +134,20 @@ class AdultEggTest {
         assertTrue(a.eggs.isEmpty() && a.eggMinutes == 0)
     }
 }
+
+/** A change of state dissolves instead of cutting: the old frame fades out under the new one. */
+class StateFadeTest {
+    @Test
+    fun `the frame after a change of mood still holds the old one, fading, and it is gone soon after`() {
+        for (s in listOf(SpeciesForms.of("cat", Stage.TEEN), SpeciesForms.of("phoenix", Stage.TEEN))) {
+            val e = PetEngine(Random(5), autoHabits = false, autoSignatures = false)
+            var before = IntArray(625)
+            repeat(10) { before = e.tick(80, Scene(species = s, mood = Mood.CONTENT)).copyOf() }
+            val first = e.tick(80, Scene(species = s, mood = Mood.SAD))
+            assertTrue(s.kind, before.indices.all { before[it] == 0 || first[it] >= before[it] * 0.6f })
+            repeat(5) { e.tick(80, Scene(species = s, mood = Mood.SAD)) }
+            val fresh = PetEngine(Random(5), autoHabits = false, autoSignatures = false)
+            assertTrue(s.kind, e.tick(80, Scene(species = s, mood = Mood.SAD)).count { it > 0 } <= fresh.tick(80, Scene(species = s, mood = Mood.SAD)).count { it > 0 } + 60)
+        }
+    }
+}

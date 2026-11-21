@@ -202,69 +202,106 @@ private object Phoenix : Anomaly(
     private val H = floatArrayOf(7f, 9.5f, 11.5f)
     private val BY = floatArrayOf(16f, 16f, 17f)
 
-    fun flame(c: Cv, cx: Float, by: Float, w: Float, h: Float, t: Long, b: Float = 1f, sway: Float = 0f, flick: Float = 1f) {
-        if (h <= 0.4f) return
-        for (yi in 0..ceil(h).toInt()) {
-            val rel = yi / h
-            if (rel > 1f) break
-            // A teardrop: full low down, tapering to a tip, each row licking sideways on its own.
-            val hw = w * (1 - rel).pow(0.7f) * min(1f, (rel + 0.3f) * 2.2f) * (0.85f + 0.15f * sin(t / 120f + yi * 1.7f) * flick)
-            val off = sway * rel * rel + sin(t / 230f + rel * 4) * 0.7f * rel * flick
-            val mid = cx + off
-            for (x in floor(mid - hw).toInt()..ceil(mid + hw).toInt()) {
-                val d = abs(x - mid)
-                if (d > hw) continue
-                val inner = d < hw * 0.5f && rel < 0.65f
-                c.put(x.toFloat(), by - yi, b * (if (inner) 0.8f else 0.32f) * (1f - 0.25f * rel))
-            }
-        }
-    }
+    /** The firebird seen from the front like a crest, wings spread wide and full: '#' feathers, '-' eyes, 'o' its beak. */
+    private val SHAPE = listOf(
+        listOf(
+            "#.........#",
+            "##..###..##",
+            "###.-#-.###",
+            ".###.o.###.",
+            "..#######..",
+            "...#####...",
+            "....###....",
+            "...#.#.#...",
+        ),
+        listOf(
+            "#...............#",
+            "##.....###.....##",
+            "###...#####...###",
+            "####..#-#-#..####",
+            ".####..#o#..####.",
+            ".#####.###.#####.",
+            "..#############..",
+            "...###########...",
+            "....#########....",
+            "......#####......",
+            ".....#.###.#.....",
+            "....#..#.#..#....",
+            "...#...#.#...#...",
+        ),
+        listOf(
+            "#...................#",
+            "##........#........##",
+            "###......###......###",
+            "####....#####....####",
+            "#####...#-#-#...#####",
+            ".#####...#o#...#####.",
+            ".######..###..######.",
+            "..#################..",
+            "...###############...",
+            "....#############....",
+            "......#########......",
+            ".......#######.......",
+            "......#..###..#......",
+            ".....#...#.#...#.....",
+            "....#....#.#....#....",
+        ),
+    )
+    private val FLAME = floatArrayOf(0.26f, 0.34f, 0.42f)
 
-    /** A wing of flame: tongues along a line from the shoulder up and out, thick at the root. */
-    fun wings(c: Cv, cx: Float, y: Float, w: Float, span: Float, flap: Float, b: Float = 1f, t: Long = 0) {
-        for (sd in intArrayOf(-1, 1)) {
-            val bx = cx + sd * w * 0.5f
-            val tx = cx + sd * (w + span); val ty = y - 1.5f - flap * 3f
-            val n = 8
-            for (i in 0..n) {
-                val q = i.toFloat() / n
-                val x = mix(bx, tx, q); val yy = mix(y, ty, q)
-                val thick = (1 - q) * 2.2f + 0.6f
-                for (k in 0..thick.toInt()) c.put(x, yy + k, b * (if (k == 0) 0.55f else 0.3f))
-                if (i % 3 == 1) c.put(x - sd * 0.3f, yy - 1 - 0.6f * sin(t / 90f + i), b * 0.35f)
-            }
-            c.put(tx, ty, b)
-        }
-    }
-
-    /** eyes: 0 open, 1 closed, 2 none. */
+    /**
+     * The firebird: a body glowing like embers, real fire ([Fire]) tearing off its wing tips, its crest and its tail.
+     * eyes: 0 open, 1 closed, 2 none. [h] against its stage's height scales the fire (a rebirth starts from a spark),
+     * [sway] leans the flames, [flap] lifts the wings, [flick] how wild it burns.
+     */
     fun bird(
         c: Cv, st: Int, t: Long, cx: Float = 12f, dy: Float = 0f, h: Float = H[st], b: Float = 1f, sway: Float = 0f,
         flap: Float = 0f, wing: Boolean = true, eyes: Int = 0, flick: Float = 1f, look: Float = 0f,
     ) {
-        val by = BY[st] + dy
-        val w = W[st]
-        val bodyH = h * 0.62f
-        // the tail: three tongues hanging down
-        if (h > 2.5f) for (k in -1..1) {
-            val len = (1.8f + st) * (0.8f + 0.3f * sin(t / 140f + k * 2f) * flick) * (h / H[st])
-            c.line(cx + k * 0.8f, by + 1, cx + k * (1.6f + st * 0.4f) + sin(t / 200f + k) * 0.5f, by + len, b * 0.28f)
+        val ratio = (h / H[st]).coerceIn(0f, 2f)
+        val shape = SHAPE[st]
+        val w = shape[0].length
+        val bottom = BY[st] + dy + 1f
+        val x0 = (cx - (w - 1) / 2f).roundToInt()
+        val y0 = (bottom - shape.size + 1).roundToInt()
+        val mid = (w - 1) / 2f
+        val heat = Fire.field()
+        val lean = (sway * 0.12f).coerceIn(-0.7f, 0.7f)
+        val ux = lean
+        val uy = -sqrt(1f - lean * lean)
+        val size = FLAME[st] * (0.6f + 0.4f * flick) * max(ratio, 0.3f)
+        // A spark becoming a bird: below half its size only the fire shows.
+        if (ratio < 0.5f) {
+            Fire.flame(heat, cx, bottom, t, FLAME[st] * 2.2f * ratio, ux, uy, power = 0.6f + 0.4f * ratio)
+            Fire.render(c, heat, b)
+            return
         }
-        if (wing) wings(c, cx, by - bodyH * 0.65f, w, 2.5f + st * 1.2f, flap, b, t)
-        flame(c, cx, by, w, bodyH, t, b, sway * 0.5f, flick)
-        // the head: a small flame ball on top, eyes in it, a crest licking up
-        val hx = cx + sway * 0.7f + look * 0.5f; val hy = by - bodyH - 0.6f
-        if (h > 2.5f) {
-            c.disc(hx, hy, 1.5f + st * 0.25f, b * 0.34f)
-            for (k in 0..(1 + st)) c.put(hx + sin(t / 110f + k) * 0.6f * flick - k * 0.3f, hy - 2 - k, b * (0.8f - k * 0.2f))
-            c.put(hx + look, hy + 1.3f, b * 0.9f)
+        fun lift(x: Int): Int = if (!wing) 0 else (flap * 1.6f * ((abs(x - mid) - 2f).coerceAtLeast(0f) / mid)).roundToInt()
+        shape.forEachIndexed { y, row -> row.forEachIndexed { x, ch ->
+            if (ch == '.' || (!wing && abs(x - mid) > 3 && y < shape.size - 3)) return@forEachIndexed
+            val px = x0 + x
+            val py = y0 + y - lift(x)
+            when (ch) {
+                '#' -> {
+                    val inner = 1f - abs(x - mid) / (mid + 1f)
+                    val stripe = if (y % 2 == 0) 1f else 0.78f
+                    val shimmer = 0.5f + 0.5f * sin(t / (90f + rnd(x, y) * 120f) + rnd(y, x) * 6f)
+                    c.put(px, py, b * stripe * (0.18f + 0.22f * inner + 0.16f * shimmer * flick))
+                }
+                'o' -> c.put(px, py, b)
+                '-' -> if (eyes == 0) c.cut(px, py) else if (eyes == 1) { c.put(px, py, 0.3f * b); c.cut(px, py + 1) }
+            }
+        } }
+        // Fire tearing off the top edge of each wing, the crest, and the tail.
+        if (wing) for (sd in intArrayOf(-1, 1)) for (k in 0..2) {
+            val col = if (sd < 0) k else w - 1 - k
+            val top = shape.indexOfFirst { it[col] == '#' }
+            Fire.flame(heat, (x0 + col).toFloat(), (y0 + top - lift(col)).toFloat(), t, size * (1f - 0.18f * k), ux + sd * 0.3f, uy, power = 0.9f, salt = 11 + k + (if (sd > 0) 5 else 0))
         }
-        val ey = hy.roundToInt()
-        val ex = hx + look
-        when (eyes) {
-            0 -> { c.cut(ex - 1, ey.toFloat()); c.cut(ex + 1, ey.toFloat()) }
-            1 -> { c.set((ex - 1).roundToInt(), ey, 0.08f); c.set((ex + 1).roundToInt(), ey, 0.08f) }
-        }
+        val headTop = shape.indexOfFirst { it[mid.roundToInt()] == '#' }
+        Fire.flame(heat, cx + lean * 2, (y0 + headTop).toFloat(), t, size * 1.1f, ux, uy, power = 0.9f, salt = 21)
+        Fire.render(c, heat, b * 0.95f)
+        if (eyes == 0) shape.forEachIndexed { y, row -> row.forEachIndexed { x, ch -> if (ch == '-') c.cut(x0 + x + look.roundToInt(), y0 + y) } }
     }
 
     override fun draw(c: Cv, col: String, t: Long, st: Int, tilt: Float) {

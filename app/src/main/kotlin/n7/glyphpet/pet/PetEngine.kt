@@ -95,6 +95,9 @@ class PetEngine(
         private val HOP = intArrayOf(1, 2, 2, 1)
         const val HOP_MS = 320L
 
+        /** How long the old frame dissolves under the new one when the pet's state changes. */
+        const val FADE_MS = 260L
+
         /** A happy pet's own burst of joy comes once in this long, at random, like a habit... */
         const val JOY_EVERY_MIN_MS = 10_000L
         const val JOY_EVERY_MAX_MS = 20_000L
@@ -592,7 +595,34 @@ class PetEngine(
         return frame
     }
 
+    /** The last frame shown, the one fading out after a change of state, and how far the fade is (-1: none). */
+    private var lastOut: IntArray? = null
+    private var fadeFrom: IntArray? = null
+    private var fadeMs = -1L
+    private var lastLook: List<Any?>? = null
+
+    /**
+     * One frame. When what the pet is doing changes (a new mood face, a reaction, a habit, the charger, a game, a
+     * signature, a meal, a big moment), the old frame dissolves under the new one for [FADE_MS] instead of cutting.
+     */
     fun tick(dtMs: Long, scene: Scene): IntArray {
+        val frame = tickRaw(dtMs, scene)
+        val look = listOf(shown.face, shown.habit, shown.charging, trickMs >= 0, signatureMs >= 0, feastMs >= 0, moment != null, scene.egg != null, scene.species?.id)
+        val prev = lastOut
+        if (lastLook != null && look != lastLook && prev != null) { fadeFrom = prev; fadeMs = 0 }
+        lastLook = look
+        val from = fadeFrom
+        if (fadeMs >= 0 && from != null) {
+            fadeMs += dtMs
+            val left = 1f - fadeMs.toFloat() / FADE_MS
+            if (left <= 0f) { fadeMs = -1; fadeFrom = null }
+            else for (i in frame.indices) { val v = (from[i] * left).toInt(); if (v > frame[i]) frame[i] = v }
+        }
+        lastOut = frame.copyOf()
+        return frame
+    }
+
+    private fun tickRaw(dtMs: Long, scene: Scene): IntArray {
         time += dtMs
         val frame = IntArray(SIZE * SIZE)
         moment?.let { m ->

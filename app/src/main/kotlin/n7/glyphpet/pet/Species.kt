@@ -120,7 +120,7 @@ object SpeciesCatalog {
     val sprites: List<Species> = listOf(
         // The first batch: cat, ghost, bot, frog, dino (the rarity is on each species)
         Species(
-            "cat", "Cat", Rarity.RARE,
+            "cat", "Cat", Rarity.COMMON,
             listOf(
                 "..#.........#..", "..##.......##..", "..###########..", "..###########..", "..###########..",
                 "..###########..", "oo###########oo", ".o###########o.", "..###########..", "...#########...", "...##.....##...",
@@ -265,7 +265,7 @@ object SpeciesCatalog {
             habit = Habits::penguin,
         ),
         Species(
-            "slime", "Slime", Rarity.LEGENDARY,
+            "slime", "Slime", Rarity.RARE,
             listOf(
                 ".....###.....", "...#######...", "..#########..", ".###########.", "#############",
                 "#############", "#############", "#############", ".#.##..###.#.", "....#....#...",
@@ -293,7 +293,7 @@ object SpeciesCatalog {
             tearFrom = 5 to 11,
         ),
         Species(
-            "toast", "Toast", Rarity.LEGENDARY,
+            "toast", "Toast", Rarity.COMMON,
             listOf(
                 "..ooooooooo..", ".o#########o.", "o###########o", "o###########o", ".o#########o.", ".o#########o.",
                 ".o#########o.", ".o#########o.", ".o#########o.", ".o#########o.", ".o#########o.", ".ooooooooooo.",
@@ -305,7 +305,7 @@ object SpeciesCatalog {
             habit = Habits::toast,
         ),
         Species(
-            "ufo", "UFO", Rarity.LEGENDARY,
+            "ufo", "UFO", Rarity.RARE,
             listOf(
                 ".....#####.....", "....#######....", "...#########...", "...#########...", "..###########..",
                 ".#############.", "#o#o#o#o#o#o#o#", ".#############.", "...##.....##...",
