@@ -2,6 +2,7 @@ package n7.glyphpet.pet
 
 import n7.glyph.ui.matrix.Cell
 import n7.glyph.ui.matrix.GlyphMatrixSpec
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sign
@@ -321,6 +322,8 @@ class PetEngine(
     /** The slide in progress ([TiltStyle]): how long, how far it rolled, whether it moved this frame, its last jump. */
     private var slideMs = 0L
     private var rolled = 0f
+    /** A [TiltStyle.TURN]ing pet's angle now: toward head up while leaned, back to upright after. */
+    private var turnAngle = 0f
     private var slideMoved = false
     private var jumpedMs = -1L
 
@@ -684,6 +687,14 @@ class PetEngine(
         updateHabit(dtMs, species, scene, sliding)
         updateHop(dtMs, scene.mood, sliding)
         updateMovement(dtMs, scene, range, slideRange(species), asleep, sliding)
+        if (TiltStyle.of(species.kind) == TiltStyle.TURN) {
+            var want = if (sliding) TiltStyle.headUp(scene.tilt, scene.tiltY) else 0f
+            while (want - turnAngle > PI) want -= (2 * PI).toFloat()
+            while (want - turnAngle < -PI) want += (2 * PI).toFloat()
+            turnAngle += (want - turnAngle) * (TiltStyle.TURN_RATE * dtMs / 1000f).coerceAtMost(1f)
+        } else {
+            turnAngle = 0f
+        }
         updateYawn(dtMs, scene.mood)
 
         val fe = feast
@@ -737,6 +748,11 @@ class PetEngine(
             badges = !(sliding && own == null) || tiltStyle == TiltStyle.STICK,
             spout = own == null && !sliding,
         )
+        if (abs(turnAngle) > 0.02f && own == null) {
+            val top = species.oy - SpeciesRenderer.jumpOf(face) - lift
+            val left = species.ox + dx
+            TiltStyle.rotate(frame, left, left + species.width - 1, top, top + species.height - 1, turnAngle)
+        }
         if (sliding && own == null) {
             // On its way through the edge: the part already out comes in from the other side.
             if (tiltStyle.wraps && dx != 0) {
@@ -1007,6 +1023,12 @@ class PetEngine(
         val out = if (style.wraps) abs(x) > TiltStyle.WRAP_CELLS else (x < slide.first || x > slide.last)
         if (out) x = if (style.wraps) 0f else x.coerceIn(slide.first.toFloat(), slide.last.toFloat())
         if (asleep || action != Action.NONE || habitMs >= 0 || trickMs >= 0 || feastMs >= 0) return
+        if (sliding && style == TiltStyle.TURN) {
+            // It turns where it hangs, drifting to the middle so it turns about the matrix's centre.
+            x += -x * (dtMs * 0.004f).coerceAtMost(1f)
+            targetX = x
+            return
+        }
         if (sliding) {
             val was = x
             var next = x + scene.tilt * dtMs * style.speed(slideMs)

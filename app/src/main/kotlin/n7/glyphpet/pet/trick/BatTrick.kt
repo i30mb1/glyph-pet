@@ -11,8 +11,7 @@ import kotlin.math.hypot
 import kotlin.math.sin
 
 /**
- * Bat, "Эхо": night, and the bat flies wherever the phone leans. It stays in the middle, head up, turning smoothly
- * about its own centre as the phone turns; the night moves past it instead (the camera follows the bat). Every [ECHO_EVERY_MS] it calls: a ring spreads out
+ * Bat, "Эхо": night, and the bat flies wherever the phone leans. Every [ECHO_EVERY_MS] it calls: a ring spreads out
  * from it, and where the ring passes the moth, the moth lights up for a moment and fades back into the dark. Remember
  * where it was and fly there: touched, it is caught (a tick); every six, a little party ([Score]). The dark is the game.
  */
@@ -23,11 +22,9 @@ internal class BatTrick : Trick(0L) {
         /** How fast a full lean flies it (cells a second), and how quickly it takes up that speed. */
         const val FLY = 9f
         const val FOLLOW = 5f
-        /** It flies within this far from the middle of its night, the moth within [MOTH_ROOM]: both stay on screen. */
-        const val ROOM = 5f
-        const val MOTH_ROOM = 6.5f
-        /** How quickly it turns head up again after the phone turns (per second). */
-        const val TURN = 6f
+        /** It flies within this far from the middle, the moth within [MOTH_ROOM]: both stay on screen. */
+        const val ROOM = 8.5f
+        const val MOTH_ROOM = 8f
         const val ECHO_EVERY_MS = 1400L
         /** The ring: how fast it spreads (cells a second), how far, how bright. */
         const val ECHO_SPEED = 22f
@@ -55,7 +52,6 @@ internal class BatTrick : Trick(0L) {
     private var gone = 0L
     private var happy = 0L
     private var seed = 0
-    private var angle = 0f
     private val homing = Homing()
     private val score = Score()
     private val canvas = Canvas()
@@ -88,15 +84,6 @@ internal class BatTrick : Trick(0L) {
         val scale = TrickKit.lerp(1f, small, grow)
         val r = returning(t)
         val playing = r <= 0f && grow >= 1f
-        // Head up: the sprite turns, smoothly, until its feet point the way gravity pulls.
-        val (gdx, gdy) = Kit.down(input.gx.takeIf { it.isFinite() } ?: 0f, input.gy.takeIf { it.isFinite() } ?: 1f)
-        var want = kotlin.math.atan2(gdy, gdx) - (Math.PI / 2).toFloat()
-        while (want - angle > Math.PI) want -= (2 * Math.PI).toFloat()
-        while (want - angle < -Math.PI) want += (2 * Math.PI).toFloat()
-        angle += (want - angle) * (TURN * dt).coerceAtMost(1f)
-        // The camera: the night drawn shifted so the bat is in the middle.
-        val camX = MID - x
-        val camY = MID - y
 
         if (playing) {
             // Flies with the lean, within its room.
@@ -140,7 +127,7 @@ internal class BatTrick : Trick(0L) {
             }
         }
 
-        val going = homing.apply(r, TrickKit.lerp(hx, MID, grow), TrickKit.lerp(hy, MID, grow), scale, hx, hy)
+        val going = homing.apply(r, TrickKit.lerp(hx, x, grow), TrickKit.lerp(hy, y, grow), scale, hx, hy)
         val face = when {
             going -> Face.CONTENT
             happy > 0L -> Face.HAPPY
@@ -156,15 +143,15 @@ internal class BatTrick : Trick(0L) {
                 val n = (ring * 6.3f).toInt().coerceAtLeast(8)
                 for (j in 0 until n) {
                     val a = j * 6.283f / n
-                    canvas.max(kotlin.math.round(echoX + camX + ring * cos(a)).toInt(), kotlin.math.round(echoY + camY + ring * sin(a)).toInt(), ECHO * fade)
+                    canvas.max(kotlin.math.round(echoX + ring * cos(a)).toInt(), kotlin.math.round(echoY + ring * sin(a)).toInt(), ECHO * fade)
                 }
             }
             // The moth: lit by the ring, fading back to all but dark.
             if (gone <= 0L) {
                 val lit = if (seenMs in 0 until MOTH_FADE_MS) 1f - seenMs.toFloat() / MOTH_FADE_MS else 0f
                 val v = MOTH_DARK + (MOTH - MOTH_DARK) * lit
-                val mx = kotlin.math.round(mothX + camX).toInt()
-                val my = kotlin.math.round(mothY + camY).toInt()
+                val mx = kotlin.math.round(mothX).toInt()
+                val my = kotlin.math.round(mothY).toInt()
                 canvas.max(mx, my, v)
                 if (lit > 0.3f) {
                     val flap = if ((t / 80L) % 2L == 0L) -1 else 0
@@ -174,9 +161,7 @@ internal class BatTrick : Trick(0L) {
             }
         }
         layer.clear()
-        // Upright at home; head up in the night while it plays, turned about its centre.
-        val turned = if (going) angle * (1f - r) else angle * grow
-        layer.spriteTurned(sprites.get(sp, face, input.blink && face == Face.IDLE), homing.x, homing.y, homing.s, turned)
+        layer.spriteAt(sprites.get(sp, face, input.blink && face == Face.IDLE), homing.x, homing.y, homing.s, homing.s)
         canvas.over(layer)
         canvas.toFrame(frame)
     }

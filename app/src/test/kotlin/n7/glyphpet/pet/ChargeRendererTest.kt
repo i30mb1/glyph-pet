@@ -27,8 +27,8 @@ class ChargeRendererTest {
     }
 
     @Test
-    fun `every species shows every charging state inside the round matrix`() {
-        for (s in SpeciesCatalog.all) {
+    fun `every form shows every charging state inside the round matrix`() {
+        for (s in SpeciesForms.all) {
             val states = buildList<Pair<ChargeState, Long?>> {
                 for (level in listOf(0f, 0.37f, 1f)) for (watts in listOf(0f, 5f, 65f)) for (t in 0L..4000L step 480) {
                     add(state(watts, level, time = t) to null)
@@ -48,18 +48,21 @@ class ChargeRendererTest {
     }
 
     @Test
-    fun `the wheel rim grows with the battery and is complete at 100`() {
-        val cat = SpeciesCatalog.get("cat")!!
-        val low = rimLit(ChargeRenderer.render(cat, state(level = 0.2f, still = true)))
-        val high = rimLit(ChargeRenderer.render(cat, state(level = 0.8f, still = true)))
-        val full = rimLit(ChargeRenderer.render(cat, state(level = 1f)))
-        assertTrue("$low < $high", low < high)
-        assertEquals(ChargeRenderer.RING.size, full)
+    fun `every teen and adult has its own charging, and it shows more as the battery fills`() {
+        for (s in SpeciesForms.all.filter { it.stage != Stage.BABY }) {
+            val own = KindCharge.way(s) != null || KindCharge2.way(s) != null ||
+                (s.charge != ChargeWay.WHEEL && s.charge != ChargeWay.FILL)
+            assertTrue("${s.id} shares the wheel or the fill", own)
+            // The newest ways, placed from the sprite's box: the more charge, the more of the indicator lights.
+            if (KindCharge2.way(s) == null) continue
+            fun shown(level: Float) = ChargeRenderer.render(s, state(watts = 0f, level = level)).sum()
+            assertTrue("${s.id}: ${shown(0.2f)} < ${shown(0.9f)}", shown(0.2f) < shown(0.9f))
+        }
     }
 
     @Test
-    fun `a filling pet gets brighter as the battery fills`() {
-        val slime = SpeciesCatalog.get("slime")!!
+    fun `a filling baby gets brighter as the battery fills`() {
+        val slime = SpeciesForms.of("slime", Stage.BABY)
         fun charged(level: Float) = ChargeRenderer.render(slime, state(level = level, still = true)).count { it == ChargeRenderer.FULL }
         assertTrue(charged(0.2f) < charged(0.5f))
         assertTrue(charged(0.5f) < charged(0.9f))
@@ -77,12 +80,11 @@ class ChargeRendererTest {
     }
 
     @Test
-    fun `charging still frame is calm and an unplugged pet has no rim`() {
+    fun `charging still frame is calm and differs from an unplugged pet`() {
         val engine = PetEngine(Random(4))
         val fox = SpeciesCatalog.get("fox")!!
         assertEquals(engine.still(charging(fox)).toList(), engine.still(charging(fox)).toList())
-        assertTrue(rimLit(engine.still(charging(fox))) > 20)
-        assertEquals(0, rimLit(engine.still(Scene(fox, Mood.CONTENT))))
+        assertTrue(engine.still(charging(fox)).toList() != engine.still(Scene(fox, Mood.CONTENT)).toList())
     }
 
     @Test
@@ -96,15 +98,13 @@ class ChargeRendererTest {
     }
 
     @Test
-    fun `a pet fed on the charger eats without leaving its indicator`() {
+    fun `a pet fed on the charger stays on its charging picture`() {
         val engine = PetEngine(Random(6))
         val cat = SpeciesCatalog.get("cat")!!
         repeat(5) { engine.tick(80, charging(cat)) }
         engine.feed(accepted = true)
-        val frame = engine.tick(80, charging(cat))
-        assertTrue(rimLit(frame) > 20)
-        // No food falls from the top: the upper rows hold only the rim.
-        assertEquals(0, (0 until 25 * 5).count { frame[it] > 0 && (it % 25 to it / 25) !in ChargeRenderer.RING })
+        engine.tick(80, charging(cat))
+        assertTrue(engine.shown.charging)
     }
 
     @Test

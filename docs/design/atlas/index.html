@@ -120,8 +120,8 @@ dialog button { background: none; border: 1px solid var(--line); color: var(--in
       <table>
         <tr><th></th><th>Без тебя</th><th>На экране</th><th>Восполнить</th></tr>
         <tr><td>Еда</td><td>−1 точка за 30 мин</td><td>−1 за 4 мин, игра −½</td><td>кнопка: +1</td></tr>
-        <tr><td>Радость</td><td>−1 за 40 мин</td><td>−1 за 4 мин</td><td>игра +1, погладить +½</td></tr>
-        <tr><td>Энергия</td><td>+1 за 20 с</td><td>−1 за 4 мин, игра −1</td><td>сон ~25 с, зарядка</td></tr>
+        <tr><td>Радость</td><td>−1 за 40 мин</td><td>−1 за 4 мин</td><td>+1 за каждые 10 с игры, погладить +½</td></tr>
+        <tr><td>Энергия</td><td>+1 за 20 с</td><td>−1 за 4 мин, игра −1</td><td>сон 40 с, зарядка</td></tr>
       </table>
       <p class="lede" style="margin-top:12px">Заход на пару минут: встречает голодным, поел, 3–4 игры, устал и уснул. Через 2–3 часа без тебя зовёт. Не болеет и не умирает, только грустит.</p>
       <h2 style="margin-top:18px">Рост</h2>
@@ -224,7 +224,12 @@ const MEAL_RU = { RaccoonWashFood: "моет еду", TongueMeal: "ловит я
   EngulfMeal: "обволакивает", BeamMeal: "луч", CrunchMeal: "хрустит", PinchMeal: "клешнёй", DiveMeal: "ныряет",
   ScanMeal: "загрузка", WaterMeal: "полив", NectarMeal: "нектар", GravityMeal: "притяжение", GazeMeal: "взглядом",
   ButterMeal: "масло", WashFaceMeal: "умывается", PounceMeal: "прыжок", SwoopMeal: "на лету", LeafMeal: "листик" };
-const TILT_RU = { SLIDE: "скатывается", CRAWL: "ползёт", WRAP: "сквозь край", ROLL: "катится", STICK: "держится", SWAY: "качается",
+const CHARGE_RU = { HEART: "сердце бьётся", FIREFLIES: "светлячки", TRACKS: "следы", CARROTS: "морковки", SEEDS: "зёрнышки",
+  MOON: "луна растёт", FLAME: "огонёк", IGLOO: "строит иглу", APPLES: "яблоки на иголках", GLOW: "проявляется", TENTACLES: "щупальца светятся",
+  SPOTS: "пятна на шляпке", RAYS: "лучи солнца", CORE: "светится изнутри", COILS: "спираль тостера", HONEY: "соты с мёдом",
+  SPIRAL: "спираль", BUBBLES: "пузыри", TIDE: "прилив", ECHO: "эхо", GILLS: "жабры", PRISM: "призма", ORBIT: "орбита", CAMO: "цвета", WASH: "стирка",
+  BAR: "шкала на экране", STORM: "гроза", BEAM: "луч", IRIS: "радужка" };
+const TILT_RU = { TURN: "поворачивается головой вверх", SLIDE: "скатывается", CRAWL: "ползёт", WRAP: "сквозь край", ROLL: "катится", STICK: "держится", SWAY: "качается",
   FLOAT: "плывёт", HOP: "скачет", SCUTTLE: "семенит", SKATE: "скользит со следом", GLITCH: "глитч-прыжки", STOMP: "топает" };
 // How much each column of a hero is its own, the shared one, a repeat, or missing.
 function tagOf(pet, col, form) {
@@ -250,7 +255,7 @@ function tagOf(pet, col, form) {
     }
     case "signature": return pet.sig ? (pet.sigShared.length > 1 ? ["rep", pet.sig] : ["own", pet.sig.replace(/^(Common|Legend)/, "")]) : ["none", ""];
     case "game": return pet.trick ? (pet.trickShared.length > 1 ? ["rep", pet.trick] : ["own", pet.trick.replace(/Trick$/, "")]) : ["none", ""];
-    case "charging": return stageForm.charge ? ["own", stageForm.charge.toLowerCase()] : ["std", "заливка"];
+    case "charging": return stageForm.charge ? ["own", CHARGE_RU[stageForm.charge] || stageForm.charge.toLowerCase()] : ["std", "заливка"];
     case "turn": return pet.rarity === "MYTHIC" ? ["own", "всегда 3D"] : pet.rarity === "LEGENDARY" ? ["own", "голограмма"] : ["none", ""];
     case "sad": return ["std", "дождь"];
     case "asleep": return ["std", "снег"];

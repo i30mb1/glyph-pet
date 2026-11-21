@@ -39,14 +39,17 @@ internal class Mythic3D(private val view: Living3D) : BodyPainter {
         const val GEM_HABIT_TURN = (2 * PI).toFloat()
         /** Gem: tipped toward the viewer so the table shows (the view's pitch adds to it). */
         const val GEM_TIP = -0.2f
-        const val GEM_AMBIENT = 560f
-        const val GEM_DIFFUSE = 1500f
+        const val GEM_AMBIENT = 500f
+        const val GEM_DIFFUSE = 2600f
         const val GEM_GLINT_POW = 18f
 
         /** Planet: surface turn, radians a second (about one turn in 16 s). */
         const val PLANET_SPIN = 0.4f
-        const val PLANET_AMBIENT = 480f
-        const val PLANET_DIFFUSE = 1300f
+        const val PLANET_AMBIENT = 420f
+        const val PLANET_DIFFUSE = 2500f
+        /** The planet's glint: how tight it is, and how bright at most. */
+        const val PLANET_GLINT_POW = 24f
+        const val PLANET_GLINT = 2400f
         /** Ring tip (0 is edge-on), radii in planet radii, and how far the habit rocks it, radians. */
         const val RING_TIP = 0.36f
         const val RING_IN = 1.25f
@@ -62,6 +65,22 @@ internal class Mythic3D(private val view: Living3D) : BodyPainter {
         const val LUMP = 0.07f
         /** Rays per LED along each axis. */
         const val SS = 2
+        /** A cell belongs to the body when at least this many of its rays hit it: a crisp outline, no grey fringe. */
+        const val HITS_IN = 2
+
+        /**
+         * The few clean tones the 3D bodies are drawn in: shading split into steps, so facets, bands and the lit side
+         * read as shapes at a glance instead of a smear of in-between greys. Glints above the last step stay as they are.
+         */
+        private val TONES = floatArrayOf(520f, 1150f, 1900f, 2800f)
+        const val GLINT_FROM = 3500f
+
+        fun tone(v: Float): Float {
+            if (v >= GLINT_FROM) return v.coerceAtMost(MAX.toFloat())
+            var best = TONES[0]
+            for (t in TONES) if (v >= t * 0.82f) best = t
+            return best
+        }
 
         val L = unit(-0.7f, -0.45f, -0.6f)
         val GEM_L = unit(-0.55f, -0.7f, -0.6f)
@@ -269,7 +288,6 @@ internal class Mythic3D(private val view: Living3D) : BodyPainter {
         val x1 = minOf(N - 1, (cx + scaleX + 1).toInt() + 1)
         val y0 = maxOf(0, (cy - scaleY - 1).toInt())
         val y1 = minOf(N - 1, (cy + scaleY + 1).toInt() + 1)
-        val inv = 1f / (SS * SS)
         for (y in y0..y1) for (x in x0..x1) {
             val idx = y * N + x
             if (!Living3D.VISIBLE[idx]) continue
@@ -281,7 +299,7 @@ internal class Mythic3D(private val view: Living3D) : BodyPainter {
                 val v0 = facet(cut, u, v, ex, ey, ez)
                 if (v0 >= 0f) { sum += v0; hits++ }
             }
-            if (hits > 0) buf[idx] = (sum * inv * gain).toInt().coerceIn(0, MAX)
+            if (hits >= HITS_IN) buf[idx] = (tone(sum / hits) * gain).toInt().coerceIn(0, MAX)
         }
     }
 
@@ -391,7 +409,6 @@ internal class Mythic3D(private val view: Living3D) : BodyPainter {
         val x1 = minOf(N - 1, (cx + span).toInt() + 1)
         val y0 = maxOf(0, (cy - span).toInt())
         val y1 = minOf(N - 1, (cy + span).toInt() + 1)
-        val inv = 1f / (SS * SS)
         for (y in y0..y1) for (x in x0..x1) {
             val idx = y * N + x
             if (!Living3D.VISIBLE[idx]) continue
@@ -411,6 +428,8 @@ internal class Mythic3D(private val view: Living3D) : BodyPainter {
                     best = z + 4f
                     val nu = u / rad; val nv = v / rad; val nz = z / rad
                     val lam = max(0f, nu * L[0] + nv * L[1] + nz * L[2])
+                    // The view ray mirrored on the surface: a glint where it points at the light.
+                    val glint = max(0f, -2f * nz * nu * L[0] - 2f * nz * nv * L[1] + (1f - 2f * nz * nz) * L[2]).pow(PLANET_GLINT_POW)
                     // The surface point in the planet's frame (undo pitch, then yaw), turned by the spin.
                     val y1 = cb * nv + sb * nz
                     val z1 = -sb * nv + cb * nz
@@ -421,12 +440,12 @@ internal class Mythic3D(private val view: Living3D) : BodyPainter {
                     value = if (baby) {
                         var dark = 1f
                         for (c in CRATERS) if (px * c[0] + y1 * c[1] + pz * c[2] > 0.93f) dark = 0.45f
-                        (PLANET_AMBIENT + PLANET_DIFFUSE * lam) * dark * gain
+                        (PLANET_AMBIENT + PLANET_DIFFUSE * lam) * dark
                     } else {
                         val band = 0.74f + 0.26f * sin(y1 * 7.5f + 0.9f * sin(atan2(pz, px) * 2f))
                         val storm = px * STORM[0] + y1 * STORM[1] + pz * STORM[2]
                         val spot = if (storm > 0.94f) 0.35f else 1f
-                        (PLANET_AMBIENT + PLANET_DIFFUSE * lam) * band * spot * gain
+                        (PLANET_AMBIENT + PLANET_DIFFUSE * lam) * band * spot + PLANET_GLINT * glint
                     }
                 }
 
@@ -444,7 +463,7 @@ internal class Mythic3D(private val view: Living3D) : BodyPainter {
                     if (rr in RING_IN..RING_OUT && tt < best) {
                         best = tt
                         val grain = 0.85f + 0.15f * sin(atan2(qz, qx) * 6f - time * 1.5f)
-                        value = (if (rr < RING_SPLIT) 1300f else 2700f) * grain * gain
+                        value = (if (rr < RING_SPLIT) 1300f else 2700f) * grain
                     }
                 }
 
@@ -458,13 +477,13 @@ internal class Mythic3D(private val view: Living3D) : BodyPainter {
                         val tt = mz + dz + 4f
                         if (tt < best) {
                             val lam = max(0f, (dx * L[0] + dy * L[1] + dz * L[2]) / MOON_R)
-                            value = (900f + 2900f * lam) * gain
+                            value = 900f + 2900f * lam
                         }
                     }
                 }
                 if (value >= 0f) { sum += value; hits++ }
             }
-            if (hits > 0) buf[idx] = (sum * inv).toInt().coerceIn(0, MAX)
+            if (hits >= HITS_IN) buf[idx] = (tone(sum / hits) * gain).toInt().coerceIn(0, MAX)
         }
     }
 

@@ -36,8 +36,8 @@ data class ChargeState(
 
 /**
  * How each species shows charging. One rule for all of them: the bright part is the battery level,
- * the motion is the charging speed. The heroes of the second batch have their own ways, picked by kind
- * ([KindCharge]) for the teen and the adult; their babies fill up like every baby.
+ * the motion is the charging speed. Every hero has its own way for the teen and the adult, picked by kind
+ * ([KindCharge], [KindCharge2]) or by its [Species.charge]; every baby fills up.
  */
 object ChargeRenderer {
     private const val SIZE = SpeciesRenderer.SIZE
@@ -156,6 +156,11 @@ object ChargeRenderer {
         val own = KindCharge.way(species)
         if (own != null) {
             KindCharge.draw(own, frame, species, s)
+            return frame
+        }
+        val own2 = KindCharge2.way(species)
+        if (own2 != null) {
+            KindCharge2.draw(own2, frame, species, s)
             return frame
         }
         when (species.charge) {
@@ -373,7 +378,7 @@ object ChargeRenderer {
     }
 
     private fun standDy(s: Species, st: ChargeState): Int =
-        if (KindCharge.way(s) == null && s.charge == ChargeWay.WHEEL) 22 - (s.oy + s.height - 1) else 0
+        if (KindCharge.way(s) == null && KindCharge2.way(s) == null && s.charge == ChargeWay.WHEEL) 22 - (s.oy + s.height - 1) else 0
 
     internal fun zzz(f: IntArray, s: Species, dy: Int) =
         SpeciesRenderer.badge(f, Z, s.ox + s.width - 1, max(1, s.oy + dy - 3), brightValue = BRIGHT / 2)

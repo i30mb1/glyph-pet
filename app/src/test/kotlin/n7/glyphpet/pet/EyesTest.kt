@@ -19,8 +19,6 @@ class EyesTest {
                 if (!body(ex - 1, y) || !body(ex + 2, y)) problems += "${s.id}: eye at $ex,$ey row $y has no body beside it"
             }
             // Closed above and below too, or it reads as a notch in the outline, not an eye.
-            // Known, not redrawn yet: the baby shroom's eyes sit under its cap rim, the adult fox's under its ears.
-            if (s.id in setOf("shroom.baby", "fox.adult")) continue
             for ((ex, ey) in s.eyes) for (x in ex..ex + 1) {
                 if (!body(x, ey - 1)) problems += "${s.id}: eye at $ex,$ey is open at the top"
                 if (!body(x, ey + 2)) problems += "${s.id}: eye at $ex,$ey is open at the bottom"
@@ -73,7 +71,7 @@ class EyesTest {
         for (s in forms) {
             if (s.inverted) continue
             val style = TiltStyle.of(s.kind)
-            if (style == TiltStyle.GLITCH || style == TiltStyle.WRAP) continue // the bot tears on purpose; a ghost leaves the matrix
+            if (style == TiltStyle.GLITCH || style == TiltStyle.WRAP || style == TiltStyle.TURN) continue // the bot tears on purpose; a ghost leaves the matrix
             // Pets drawn in 3D turn with the lean in their own renderer (Living3D, its own tests); the lean leaves their rows alone.
             if (Living3D.handles(s)) continue
             for (tilt in listOf(1f, -1f)) {

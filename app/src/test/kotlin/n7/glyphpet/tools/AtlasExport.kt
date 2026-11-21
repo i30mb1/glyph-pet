@@ -3,6 +3,8 @@ package n7.glyphpet.tools
 import n7.glyph.ui.matrix.GlyphMatrixSpec
 import n7.glyphpet.pet.Feasts
 import n7.glyphpet.pet.KindCharge
+import n7.glyphpet.pet.KindCharge2
+import n7.glyphpet.pet.ChargeWay
 import n7.glyphpet.pet.Living3D
 import n7.glyphpet.pet.Mood
 import n7.glyphpet.pet.PetEngine
@@ -72,7 +74,7 @@ class AtlasExport {
                 if (j > 0) meta.append(',')
                 val habit = s.habit.id
                 meta.append("\"${st.name}\":{\"name\":\"${s.name}\",\"habit\":\"$habit\",\"habitShared\":${habitCount[habit] ?: 1}")
-                meta.append(",\"charge\":").append(js(KindCharge.way(s)?.name)).append("}")
+                meta.append(",\"charge\":").append(js((KindCharge.way(s)?.name ?: KindCharge2.way(s)?.name ?: s.charge.name.takeIf { s.stage != Stage.BABY && s.charge != ChargeWay.WHEEL && s.charge != ChargeWay.FILL }))).append("}")
             }
             meta.append("}}")
         }

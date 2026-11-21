@@ -16,17 +16,17 @@
         <item quantity="other">Away, a dot lasts %d minutes; games use it faster</item>
     </plurals>
     <plurals name="need_joy_fill">
-        <item quantity="other">Fed full, press the button: a game, a dot of joy</item>
+        <item quantity="other">Fed full, hold the Glyph button: every 10 seconds of a game is a dot of joy</item>
     </plurals>
     <plurals name="need_joy_drain">
         <item quantity="one">Away, a dot lasts %d minute</item>
         <item quantity="other">Away, a dot lasts %d minutes</item>
     </plurals>
     <plurals name="need_sleep_rest">
-        <item quantity="other">Every game costs a dot; it rests while you are away</item>
+        <item quantity="other">Every game costs a dot</item>
     </plurals>
     <plurals name="need_sleep_charge">
-        <item quantity="other">Turn the phone over or charge it to fill up fast</item>
+        <item quantity="other">Turn the phone over or charge it to rest fast</item>
     </plurals>
     <plurals name="need_sleep_drain">
         <item quantity="one">Worn out, it naps for %d second</item>
@@ -130,7 +130,7 @@
     <string name="state_dizzy">Dizzy</string>
     <string name="state_dizzy_when">When you shake too often, during its signature or just after, or when it is in no mood for one</string>
     <string name="state_game">Mini-game</string>
-    <string name="state_game_when">Full, and the button held: a game gives a dot of joy for a dot of energy. Hold again to send it home</string>
+    <string name="state_game_when">Full, and the button held: a dot of joy for every 10 seconds of the game, which costs a dot of energy. Hold again to send it home</string>
     <string name="state_trick">Its own trick</string>
     <string name="state_trick_when">Often, when it is calm: after 10 s of quiet</string>
     <string name="state_charging">On the charger</string>
@@ -290,5 +290,5 @@
     <string name="xp_full">max</string>
     <string name="xp_tile">%1$d/%2$d min</string>
     <string name="intro_needs_title">Food, joy, energy</string>
-    <string name="intro_needs_text">Drop by for a couple of minutes when you have time. One meal is a dot of food. One game is a dot of joy for a dot of energy. Worn out, it naps for half a minute; turn the phone over or charge it and it rests fast. It grows while it is on the screen, awake and fed: a teen in 15 minutes, an adult an hour later.</string>
+    <string name="intro_needs_text">Drop by for a couple of minutes when you have time. One meal is a dot of food. Every 10 seconds of a game is a dot of joy; the game costs a dot of energy. Worn out, it naps for about forty seconds; turn the phone over or charge it and it rests fast. It grows while it is on the screen, awake and fed: a teen in 15 minutes, an adult an hour later.</string>
 </resources>

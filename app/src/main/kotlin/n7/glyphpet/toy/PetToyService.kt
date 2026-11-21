@@ -399,6 +399,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         val now = SystemClock.uptimeMillis()
         val dt = (now - lastFrameAt).coerceIn(0, 250)
         lastFrameAt = now
+        countGame(dt)
         if (holdMenu.current(now) != null) {
             holdMenu.steer(motion.tilt, now)
             if (holdMenu.changed(now)) haptics.play(HapticEvent(HapticKind.CRACK, 0.15f))
@@ -580,6 +581,18 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         if (evolved != null && evolved.id != celebratedForm) {
             celebratedForm = evolved.id
             engine.evolveInto(evolved)
+        }
+    }
+
+    /** Time of the game played and not yet given as joy. */
+    private var gameMs = 0L
+
+    /** While a game plays, its joy comes in: a second's worth at a time ([PetStore.playing]). */
+    private fun countGame(dtMs: Long) {
+        if (engine.playingTrick) gameMs += dtMs
+        if (gameMs >= 1000L || (!engine.playingTrick && gameMs > 0L)) {
+            store.playing(gameMs)
+            gameMs = 0L
         }
     }
 

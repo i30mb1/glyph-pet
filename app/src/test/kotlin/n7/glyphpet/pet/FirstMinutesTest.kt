@@ -33,8 +33,8 @@ class FirstMinutesTest {
     fun `a newborn asks for its owner at once, and stops once it is fed and played with`() {
         assertTrue(CallRules.wants(newborn, asleep = false))
         assertFalse("a sleeping pet never calls", CallRules.wants(newborn, asleep = true))
-        // Fed, then a mini-game: a dot of joy.
-        val cared = PetRules.play(PetRules.feed(newborn).first)
+        // Fed, then ten seconds of a mini-game: a dot of joy.
+        val cared = PetRules.playing(PetRules.play(PetRules.feed(newborn).first), 10_000L)
         assertFalse(CallRules.wants(cared, asleep = false))
     }
 

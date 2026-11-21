@@ -16,7 +16,7 @@
         <item quantity="other">Без тебя тает точка за %d минуты, в играх быстрее</item>
     </plurals>
     <plurals name="need_joy_fill">
-        <item quantity="other">Сытому нажми кнопку: игра — точка радости</item>
+        <item quantity="other">Сытому зажми кнопку Glyph: каждые 10 секунд игры — точка радости</item>
     </plurals>
     <plurals name="need_joy_drain">
         <item quantity="one">Без тебя тает точка за %d минуту</item>
@@ -25,10 +25,10 @@
         <item quantity="other">Без тебя тает точка за %d минуты</item>
     </plurals>
     <plurals name="need_sleep_rest">
-        <item quantity="other">Каждая игра тратит точку, пока тебя нет — отдыхает</item>
+        <item quantity="other">Каждая игра тратит точку</item>
     </plurals>
     <plurals name="need_sleep_charge">
-        <item quantity="other">Переверни телефон или поставь на зарядку — быстро наберётся</item>
+        <item quantity="other">Переверни телефон или поставь на зарядку — быстро отдохнёт</item>
     </plurals>
     <plurals name="need_sleep_drain">
         <item quantity="one">Устанет — уснёт на %d секунду</item>
@@ -134,7 +134,7 @@
     <string name="state_dizzy">Голова кругом</string>
     <string name="state_dizzy_when">Когда трясёшь слишком часто, прямо во время фишки или сразу после, или когда ему не до фишек</string>
     <string name="state_game">Мини-игра</string>
-    <string name="state_game_when">Сытый и зажали кнопку: игра даёт точку радости и тратит точку энергии. Зажми ещё раз — пойдёт домой</string>
+    <string name="state_game_when">Сытый и зажали кнопку: каждые 10 секунд игры — точка радости, игра тратит точку энергии. Зажми ещё раз — пойдёт домой</string>
     <string name="state_trick">Свой трюк</string>
     <string name="state_trick_when">Часто, когда он спокоен: после 10 секунд тишины</string>
     <string name="state_charging">На зарядке</string>
@@ -294,5 +294,5 @@
     <string name="xp_full">макс.</string>
     <string name="xp_tile">%1$d/%2$d мин</string>
     <string name="intro_needs_title">Еда, радость, энергия</string>
-    <string name="intro_needs_text">Заходи на пару минут, когда есть время. Одна еда — одна точка еды. Одна игра — точка радости, но тратит точку энергии. Устал — уснёт на полминуты, а если перевернуть телефон или поставить на зарядку, быстро отдохнёт. Растёт, пока он на экране бодрый и сытый: подросток через 15 минут, взрослый ещё через час.</string>
+    <string name="intro_needs_text">Заходи на пару минут, когда есть время. Одна еда — одна точка еды. Каждые 10 секунд игры — точка радости, а сама игра тратит точку энергии. Устал — уснёт секунд на сорок, а если перевернуть телефон или поставить на зарядку, быстро отдохнёт. Растёт, пока он на экране бодрый и сытый: подросток через 15 минут, взрослый ещё через час.</string>
 </resources>

@@ -142,14 +142,20 @@ class PetStore(context: Context) {
     }
 
     /**
-     * A game, if the pet has the energy for one ([PetRules.canPlay]): a dot of joy for a dot of energy and half a dot
-     * of food ([PetRules.play]). Returns false, changing nothing, when it is too tired.
+     * A game, if the pet has the energy for one ([PetRules.canPlay]): it costs a dot of energy and half a dot of food
+     * ([PetRules.play]); its joy comes while it is played ([playing]). Returns false, changing nothing, when it is too tired.
      */
     @Synchronized
     fun play(nowMs: Long = GameClock.now()): Boolean {
         var played = false
         update(nowMs) { if (PetRules.canPlay(it)) PetRules.play(it).also { played = true } else it }
         return played
+    }
+
+    /** [ms] more of a game played: its joy ([PetRules.playing]). */
+    @Synchronized
+    fun playing(ms: Long, nowMs: Long = GameClock.now()) {
+        if (ms > 0) update(nowMs) { PetRules.playing(it, ms) }
     }
 
     /** Stroked: half a dot of joy ([PetRules.stroke]). */

@@ -78,10 +78,12 @@ class PetRulesTest {
     }
 
     @Test
-    fun `a game is a dot of joy for a dot of energy and half a dot of food, and a tired pet does not play`() {
+    fun `a game costs a dot of energy and half a dot of food, gives a dot of joy every ten seconds, and a tired pet does not play`() {
         val s = PetStats(60f, 40f, 60f, 0, 0)
         val after = PetRules.play(s)
-        assertEquals(60f, after.joy, 0.01f)
+        assertEquals("no joy just for starting", 40f, after.joy, 0.01f)
+        assertEquals("half a minute of it: three dots", 100f, PetRules.playing(after, 30_000L).joy, 0.01f)
+        assertEquals(60f, PetRules.playing(after, 10_000L).joy, 0.01f)
         assertEquals(40f, after.energy, 0.01f)
         assertEquals(50f, after.satiety, 0.01f)
         assertTrue(PetRules.canPlay(s))
@@ -122,7 +124,7 @@ class PetRulesTest {
         // Games while it has the energy, half a minute each.
         var games = 0
         while (PetRules.canPlay(s) && games < 10) {
-            s = watched(PetRules.play(s), 30_000L)
+            s = watched(PetRules.playing(PetRules.play(s), 30_000L), 30_000L)
             games++
         }
         assertTrue("a few games before it is tired: $games", games in 3..5)

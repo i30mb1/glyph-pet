@@ -35,14 +35,16 @@ enum class TiltStyle(val face: Face) {
     /** Jumps two cells at a time, torn by a glitch at every jump. */
     GLITCH(Face.CONTENT),
     /** Stomps down heavily, a cell a step, kicking up dust. */
-    STOMP(Face.CONTENT);
+    STOMP(Face.CONTENT),
+    /** Hangs in the middle, head up: turns smoothly about its own centre as the phone turns ([rotate]). */
+    TURN(Face.CONTENT);
 
     /** Cells per ms per unit of tilt, [ms] into the slide. */
     fun speed(ms: Long): Float = when (this) {
         SLIDE, WRAP -> 0.01f
         CRAWL -> 0.0035f
         ROLL -> 0.012f
-        STICK, SWAY, GLITCH, STOMP -> 0f
+        STICK, SWAY, GLITCH, STOMP, TURN -> 0f
         FLOAT -> 0.005f
         HOP -> if (hop(ms) > 0) 0.018f else 0f
         SCUTTLE -> 0.013f
@@ -96,6 +98,46 @@ enum class TiltStyle(val face: Face) {
         /** And how far it turns on by itself while the phone is leaned, cells per ms: about three a second. */
         private const val ROLL_TURN = 0.003f
 
+        /** How quickly a [TURN]ing pet follows the phone round, per second. */
+        const val TURN_RATE = 6f
+
+        /** The angle (radians, clockwise on the matrix) that turns a pet head up when "down" is ([tilt], [tiltY]). */
+        fun headUp(tilt: Float, tiltY: Float): Float = kotlin.math.atan2(-tilt, tiltY)
+
+        /**
+         * Turns the pet drawn in the box [left]..[right] by [top]..[bottom] by [angle] radians (clockwise on the
+         * matrix) about the box's centre. Every cell takes the four it comes from between, blended (bilinear): a thin
+         * pixel drawing turned cell by cell broke apart, blended it turns smoothly, like the mini-games' sprites.
+         */
+        fun rotate(frame: IntArray, left: Int, right: Int, top: Int, bottom: Int, angle: Float) {
+            val size = SpeciesRenderer.SIZE
+            val cx = (left + right) / 2f
+            val cy = (top + bottom) / 2f
+            val r = (kotlin.math.hypot((right - left + 1).toFloat(), (bottom - top + 1).toFloat()) / 2f).toInt() + 1
+            val x0 = (cx - r).toInt().coerceAtLeast(0)
+            val x1 = (cx + r).toInt().coerceAtMost(size - 1)
+            val y0 = (cy - r).toInt().coerceAtLeast(0)
+            val y1 = (cy + r).toInt().coerceAtMost(size - 1)
+            val copy = frame.copyOf()
+            fun at(x: Int, y: Int): Float = if (x in left..right && y in top..bottom) copy[y * size + x].toFloat() else 0f
+            val c = kotlin.math.cos(angle)
+            val s = kotlin.math.sin(angle)
+            for (y in y0..y1) for (x in x0..x1) {
+                // Where this cell comes from: the inverse turn, between four cells.
+                val dx = x - cx
+                val dy = y - cy
+                val u = cx + dx * c + dy * s
+                val w = cy - dx * s + dy * c
+                val iu = kotlin.math.floor(u).toInt()
+                val iw = kotlin.math.floor(w).toInt()
+                val fu = u - iu
+                val fw = w - iw
+                val v = at(iu, iw) * (1 - fu) * (1 - fw) + at(iu + 1, iw) * fu * (1 - fw) +
+                    at(iu, iw + 1) * (1 - fu) * fw + at(iu + 1, iw + 1) * fu * fw
+                frame[y * size + x] = v.roundToInt()
+            }
+        }
+
         /** The wrap period: a pet [WRAP_CELLS] past home is home again, come in from the other side. */
         const val WRAP_CELLS = 25
 
@@ -103,7 +145,7 @@ enum class TiltStyle(val face: Face) {
         private fun hop(ms: Long) = HOP_ARC[((ms % (HOP_ARC.size * 80L)) / 80).toInt()]
 
         private val BY_KIND = mapOf(
-            "ghost" to WRAP, "ufo" to WRAP, "bat" to WRAP,
+            "ghost" to WRAP, "ufo" to WRAP, "bat" to TURN,
             "hedgehog" to ROLL, "planet" to ROLL,
             "jelly" to STICK, "axolotl" to STICK, "chameleon" to STICK, "slime" to STICK,
             "cactus" to SWAY, "shroom" to SWAY, "gem" to SWAY,

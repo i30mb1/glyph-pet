@@ -80,8 +80,8 @@ object CallRules {
  *   ([AWAY_SATIETY_PER_HOUR], [AWAY_JOY_PER_HOUR]) and the pet rests, its energy back within a minute or two. Whoever
  *   comes back after an hour or two finds it rested but hungry or bored: there is something to do at once.
  * - on the matrix: everything moves in minutes ([SEEN_PER_HOUR]), so even a two-minute visit sees it change.
- * One action is one dot: a meal gives a dot of food ([FEED_SATIETY]), a game a dot of joy for a dot of energy and half
- * a dot of food ([PLAY_JOY], [PLAY_ENERGY], [PLAY_SATIETY]). Worn out, it sleeps on the matrix for well under a minute
+ * One action is one dot: a meal gives a dot of food ([FEED_SATIETY]); a game costs a dot of energy and half a dot of
+ * food when it starts ([PLAY_ENERGY], [PLAY_SATIETY]) and gives a dot of joy for every [PLAY_JOY_EVERY_MS] it is played. Worn out, it sleeps on the matrix for well under a minute
  * ([SLEEP_ENERGY_PER_HOUR]); the charger fills it faster still, awake. Nothing is ever lost for good: no illness, no
  * death, a neglected pet only gets sad and waits.
  */
@@ -107,7 +107,8 @@ object PetRules {
 
     const val FEED_SATIETY = DOT
     const val FULL = 90f
-    const val PLAY_JOY = DOT
+    /** A dot of joy for every this long of a game, given as it is played ([playing]). */
+    const val PLAY_JOY_EVERY_MS = 10_000L
     const val PLAY_ENERGY = DOT
     const val PLAY_SATIETY = DOT / 2
     /** Stroked (the hold menu's heart): half a dot of joy. */
@@ -188,12 +189,15 @@ object PetRules {
     /** Whether it is awake and has the energy for a game. */
     fun canPlay(stats: PetStats): Boolean = !isAsleep(stats) && stats.energy >= TIRED
 
-    /** A game: a dot of joy, for a dot of energy and half a dot of food. */
+    /** A game starts: it costs a dot of energy and half a dot of food. The joy comes as it is played ([playing]). */
     fun play(stats: PetStats): PetStats = stats.copy(
-        joy = (stats.joy + PLAY_JOY).clamp(),
         energy = (stats.energy - PLAY_ENERGY).clamp(),
         satiety = (stats.satiety - PLAY_SATIETY).clamp(),
     )
+
+    /** [ms] more of a game: a dot of joy every [PLAY_JOY_EVERY_MS]. */
+    fun playing(stats: PetStats, ms: Long): PetStats =
+        stats.copy(joy = (stats.joy + DOT * ms.coerceAtLeast(0) / PLAY_JOY_EVERY_MS).clamp())
 
     /** Stroked: half a dot of joy. */
     fun stroke(stats: PetStats): PetStats = stats.copy(joy = (stats.joy + PET_JOY).clamp())
