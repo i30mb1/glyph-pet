@@ -75,8 +75,15 @@ object SpeciesRenderer {
     private val SPARK = listOf("o.....o")
 
     /** A thought of food: a dim bubble with the food block inside and two dots trailing down to the head. */
-    private val THOUGHT_RIGHT = listOf("...####.", "..#.oo.#", "..#.oo.#", "...####.", ".#......", "#.......")
+    /** The thought a hungry pet has: a bubble with room for a 5x3 picture of its own food ([Cravings]). */
+    // '+' is the room the food takes: kept clear of the pet, drawn by the food itself.
+    private val THOUGHT_RIGHT = listOf("...#####.", "..#+++++#", "..#+++++#", "..#+++++#", "...#####.", ".#.......", "#........")
     private val THOUGHT_LEFT = THOUGHT_RIGHT.map { it.reversed() }
+    /** Where there is no room for the bubble: the food alone over a trail of two dots. */
+    private val THOUGHT_BARE_RIGHT = listOf("..+++++", "..+++++", "..+++++", ".#.....", "#......")
+    private val THOUGHT_BARE_LEFT = THOUGHT_BARE_RIGHT.map { it.reversed() }
+    /** The bubbles to try, in order, and where the food goes in each (its left and top). */
+    private val THOUGHTS = listOf(THOUGHT_RIGHT to (3 to 1), THOUGHT_LEFT to (1 to 1), THOUGHT_BARE_RIGHT to (2 to 0), THOUGHT_BARE_LEFT to (0 to 0))
     private const val THOUGHT_DIM = 700
 
     /** The pupil of a sleeper's opened eye, in its 2x2 eye slot. */
@@ -233,11 +240,22 @@ object SpeciesRenderer {
                 Face.HAPPY -> badge(frame, SPARK, heartX - 1, heartY + 3)
                 Face.LOVE -> badge(frame, HEART, heartX, heartY)
                 Face.EAT -> badge(frame, FOOD, sideX, sideY)
-                Face.SLEEP -> badge(frame, Z, zX, zY)
-                Face.HUNGRY -> thoughtSpot(species, dx)?.let { (rows, x, y) -> glyph(frame, rows, x, y, hashValue = THOUGHT_DIM) }
-                Face.SAD -> tear(frame, species, ox, oy, timeMs)
+                // Each kind sleeps its own way: a snore bubble, bubbles, a moon, notes, sheep to count ([SleepSigns]).
+                Face.SLEEP -> SleepSigns.draw(frame, species, ox, oy, signRoom(species, dx), timeMs)
+                Face.HUNGRY -> thoughtSpot(species, dx)?.let { (rows, x, y) ->
+                    glyph(frame, rows, x, y, hashValue = THOUGHT_DIM)
+                    // What it is hungry for, its own food, glowing up and down.
+                    val (ix, iy) = THOUGHTS.first { it.first === rows }.second
+                    val glow = if ((timeMs / 450) % 2 == 0L) BRIGHT else BRIGHT * 3 / 5
+                    glyph(frame, Cravings.of(species.kind), x + ix, y + iy, hashValue = glow * 3 / 5, brightValue = glow)
+                }
+                // Each kind its own sadness ([MoodSigns]); the tear for those whose sign it is.
+                Face.SAD -> if (!MoodSigns.drawSad(frame, species, ox, oy, timeMs)) tear(frame, species, ox, oy, timeMs)
+                Face.TIRED, Face.YAWN -> MoodSigns.drawTired(frame, species, ox, oy, timeMs)
                 Face.ANGRY -> badge(frame, VEIN, zX, zY)
-                Face.DIZZY -> { badge(frame, STAR, heartX - 3, heartY + 1); badge(frame, STAR, heartX + 5, heartY + 1) }
+                Face.DIZZY -> if (!MoodSigns.drawDizzy(frame, species, ox, oy, timeMs)) {
+                    badge(frame, STAR, heartX - 3, heartY + 1); badge(frame, STAR, heartX + 5, heartY + 1)
+                }
                 else -> Unit
             }
         }
@@ -425,17 +443,22 @@ object SpeciesRenderer {
         val body = species.rows.flatMapIndexed { y, row ->
             row.mapIndexedNotNull { x, c -> if (c != '.') (species.ox + dx + x) to (species.oy + y) else null }
         }.toSet()
-        val w = THOUGHT_RIGHT[0].length
-        val h = THOUGHT_RIGHT.size
         var best: Triple<List<String>, Int, Int>? = null
-        for (top in species.oy - h - 1..species.oy + species.height / 2) {
-            for (rows in listOf(THOUGHT_RIGHT, THOUGHT_LEFT)) {
-                for (left in species.ox + dx - w..species.ox + dx + species.width) {
-                    val cells = rows.flatMapIndexed { y, r -> r.mapIndexedNotNull { x, c -> if (c != '.') (left + x) to (top + y) else null } }
-                    if (cells.any { (x, y) -> !GlyphMatrixSpec.isVisible(x, y) || (x to y) in body }) continue
-                    val tip = if (rows === THOUGHT_RIGHT) left to top + h - 1 else left + w - 1 to top + h - 1
-                    val touches = (-1..1).any { a -> (-1..1).any { b -> (tip.first + a to tip.second + b) in body } }
-                    if (touches) { best = Triple(rows, left, top); break }
+        // The full bubbles first, anywhere; the bare food only where no bubble fits.
+        for (pair in listOf(THOUGHTS.take(2), THOUGHTS.drop(2))) {
+            val w = pair[0].first[0].length
+            val h = pair[0].first.size
+            for (top in species.oy - h - 1..species.oy + species.height / 2) {
+                for ((rows, _) in pair) {
+                    for (left in species.ox + dx - w..species.ox + dx + species.width) {
+                        val cells = rows.flatMapIndexed { y, r -> r.mapIndexedNotNull { x, c -> if (c != '.') (left + x) to (top + y) else null } }
+                        if (cells.any { (x, y) -> !GlyphMatrixSpec.isVisible(x, y) || (x to y) in body }) continue
+                        val right = rows[h - 1][0] != '.'
+                        val tip = if (right) left to top + h - 1 else left + w - 1 to top + h - 1
+                        val touches = (-1..1).any { a -> (-1..1).any { b -> (tip.first + a to tip.second + b) in body } }
+                        if (touches) { best = Triple(rows, left, top); break }
+                    }
+                    if (best != null) break
                 }
                 if (best != null) break
             }
@@ -443,6 +466,15 @@ object SpeciesRenderer {
         }
         best ?: Triple(emptyList(), 0, 0)
     }.takeIf { it.first.isNotEmpty() }
+
+    /**
+     * A free 5x3 room by the pet's head, always on the matrix and never over the pet: where its thought's food goes.
+     * The sleep signs and the like use it too, so they show for big forms as well. Null when there is none.
+     */
+    fun signRoom(species: Species, dx: Int): Pair<Int, Int>? = thoughtSpot(species, dx)?.let { (rows, x, y) ->
+        val (ix, iy) = THOUGHTS.first { it.first === rows }.second
+        (x + ix) to (y + iy)
+    }
 
     /** Draws rows of 'o' (bright) and '#' ([hashValue]) cells. */
     fun glyph(frame: IntArray, rows: List<String>, left: Int, top: Int, hashValue: Int = BRIGHT, brightValue: Int = BRIGHT) {

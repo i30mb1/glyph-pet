@@ -93,8 +93,10 @@ class PetEngineTest {
     @Test
     fun `the tear runs down`() {
         for (s in SpeciesCatalog.all) {
+            // Not every kind cries one tear: the rest are sad their own way ([MoodSigns]), checked by changing too.
             val frames = (0 until 5).map { SpeciesRenderer.render(s, Face.SAD, timeMs = it * SpeciesRenderer.TEAR_STEP_MS).toList() }
-            assertEquals(s.id, 5, frames.toSet().size)
+            if (MoodSigns.sad(s.kind) == MoodSigns.Sad.TEAR) assertEquals(s.id, 5, frames.toSet().size)
+            else assertTrue(s.id, frames.toSet().size >= 2)
         }
     }
 
@@ -105,7 +107,8 @@ class PetEngineTest {
     fun `the tear runs down in the app's look too`() {
         for (s in SpeciesCatalog.all) {
             val frames = (0 until 5).map { appLook(SpeciesRenderer.render(s, Face.SAD, timeMs = it * SpeciesRenderer.TEAR_STEP_MS)) }
-            assertEquals(s.id, 5, frames.toSet().size)
+            if (MoodSigns.sad(s.kind) == MoodSigns.Sad.TEAR) assertEquals(s.id, 5, frames.toSet().size)
+            else assertTrue(s.id, frames.toSet().size >= 2)
             // and a crying pet differs from a calm one by more than its eyes and mouth (the one-eyed dino: 5)
             val idle = appLook(SpeciesRenderer.render(s, Face.IDLE))
             val sad = appLook(SpeciesRenderer.render(s, Face.SAD))

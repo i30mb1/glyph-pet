@@ -259,8 +259,11 @@ function tagOf(pet, col, form) {
     case "turn": return pet.rarity === "MYTHIC" ? ["own", "всегда 3D"] : pet.rarity === "LEGENDARY" ? ["own", "голограмма"] : ["none", ""];
     case "happy": return ["own", "своя радость"];
     case "loved": return ["own", "своё поглаживание"];
-    case "sad": return ["std", "дождь"];
-    case "asleep": return ["std", "снег"];
+    case "sad": return ["own", "своя грусть"];
+    case "tired": return ["own", "своя усталость"];
+    case "dizzy": return ["own", "своё головокружение"];
+    case "asleep": return ["own", "свой знак сна"];
+    case "hungry": return ["own", "думает о своей еде"];
     case "grow": return ["std", stage === "baby" ? "вылупление" : "эволюция"];
     default: return ["std", ""];
   }
