@@ -72,7 +72,7 @@
     <string name="intro_1_title">Каждый день — новый питомец</string>
     <string name="intro_1_text">Каждый день, когда ты играешь, приходит новый питомец в яйце, всегда тот, которого у тебя ещё нет. Положи яйцо на матрицу и пять раз зажми кнопку Glyph — он вылупится.</string>
     <string name="intro_2_title">Кнопка и жесты</string>
-    <string name="intro_2_text">Питомец живёт на задней панели телефона или в приложении. Зажми кнопку Glyph — он поест, а сытый начнёт мини-игру, которой управляют наклоном. Потряси — покажет свою фишку, а готовый подрастёт.</string>
+    <string name="intro_2_text">Питомец живёт на задней панели телефона или в приложении. Зажми кнопку Glyph — он поест, а сытый начнёт мини-игру, которой управляют наклоном. Два лёгких стука по задней панели — погладить. Потряси — покажет свою фишку, а готовый подрастёт.</string>
     <string name="intro_3_title">Собери всех 29</string>
     <string name="intro_3_text">Каждый новый питомец попадает в питомник. Десять обычных, тринадцать редких, четыре легендарных и два мифических. А в альбоме видно, какие его анимации ты уже видел.</string>
     <string name="intro_next">Дальше</string>
@@ -130,7 +130,7 @@
     <string name="state_eating">Ест</string>
     <string name="state_eating_when">Зажми кнопку Glyph: одна еда — одна точка</string>
     <string name="state_loved">Его гладят</string>
-    <string name="state_loved_when">Сердечко в меню, если держать кнопку Glyph на матрице</string>
+    <string name="state_loved_when">Два лёгких стука по задней панели</string>
     <string name="state_dizzy">Голова кругом</string>
     <string name="state_dizzy_when">Когда трясёшь слишком часто, прямо во время фишки или сразу после, или когда ему не до фишек</string>
     <string name="state_game">Мини-игра</string>
@@ -276,7 +276,7 @@
     <string name="tab_nursery">Питомник</string>
     <string name="tab_settings">Настройки</string>
     <string name="action_press">нажать кнопку Glyph</string>
-    <string name="play_hint">Удержи — как кнопка Glyph · наклоняй и тряси телефон</string>
+    <string name="play_hint">Удержи — как кнопка Glyph · тук-тук по спинке — погладить · наклоняй и тряси телефон</string>
     <string name="states_found">Анимации · %1$d из %2$d</string>
     <string name="state_calm_ask">Каким он бывает, когда всё хорошо?</string>
     <string name="state_signature_ask">Что он умеет, если потрясти телефон?</string>
@@ -287,7 +287,7 @@
     <string name="state_asleep_ask">А когда энергия совсем кончится?</string>
     <string name="state_eating_ask">Что будет, если зажать кнопку Glyph?</string>
     <string name="state_game_ask">А если зажать кнопку, когда он сыт?</string>
-    <string name="state_loved_ask">А если его приласкать?</string>
+    <string name="state_loved_ask">А если легонько постучать по нему?</string>
     <string name="state_dizzy_ask">А если трясти слишком часто?</string>
     <string name="state_trick_ask">Что он делает, когда его не трогают?</string>
     <string name="state_charging_ask">А если поставить телефон на зарядку?</string>

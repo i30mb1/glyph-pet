@@ -3,270 +3,281 @@ package n7.glyphpet.pet.trick
 import n7.glyphpet.pet.Face
 import n7.glyphpet.pet.HapticKind
 import n7.glyphpet.pet.SignatureInput
-import n7.glyphpet.pet.Species
 import n7.glyphpet.pet.signature.Canvas
 import n7.glyphpet.pet.signature.Kit
 import kotlin.math.abs
-import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.hypot
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.roundToInt
 import kotlin.math.sin
+import kotlin.random.Random
 
 /**
- * Bot: it becomes a spirit level. Its screen shows a bubble that floats to the high side, opposite to the tilt, with
- * a damped wobble, and a target (two brackets) somewhere on the screen that brightens while the bubble rests in it.
- * Held there for a moment it beeps (a click in the hand), and the target jumps elsewhere;
- * six, and the screen smiles and the antenna flashes.
+ * Bot, "Лабиринт": the whole matrix becomes a maze and the bot curls into a glowing ball at its start. Lean the phone
+ * and the ball rolls (it has weight: it speeds up, slides on, knocks against the walls). The ball is a little lamp:
+ * the walls near it light up, far ones stay dim, so the way ahead shows as it rolls. Every corridor cell it reaches
+ * for the first time stays faintly lit and ticks in the hand, like points being counted; the goal pulses in the far
+ * corner. Reach it and the ball drops in with a strong thud, a wave of light runs over the maze, and a new, a little
+ * bigger maze draws itself in, wall by wall. At the end the ball unrolls back into the bot at home.
  */
-internal class BotTrick : Trick(DURATION) {
+internal class BotTrick : Trick(0L) {
     companion object {
-        const val DURATION = 7000L
-        /** Bubble spring (1/s2) and damping (1/s): a little wobble, settling in about half a second. */
-        const val SPRING = 40f
-        const val DAMP = 7f
-        /** Level means the bubble within [LEVEL_R] cells of the centre and slower than [LEVEL_SPEED] cells/s for [LEVEL_MS]. */
-        const val LEVEL_R = 0.5f
-        const val LEVEL_SPEED = 1.6f
-        const val LEVEL_MS = 700L
-        const val SMILE_MS = 1300L
-        /** The nudge that starts each go (cells/s). */
-        const val KICK = 9f
-        const val KICK_AT_MS = 260L
-        const val MARK_DIM = 420f
-        const val MARK_LIT = 1700f
-        const val BUBBLE = 3800f
+        /** Maze sizes in cells: the first one small, each solved one a step bigger, up to the most the round matrix shows. */
+        const val FIRST_CELLS = 5
+        const val MOST_CELLS = 8
+        /** The ball's roll: how hard a full lean pushes (cells a second, squared), how much it slows by itself, its top speed. */
+        const val PUSH = 42f
+        const val DRAG = 1.6f
+        const val TOP = 13f
+        const val R = 0.32f
+        /** The lamp: walls this far from the ball (cells) are lit, brightest next to it. */
+        const val LAMP = 6.5f
+        const val WALL_DIM = 260f
+        const val WALL_LIT = 2300f
+        const val VISITED = 520f
+        const val BALL = 4000f
+        const val GOAL = 3200f
+        /** Phases: the bot curling into the ball and the first maze drawing in, the drop into the goal, a new maze drawing in. */
+        const val INTRO_MS = 900L
+        const val WIN_MS = 900L
+        const val BUILD_MS = 700L
     }
 
-    /** The screen's inside in sprite cells. */
-    private class Screen(val x0: Int, val y0: Int, val x1: Int, val y1: Int) {
-        val w get() = x1 - x0 + 1
-        val h get() = y1 - y0 + 1
-    }
-
-    private val screens = HashMap<String, Screen>()
-    private var bx = 0f
-    private var by = 0f
+    private var cells = FIRST_CELLS
+    private var walls = BooleanArray(0)
+    private var order = IntArray(0)
+    private var size = 0
+    private var origin = 0
+    private var startX = 0
+    private var startY = 0
+    private var goalX = 0
+    private var goalY = 0
+    private val visited = HashSet<Int>()
+    private var x = 0f
+    private var y = 0f
     private var vx = 0f
     private var vy = 0f
-    private var levelMs = 0L
-    private var smileMs = -1L
-    private var kicked = false
-    private var kicks = 0
-    private var goalX = 0f
-    private var goalY = 0f
-    private var goals = 0
-    private val score = Score()
+    private var lastCell = -1
+    private var solved = 0
+    private var winMs = -1L
+    private var buildMs = -1L
+    private var seed = 0
+    private val trail = ArrayDeque<Pair<Float, Float>>()
+    private val homing = Homing()
     private val canvas = Canvas()
+    private val layer = Canvas()
 
     override fun reset() {
-        bx = 0f
-        by = 0f
+        seed = freshSeed()
+        cells = FIRST_CELLS
+        solved = 0
+        winMs = -1L
+        buildMs = -1L
+        newMaze()
+        homing.reset()
+    }
+
+    /** A maze of [cells]×[cells] by depth-first carving, centred on the matrix; the goal is the cell farthest from the start. */
+    private fun newMaze() {
+        size = cells * 2 + 1
+        origin = 12 - cells
+        walls = BooleanArray(size * size) { true }
+        val rnd = Random(seed * 31 + solved)
+        val opened = ArrayList<Int>()
+        val seen = BooleanArray(cells * cells)
+        val stack = ArrayDeque<Int>()
+        stack.addLast(0)
+        seen[0] = true
+        open(0, 0, opened)
+        while (stack.isNotEmpty()) {
+            val c = stack.last()
+            val cx = c % cells
+            val cy = c / cells
+            val next = listOf(cx + 1 to cy, cx - 1 to cy, cx to cy + 1, cx to cy - 1)
+                .filter { (nx, ny) -> nx in 0 until cells && ny in 0 until cells && !seen[ny * cells + nx] }
+            if (next.isEmpty()) { stack.removeLast(); continue }
+            val (nx, ny) = next[rnd.nextInt(next.size)]
+            // The wall between, then the cell.
+            open(cx + nx + 1, cy + ny + 1, opened, half = true)
+            open(nx, ny, opened)
+            seen[ny * cells + nx] = true
+            stack.addLast(ny * cells + nx)
+        }
+        order = opened.toIntArray()
+        // The goal: the cell farthest from the start along the corridors.
+        val dist = IntArray(size * size) { -1 }
+        val q = ArrayDeque<Int>()
+        val s0 = 1 * size + 1
+        dist[s0] = 0
+        q.addLast(s0)
+        var far = s0
+        while (q.isNotEmpty()) {
+            val p = q.removeFirst()
+            if (dist[p] > dist[far]) far = p
+            val px = p % size
+            val py = p / size
+            for ((nx, ny) in listOf(px + 1 to py, px - 1 to py, px to py + 1, px to py - 1)) {
+                if (nx !in 0 until size || ny !in 0 until size) continue
+                val n = ny * size + nx
+                if (walls[n] || dist[n] >= 0) continue
+                dist[n] = dist[p] + 1
+                q.addLast(n)
+            }
+        }
+        startX = origin + 1
+        startY = origin + 1
+        goalX = origin + far % size
+        goalY = origin + far / size
+        x = startX.toFloat()
+        y = startY.toFloat()
         vx = 0f
         vy = 0f
-        levelMs = 0
-        smileMs = -1
-        kicked = false
-        kicks = 0
-        goalX = 0f
-        goalY = 0f
-        goals = freshSeed()
-        score.reset()
+        visited.clear()
+        lastCell = -1
+        trail.clear()
     }
+
+    /** Opens maze cell ([cx], [cy]) (or, [half], the pixel between two cells given doubled) and notes the order. */
+    private fun open(cx: Int, cy: Int, opened: MutableList<Int>, half: Boolean = false) {
+        val px = if (half) cx else cx * 2 + 1
+        val py = if (half) cy else cy * 2 + 1
+        val i = py * size + px
+        walls[i] = false
+        opened += i
+    }
+
+    private fun wall(px: Int, py: Int): Boolean {
+        val mx = px - origin
+        val my = py - origin
+        if (mx !in 0 until size || my !in 0 until size) return true
+        return walls[my * size + mx]
+    }
+
+    /** Whether the ball at ([bx], [by]) overlaps a wall. */
+    private fun blocked(bx: Float, by: Float): Boolean =
+        wall((bx - R + 0.5f).toInt(), (by - R + 0.5f).toInt()) || wall((bx + R + 0.5f).toInt(), (by - R + 0.5f).toInt()) ||
+            wall((bx - R + 0.5f).toInt(), (by + R + 0.5f).toInt()) || wall((bx + R + 0.5f).toInt(), (by + R + 0.5f).toInt())
 
     override fun scene(frame: IntArray, input: SignatureInput) {
         val sp = input.species
         val t = input.tMs
-        val r = returning(t)
-        val left = sp.ox + input.dx
-        val top = sp.oy
-
-        score.tick(input.dtMs.coerceIn(0L, 100L))
-        // Done: the plain bot with a smile on its screen.
-        if (r > 0.3f || smileMs >= 0) {
-            val antenna = smileMs >= 0 && (smileMs / 120L) % 2L == 0L
-            Kit.drawPet(frame, sp, Face.CONTENT, false, input.dx)
-            if (smileMs >= 0) flashAntenna(frame, sp, left, top, antenna)
-
-            if (smileMs >= 0) {
-                smileMs += input.dtMs.coerceIn(0L, 100L)
-                if (smileMs >= SMILE_MS) {
-                    smileMs = -1
-                    kick(1.3f)
-                }
-            }
-            return
-        }
-
-        val scr = screens.getOrPut(sp.id) { findScreen(sp) }
-        val bw = if (scr.w >= 9) 3 else 2
-        val bh = if (scr.h >= 6) 2 else 1
-        val rangeX = (scr.w - bw) / 2f
-        val rangeY = (scr.h - bh) / 2f
-
-        if (!kicked && t >= KICK_AT_MS) {
-            kicked = true
-            kick(1f)
-        }
+        val ms = input.dtMs.coerceIn(0L, 100L)
         val dt = seconds(input)
-        val tx = -tilt.x * rangeX
-        val ty = -tilt.y * rangeY
-        vx += (SPRING * (tx - bx) - DAMP * vx) * dt
-        vy += (SPRING * (ty - by) - DAMP * vy) * dt
-        bx += vx * dt
-        by += vy * dt
-        if (abs(bx) > rangeX) {
-            if (abs(vx) > 3f) gate.feel(input, HapticKind.BALL_HIT, 0.15f)
-            bx = bx.coerceIn(-rangeX, rangeX)
-            vx *= -0.3f
-        }
-        if (abs(by) > rangeY) {
-            if (abs(vy) > 3f) gate.feel(input, HapticKind.BALL_HIT, 0.15f)
-            by = by.coerceIn(-rangeY, rangeY)
-            vy *= -0.3f
-        }
-        val level = hypot(bx - goalX, by - goalY) < LEVEL_R && hypot(vx, vy) < LEVEL_SPEED && kicked
-        levelMs = if (level) levelMs + input.dtMs.coerceIn(0L, 100L) else maxOf(0L, levelMs - 2 * input.dtMs)
-        if (levelMs >= LEVEL_MS && t < playEndMs) {
-            levelMs = 0
-            if (score.win()) {
-                smileMs = 0
-                gate.feel(input, HapticKind.FEED, 1f)
-            } else {
-                gate.feel(input, HapticKind.BALL_HIT, 0.7f)
+        val r = returning(t)
+        val intro = Kit.smooth(t.toFloat() / INTRO_MS)
+        val playing = r <= 0f && t >= INTRO_MS && winMs < 0 && buildMs < 0
+
+        if (playing) roll(input, dt)
+        if (winMs >= 0) {
+            winMs += ms
+            if (winMs >= WIN_MS) {
+                winMs = -1L
+                solved++
+                cells = min(MOST_CELLS, FIRST_CELLS + solved)
+                newMaze()
+                buildMs = 0L
             }
-            // The next target, somewhere else on the screen.
-            goals++
-            var nx: Float
-            var ny: Float
-            var tries = 0
-            do {
-                nx = (TrickKit.hash01(goals * 7 + tries) * 2f - 1f) * rangeX * 0.8f
-                ny = (TrickKit.hash01(goals * 13 + tries + 3) * 2f - 1f) * rangeY * 0.8f
-            } while (hypot(nx - goalX, ny - goalY) < 1.2f && ++tries < 6)
-            goalX = kotlin.math.round(nx)
-            goalY = kotlin.math.round(ny)
+        } else if (buildMs >= 0) {
+            buildMs += ms
+            if (buildMs >= BUILD_MS) buildMs = -1L
         }
 
-        // The bot's body without its face, then the vial on its screen.
         canvas.clear()
-        canvas.sprite(sprites.get(sp, Face.IDLE, withFace = false), left, top)
-        val fade = 1f - Kit.smooth(r / 0.3f)
-        val cxs = left + scr.x0 + (scr.w - 1) / 2f
-        val cys = top + scr.y0 + (scr.h - 1) / 2f
-        val mark = (MARK_DIM + (MARK_LIT - MARK_DIM) * (levelMs.toFloat() / LEVEL_MS)) * fade
-        // The target: a frame one cell around the bubble resting where it should.
-        val mx0 = floor(cxs + goalX - bw / 2f + 0.5f).toInt() - 1
-        val my0 = floor(cys + goalY - bh / 2f + 0.5f).toInt() - 1
-        val mx1 = mx0 + bw + 1
-        val my1 = my0 + bh + 1
-        for (x in mx0..mx1) for (y in my0..my1) {
-            if (x != mx0 && x != mx1 && y != my0 && y != my1) continue
-            // Corners left out: two brackets read cleaner than a box.
-            if ((x == mx0 || x == mx1) && (y == my0 || y == my1)) continue
-            if (x - left in scr.x0..scr.x1 && y - top in scr.y0..scr.y1) canvas.max(x, y, mark)
+        // How much of the maze shows: drawing in at the start and after each win, fading out on the way home.
+        val reveal = when {
+            buildMs >= 0 -> buildMs.toFloat() / BUILD_MS
+            t < INTRO_MS -> intro
+            else -> 1f
         }
-        // The bubble, sub-cell so it glides.
-        val bx0 = cxs + bx - (bw - 1) / 2f
-        val by0 = cys + by - (bh - 1) / 2f
-        val shimmer = 0.9f + 0.1f * sin(t / 90f)
-        for (i in 0 until bw) for (j in 0 until bh) {
-            val px = bx0 + i
-            val py = by0 + j
-            if (px < left + scr.x0 - 0.01f || px > left + scr.x1 + 0.01f) continue
-            canvas.splat(px, py, BUBBLE * shimmer * fade)
+        val fade = 1f - r
+        val ripple = if (winMs >= 0) winMs / 1000f * 24f else -1f
+        val openNow = (order.size * reveal).toInt()
+        val openSet = HashSet<Int>(openNow * 2)
+        for (i in 0 until openNow) openSet += order[i]
+        for (my in 0 until size) for (mx in 0 until size) {
+            val i = my * size + mx
+            val px = origin + mx
+            val py = origin + my
+            val isWall = walls[i] || i !in openSet
+            if (isWall) {
+                val d = hypot(px - x, py - y)
+                var v = WALL_DIM + WALL_LIT * max(0f, 1f - d / LAMP) * max(0f, 1f - d / LAMP)
+                if (ripple >= 0f && abs(hypot((px - goalX).toFloat(), (py - goalY).toFloat()) - ripple) < 1.2f) v = Kit.BRIGHT
+                canvas.max(px, py, v * fade)
+            } else if (i in visited) {
+                canvas.max(px, py, VISITED * fade)
+            }
+        }
+        // The goal, pulsing; on a win it flares and the ball drops in.
+        if (buildMs < 0) {
+            val pulse = 0.55f + 0.45f * sin(t / 160f)
+            val g = if (winMs >= 0) Kit.BRIGHT else GOAL * pulse
+            canvas.max(goalX, goalY, g * fade)
+            if (pulse > 0.85f && winMs < 0) for ((ax, ay) in listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1)) {
+                if (!wall(goalX + ax, goalY + ay)) canvas.max(goalX + ax, goalY + ay, GOAL * 0.25f * fade)
+            }
+        }
+
+        // The ball: the bot curled up, with a short glowing trail. At the start it curls up, at the end it unrolls home.
+        val hx = TrickKit.homeCx(sp, input.dx)
+        val hy = TrickKit.homeCy(sp)
+        val going = homing.apply(r, x, y, 0f, hx, hy)
+        if (t < INTRO_MS || going) {
+            // The bot itself, shrinking into the ball (or growing back out of it).
+            val k = if (going) r else 1f - intro
+            layer.clear()
+            layer.spriteAt(
+                sprites.get(sp, Face.HAPPY, input.blink),
+                TrickKit.lerp(x, hx, k), TrickKit.lerp(y, hy, k) - sp.height * k / 2f, k.coerceAtLeast(0.08f),
+            )
+            canvas.over(layer)
+            if (k < 0.6f) canvas.splat(TrickKit.lerp(x, hx, k), TrickKit.lerp(y, hy, k), BALL * (1f - k / 0.6f))
+        } else {
+            trail.forEachIndexed { j, (tx, ty) -> canvas.splat(tx, ty, BALL * 0.12f * (j + 1) / trail.size.coerceAtLeast(1)) }
+            val sink = if (winMs >= 0) 1f - (winMs.toFloat() / (WIN_MS * 0.5f)).coerceIn(0f, 1f) else 1f
+            if (buildMs < 0 || buildMs > BUILD_MS / 2) canvas.splat(x, y, BALL * sink)
         }
         canvas.toFrame(frame)
     }
 
-    private fun kick(power: Float) {
-        kicks++
-        val a = 0.9f + kicks * 2.1f
-        vx += cos(a) * KICK * power
-        vy += sin(a) * KICK * 0.6f * power
-        levelMs = 0
-    }
-
-    /** The bright cells above the screen (the antenna's tip) blink: the beep. */
-    private fun flashAntenna(frame: IntArray, sp: Species, left: Int, top: Int, on: Boolean) {
-        val scr = screens[sp.id]
-        for (y in sp.rows.indices) {
-            if (scr != null && y >= scr.y0) break
-            for (x in sp.rows[y].indices) {
-                if (sp.rows[y][x] == '.') continue
-                val mx = left + x
-                val my = top + y
-                if (mx in 0 until Kit.N && my in 0 until Kit.N && Kit.VISIBLE[my * Kit.N + mx] && sp.rows[y][x] == 'o') {
-                    frame[my * Kit.N + mx] = if (on) Kit.BRIGHT.toInt() else (Kit.BODY / 3f).toInt()
-                }
-            }
+    /** One step of the ball rolling with the lean; it knocks against walls and counts every new cell it reaches. */
+    private fun roll(input: SignatureInput, dt: Float) {
+        vx += tilt.x * PUSH * dt
+        vy += tilt.y * PUSH * dt
+        val slow = (1f - DRAG * dt).coerceAtLeast(0f)
+        vx *= slow
+        vy *= slow
+        val speed = hypot(vx, vy)
+        if (speed > TOP) { vx *= TOP / speed; vy *= TOP / speed }
+        // Small steps, so a fast ball never passes through a wall.
+        val steps = max(1, (max(abs(vx), abs(vy)) * dt / 0.2f).toInt() + 1)
+        var knocked = 0f
+        repeat(steps) {
+            val nx = x + vx * dt / steps
+            if (blocked(nx, y)) { knocked = max(knocked, abs(vx)); vx = -vx * 0.25f } else x = nx
+            val ny = y + vy * dt / steps
+            if (blocked(x, ny)) { knocked = max(knocked, abs(vy)); vy = -vy * 0.25f } else y = ny
         }
-    }
-
-    /**
-     * The screen: the biggest hole in the sprite, the '.' cells that cannot be reached from its border through other
-     * '.' cells (the space between the legs can), as a rectangle. A sprite without one gets a small middle rectangle.
-     */
-    private fun findScreen(sp: Species): Screen {
-        val rows = sp.rows
-        val w = sp.width
-        val h = sp.height
-        fun open(x: Int, y: Int) = (rows.getOrNull(y)?.getOrNull(x) ?: '.') == '.'
-        val outside = BooleanArray(w * h)
-        val stack = ArrayDeque<Int>()
-        for (y in 0 until h) for (x in 0 until w) {
-            if ((x == 0 || y == 0 || x == w - 1 || y == h - 1) && open(x, y)) {
-                outside[y * w + x] = true
-                stack.addLast(y * w + x)
-            }
+        if (knocked > 3f) gate.feel(input, HapticKind.STOMP, (knocked / TOP).coerceIn(0.15f, 0.5f))
+        trail.addLast(x to y)
+        while (trail.size > 4) trail.removeFirst()
+        // A new cell reached: it stays lit and ticks in the hand, like a point counted.
+        val cx = x.roundToInt()
+        val cy = y.roundToInt()
+        val cell = (cy - origin) * size + (cx - origin)
+        if (cell != lastCell) {
+            lastCell = cell
+            if (visited.add(cell)) gate.feel(input, HapticKind.TICKLE, 0.35f)
         }
-        fun spread(from: BooleanArray, queue: ArrayDeque<Int>, blocked: (Int) -> Boolean): Int {
-            var n = 0
-            while (queue.isNotEmpty()) {
-                val i = queue.removeLast()
-                n++
-                val x = i % w
-                val y = i / w
-                for ((nx, ny) in arrayOf(x - 1 to y, x + 1 to y, x to y - 1, x to y + 1)) {
-                    if (nx !in 0 until w || ny !in 0 until h) continue
-                    val j = ny * w + nx
-                    if (from[j] || !open(nx, ny) || blocked(j)) continue
-                    from[j] = true
-                    queue.addLast(j)
-                }
-            }
-            return n
+        if (hypot(x - goalX, y - goalY) < 0.6f) {
+            winMs = 0L
+            vx = 0f
+            vy = 0f
+            x = goalX.toFloat()
+            y = goalY.toFloat()
+            gate.feel(input, HapticKind.BALL_HIT, 1f)
         }
-        spread(outside, stack) { false }
-        // The holes, one by one; the biggest is the screen.
-        val seen = BooleanArray(w * h)
-        var best: Screen? = null
-        var bestN = 0
-        for (y in 0 until h) for (x in 0 until w) {
-            val i = y * w + x
-            if (!open(x, y) || outside[i] || seen[i]) continue
-            val hole = BooleanArray(w * h)
-            hole[i] = true
-            val q = ArrayDeque<Int>()
-            q.addLast(i)
-            val n = spread(hole, q) { outside[it] }
-            var x0 = w
-            var y0 = h
-            var x1 = -1
-            var y1 = -1
-            for (j in hole.indices) if (hole[j]) {
-                seen[j] = true
-                x0 = minOf(x0, j % w)
-                x1 = maxOf(x1, j % w)
-                y0 = minOf(y0, j / w)
-                y1 = maxOf(y1, j / w)
-            }
-            if (n > bestN) {
-                bestN = n
-                best = Screen(x0, y0, x1, y1)
-            }
-        }
-        val b = best
-        if (b == null || b.w < 3 || b.h < 2) return Screen(w / 2 - 2, h / 2 - 1, w / 2 + 2, h / 2 + 1)
-        return b
     }
 }

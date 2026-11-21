@@ -422,6 +422,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         }
         dark = false
         val gestures = Gestures(shake = motion.consumeShake())
+        if (motion.consumeStroke()) stroked()
         val n = nursery
         react(
             reactions.frame(
@@ -582,6 +583,20 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             celebratedForm = evolved.id
             engine.evolveInto(evolved)
         }
+    }
+
+    /**
+     * Two light taps on the back stroke the pet: half a dot of joy and its own cuddle ([n7.glyphpet.pet.Cuddles]).
+     * Not during a game, where the phone is busy being steered.
+     */
+    private fun stroked() {
+        val n = nursery ?: return
+        if (n.active == null || n.eggOnMatrix != null || engine.playingTrick) return
+        Log.d(TAG, "event stroke")
+        if (mood != Mood.SLEEPING) store.stroke()
+        engine.pet()
+        feel(HapticKind.TICKLE)
+        sync(force = true)
     }
 
     /** Time of the game played and not yet given as joy. */

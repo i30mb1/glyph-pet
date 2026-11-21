@@ -63,6 +63,8 @@ data class Shown(
     val charging: Boolean = false,
     val step: HabitFrame? = null,
     val dx: Int = 0,
+    /** A happy pet's own burst of joy is playing ([Cuddles.joyOf]). */
+    val cheer: Boolean = false,
 )
 
 /**
@@ -247,6 +249,8 @@ class PetEngine(
     private var pace = 0.0
     private var hopInMs = 2000L
     private var hopMs = -1L
+    /** A happy pet's own burst of joy ([Cuddles.joyOf]) playing now, ms in; -1 when none. */
+    private var joyMs = -1L
 
     /** Hops asked for by a reaction (a knock, a greeting), played one after another whatever the mood. */
     private var hopsLeft = 0
@@ -297,6 +301,7 @@ class PetEngine(
             trickMs = 0
             trickPlayedMs = 0
             hopMs = -1
+            joyMs = -1
         }
         return true
     }
@@ -495,7 +500,7 @@ class PetEngine(
     }
 
     /** Stroked: heart eyes and a heart. A sleeper only opens one eye. */
-    fun pet() = react { start(Action.LOVED, 1600) }
+    fun pet() = react { start(Action.LOVED, Cuddles.DURATION_MS) }
 
     /** Dizzy stars; a sleeper only opens one eye. */
     fun shake() = react { start(Action.DIZZY, 2500) }
@@ -648,6 +653,7 @@ class PetEngine(
             // On the charger the pet stays put and shows its charging indicator; food is eaten on the spot.
             habitMs = -1
             hopMs = -1
+            joyMs = -1
             trickAsked = false
             // The charging indicator has the whole matrix: a kind's own meal does not play here either.
             if (foodY != null || feastMs >= 0) { foodY = null; feastMs = -1; start(Action.EATING, 1800) }
@@ -728,11 +734,18 @@ class PetEngine(
             sliding && own == null -> tiltStyle.lift(slideMs)
             else -> 0
         }
+        // Stroked: each kind its own way ([Cuddles]); a sleeper only peeks.
+        val cuddle = when {
+            action == Action.LOVED && !asleep && own == null -> Cuddles.of(species.kind)
+            joyMs >= 0 && !asleep && own == null && action == Action.NONE -> Cuddles.joyOf(species.kind)
+            else -> null
+        }
+        val cuddleMs = if (action == Action.LOVED) Cuddles.DURATION_MS - actionLeftMs else joyMs
         val shudder = action == Action.REFUSING || action == Action.SURGE
         // A refusal sways slowly, "no, thanks"; a surge trembles.
         val jitterMs = if (action == Action.REFUSING) 300L else 120L
         val jitter = if (shudder) (if ((time / jitterMs) % 2 == 0L) -1 else 1) else 0
-        val dx = x.roundToInt() + jitter
+        val dx = x.roundToInt() + jitter + (cuddle?.let { Cuddles.dx(it, cuddleMs) } ?: 0)
         cover.fill(SpeciesRenderer.COVER_NONE)
         // Legendary and mythic pets are drawn in 3D, turning a little with the phone ([Living3D]).
         val painter = if (Living3D.handles(species)) {
@@ -742,12 +755,16 @@ class PetEngine(
             null
         }
         SpeciesRenderer.render(
-            species, face, blink = blinkLeftMs > 0, dx = dx, frame = frame, timeMs = time, lift = lift,
+            species, face, blink = blinkLeftMs > 0, dx = dx, frame = frame, timeMs = time, lift = lift + (cuddle?.let { Cuddles.lift(it, cuddleMs) } ?: 0),
             habit = if (painter != null) living.habitFor(species, own) else own,
             eyeDx = look(centerX, scene, asleep), shadow = true, cover = cover, painter = painter,
-            badges = !(sliding && own == null) || tiltStyle == TiltStyle.STICK,
+            badges = (!(sliding && own == null) || tiltStyle == TiltStyle.STICK) && cuddle == null,
             spout = own == null && !sliding,
         )
+        if (cuddle != null) {
+            val top = species.oy - SpeciesRenderer.jumpOf(face) - lift - Cuddles.lift(cuddle, cuddleMs)
+            Cuddles.draw(frame, species, cuddle, species.ox + dx, top, cuddleMs)
+        }
         if (abs(turnAngle) > 0.02f && own == null) {
             val top = species.oy - SpeciesRenderer.jumpOf(face) - lift
             val left = species.ox + dx
@@ -787,7 +804,7 @@ class PetEngine(
         }
         weather.draw(frame, dtMs, sky, scene.tilt, scene.tiltY, cover)
         if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
-        shown = Shown(face, habit = own != null, lift = lift, step = own, dx = dx)
+        shown = Shown(face, habit = own != null, lift = lift, step = own, dx = dx, cheer = joyMs >= 0 && cuddle != null)
         return frame
     }
 
@@ -896,6 +913,7 @@ class PetEngine(
                 habitSpot = null
                 habitMs = 0
                 hopMs = -1
+            joyMs = -1
             } else if (spots.isNotEmpty()) {
                 habitSpot = spots.minBy { abs(it - at) }
             }
@@ -919,16 +937,19 @@ class PetEngine(
         hopsLeft = 0
         if (mood != Mood.HAPPY || action != Action.NONE || sliding || habitMs >= 0) {
             hopMs = -1
+            joyMs = -1
+            joyMs = -1
             return
         }
-        if (hopMs >= 0) {
-            hopMs += dtMs
-            if (hopMs >= HOP_MS) hopMs = -1
+        // Happy: every few seconds the kind's own burst of joy, instead of the same hop for all.
+        if (joyMs >= 0) {
+            joyMs += dtMs
+            if (joyMs >= Cuddles.JOY_MS) joyMs = -1
             return
         }
         hopInMs -= dtMs
         if (hopInMs <= 0) {
-            hopMs = 0
+            joyMs = 0
             hopInMs = random.nextLong(2000, 4001)
         }
     }

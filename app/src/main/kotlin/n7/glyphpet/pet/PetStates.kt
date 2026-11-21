@@ -236,7 +236,7 @@ class StatePreview(val species: Species, val state: PetState) {
             t += FRAME_MS
         }
         val telling: (Shown) -> Boolean = when (state) {
-            PetState.HAPPY -> { s -> s.lift > 0 }
+            PetState.HAPPY -> { s -> s.lift > 0 || s.cheer }
             PetState.TRICK -> { s -> (s.step?.body ?: 0f) >= 0.5f }
             else -> return hold(copy, frame)
         }
@@ -251,7 +251,7 @@ class StatePreview(val species: Species, val state: PetState) {
             val next = copy.tick(FRAME_MS)
             t += FRAME_MS
             if (!state.isShownBy(copy.shown)) break
-            if (state == PetState.HAPPY && copy.shown.lift == 0) break
+            if (state == PetState.HAPPY && copy.shown.lift == 0 && !copy.shown.cheer) break
             val score = if (telling(copy.shown)) changed(before, next) else -1
             if (score > bestScore) {
                 best = next

@@ -23,6 +23,12 @@ class MotionSensor(context: Context) : SensorEventListener {
         /** Shakes closer together count as one; short enough that five shakes open an egg in a few seconds. */
         const val SHAKE_GAP_MS = 1200L
 
+        /** Tapping: a jolt of this much (m/s², high-passed) out of a phone held this still, two of them this far apart. */
+        const val TAP = 1.6f
+        const val TAP_STILL = 0.6f
+        const val TAP_GAP_MIN = 90L
+        const val TAP_GAP_MAX = 550L
+
         /** The accelerometer runs at 100 Hz, fast enough for the pet's inertia to follow a quick move. */
         const val ACCEL_PERIOD_US = 10_000
 
@@ -82,6 +88,11 @@ class MotionSensor(context: Context) : SensorEventListener {
     private var shaken = false
     private var lastShakeMs = 0L
 
+    // Stroking: two light taps on the back, a short sharp jolt each.
+    private var lastHigh = 0f
+    private var lastTapMs = 0L
+    private var stroked = false
+
     private var lastGyroNs = 0L
     private val low = FloatArray(3)
     private var lastAccelNs = 0L
@@ -133,6 +144,22 @@ class MotionSensor(context: Context) : SensorEventListener {
     @Synchronized
     fun consumeShake(): Boolean = shaken.also { shaken = false }
 
+    /** Two light taps on the back (a stroke), reported once. */
+    fun consumeStroke(): Boolean = synchronized(this) { stroked.also { stroked = false } }
+
+    /** A sharp little jolt out of stillness is a tap; two of them close together, a stroke. */
+    private fun watchTap(high: Float, wall: Long) {
+        val tap = high > TAP && lastHigh < TAP / 2 && jitter < TAP_STILL
+        lastHigh = high
+        if (!tap) return
+        val gap = wall - lastTapMs
+        lastTapMs = wall
+        if (gap in TAP_GAP_MIN..TAP_GAP_MAX && wall - lastShakeMs > SHAKE_GAP_MS) {
+            lastTapMs = 0L
+            synchronized(this) { stroked = true }
+        }
+    }
+
 
 
 
@@ -174,6 +201,8 @@ class MotionSensor(context: Context) : SensorEventListener {
         val hy = ay - low[1]
         val hz = az - low[2]
         val high = sqrt(hx * hx + hy * hy + hz * hz)
+        val wallNow = System.currentTimeMillis()
+        watchTap(high, wallNow)
         jitter += (high - jitter) * (1f - exp(-dt / 0.6f))
         // DEMO inertia: the moved phone's acceleration along the world's up (the slow average points up while still),
         // and along the device's x edge with that vertical part taken out.

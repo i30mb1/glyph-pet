@@ -362,6 +362,12 @@ private fun PetScreen(
                     // Time on the Play tab is time together, as on the matrix: the needs run on its fast clock.
                     if (sinceSeen >= SEEN_EVERY_MS) { store.together(seen = playing && nursery.active != null); sinceSeen = 0 }
                     if (playing && motion.consumeShake()) shaken()
+                    // Two light taps on the back stroke it, as on the matrix.
+                    val stroke = playing && motion.consumeStroke()
+                    if (stroke && nursery.active != null && nursery.eggOnMatrix == null && !engine.playingTrick) {
+                        if (PetRules.mood(nursery.stats, store.asleep(nursery.stats)) != Mood.SLEEPING) store.stroke()
+                        engine.pet()
+                    }
                     val scene = Scene(
                         species = nursery.activeForm,
                         mood = PetRules.mood(nursery.stats, store.asleep(nursery.stats)),

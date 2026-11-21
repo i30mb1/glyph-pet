@@ -156,7 +156,7 @@ class PetEngineTest {
     }
 
     @Test
-    fun `a happy pet hops every 2 to 4 seconds and keeps smiling, a calm one never hops`() {
+    fun `a happy pet shows its own joy every 2 to 4 seconds, a calm one never does`() {
         val cat = SpeciesCatalog.get("cat")!!
         fun hops(mood: Mood): List<Long> {
             val engine = PetEngine(Random(11), autoHabits = false)
@@ -164,8 +164,7 @@ class PetEngineTest {
             var wasUp = false
             for (t in 1..250) {
                 engine.tick(80, Scene(cat, mood))
-                val up = engine.shown.lift > 0
-                if (up) assertEquals(Face.CONTENT, engine.shown.face)
+                val up = engine.shown.cheer
                 if (up && !wasUp) starts += t * 80L
                 wasUp = up
             }

@@ -75,9 +75,9 @@ class PetStatesTest {
     }
 
     @Test
-    fun `a happy preview hops, an asleep one peeks, a tired one yawns`() {
+    fun `a happy preview shows its joy, an asleep one peeks, a tired one yawns`() {
         for (s in SpeciesCatalog.all) {
-            assertTrue(s.id, play(StatePreview(s, PetState.HAPPY), 6000).shown.any { it.lift > 0 })
+            assertTrue(s.id, play(StatePreview(s, PetState.HAPPY), 6000).shown.any { it.cheer })
             assertTrue(s.id, play(StatePreview(s, PetState.ASLEEP), 6000).shown.any { it.face == Face.PEEK })
             assertTrue(s.id, play(StatePreview(s, PetState.TIRED), 8000).shown.any { it.face == Face.YAWN })
             assertFalse(s.id, play(StatePreview(s, PetState.CALM), 20_000).shown.any { it.habit || it.lift > 0 })
@@ -171,7 +171,7 @@ class PetStatesTest {
     }
 
     @Test
-    fun `the happy still is caught in the air and the trick still on a full-bright habit frame`() {
+    fun `the happy still is caught in its joy and the trick still on a full-bright habit frame`() {
         for (s in SpeciesCatalog.all) {
             val happy = StatePreview(s, PetState.HAPPY).still()
             val trick = StatePreview(s, PetState.TRICK).still()
@@ -180,7 +180,7 @@ class PetStatesTest {
                 repeat(((maxOf(p.loopMs, 4000) + 1000) / dt).toInt()) { if (p.tick(dt).contentEquals(still)) return ok(p.shown) }
                 return false
             }
-            assertTrue(s.id, caught(PetState.HAPPY, happy) { it.lift > 0 })
+            assertTrue(s.id, caught(PetState.HAPPY, happy) { it.lift > 0 || it.cheer })
             assertTrue(s.id, caught(PetState.TRICK, trick) { (it.step?.body ?: 0f) >= 0.5f })
         }
     }
