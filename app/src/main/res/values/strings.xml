@@ -62,15 +62,15 @@
     <string name="supporter_close">Close</string>
 
     <string name="step_activate">Activate Glyph Pet in Glyph Toys</string>
-    <string name="step_play">Press the Glyph button to feed, and a full pet plays a mini-game. Shake it to see its signature, or to grow a pet that is ready</string>
+    <string name="step_play">Hold the Glyph button to feed, and a full pet plays a mini-game. Shake it to see its signature, or to grow a pet that is ready</string>
     <string name="step_aod">Set it as the Always-on Glyph Toy to keep it with you</string>
 
     <string name="intro_1_title">A new pet every day</string>
-    <string name="intro_1_text">Every day you play, a new pet comes as an egg, always one you do not have yet. Put it on the matrix and press the Glyph button five times: it hatches.</string>
+    <string name="intro_1_text">Every day you play, a new pet comes as an egg, always one you do not have yet. Put it on the matrix and hold the Glyph button five times: it hatches.</string>
     <string name="intro_2_title">A button and gestures</string>
-    <string name="intro_2_text">The pet lives on the back of your phone. Press the Glyph button to feed it; a full one starts a mini-game. A shake shows its signature, or grows it once it is ready.</string>
-    <string name="intro_3_title">Collect all 28</string>
-    <string name="intro_3_text">Every new pet joins your nursery. Nine are common, thirteen rare, four legendary and two mythic.</string>
+    <string name="intro_2_text">The pet lives on the back of your phone, or in the app. Hold the Glyph button to feed it; a full one starts a mini-game you steer by tilting. A shake shows its signature, or grows it once it is ready.</string>
+    <string name="intro_3_title">Collect all 29</string>
+    <string name="intro_3_text">Every new pet joins your nursery. Ten are common, thirteen rare, four legendary and two mythic. Its album shows which of its animations you have seen.</string>
     <string name="intro_next">Next</string>
     <string name="intro_start">Start</string>
 
@@ -202,8 +202,8 @@
     <string name="form_on_matrix">On the matrix</string>
     <string name="form_ready">Ready</string>
     <string name="form_shake">shake the phone 3 times</string>
-    <string name="form_xp_left">%1$d XP to go</string>
-    <string name="xp_progress">%1$s · %2$d/%3$d</string>
+    <string name="form_xp_left">%1$d min to go</string>
+    <string name="xp_progress">%1$s · %2$d of %3$d min</string>
     <string name="xp_max">%1$s · max</string>
     <string name="grow_ready">Ready to grow: shake the phone 3 times</string>
     <string name="grow_ready_pick">Ready to grow: put it on the matrix and shake the phone 3 times</string>
@@ -288,4 +288,7 @@
     <string name="state_trick_ask">What does it do when left alone?</string>
     <string name="state_charging_ask">And if you put the phone on the charger?</string>
     <string name="xp_full">max</string>
+    <string name="xp_tile">%1$d/%2$d min</string>
+    <string name="intro_needs_title">Food, joy, energy</string>
+    <string name="intro_needs_text">Drop by for a couple of minutes when you have time. One meal is a dot of food. One game is a dot of joy for a dot of energy. Worn out, it naps for half a minute; turn the phone over or charge it and it rests fast. It grows while it is on the screen, awake and fed: a teen in 15 minutes, an adult an hour later.</string>
 </resources>

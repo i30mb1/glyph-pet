@@ -66,15 +66,15 @@
     <string name="supporter_close">Закрыть</string>
 
     <string name="step_activate">Включи Glyph Pet в Glyph-игрушках</string>
-    <string name="step_play">Нажми кнопку Glyph, чтобы покормить, а сытому — чтобы поиграть. Потряси — покажет свою фишку, а готовый питомец подрастёт</string>
+    <string name="step_play">Зажми кнопку Glyph, чтобы покормить, а сытому — чтобы поиграть. Потряси — покажет свою фишку, а готовый питомец подрастёт</string>
     <string name="step_aod">Сделай его Always-on игрушкой, чтобы он всегда был с тобой</string>
 
     <string name="intro_1_title">Каждый день — новый питомец</string>
     <string name="intro_1_text">Каждый день, когда ты играешь, приходит новый питомец в яйце, всегда тот, которого у тебя ещё нет. Положи яйцо на матрицу и пять раз зажми кнопку Glyph — он вылупится.</string>
     <string name="intro_2_title">Кнопка и жесты</string>
-    <string name="intro_2_text">Питомец живёт на задней панели телефона. Нажми кнопку Glyph — он поест, а сытый начнёт мини-игру. Потряси — покажет свою фишку, а когда питомец готов, он подрастёт.</string>
-    <string name="intro_3_title">Собери всех 28</string>
-    <string name="intro_3_text">Каждый новый питомец попадает в питомник. Девять обычных, тринадцать редких, четыре легендарных и два мифических.</string>
+    <string name="intro_2_text">Питомец живёт на задней панели телефона или в приложении. Зажми кнопку Glyph — он поест, а сытый начнёт мини-игру, которой управляют наклоном. Потряси — покажет свою фишку, а готовый подрастёт.</string>
+    <string name="intro_3_title">Собери всех 29</string>
+    <string name="intro_3_text">Каждый новый питомец попадает в питомник. Десять обычных, тринадцать редких, четыре легендарных и два мифических. А в альбоме видно, какие его анимации ты уже видел.</string>
     <string name="intro_next">Дальше</string>
     <string name="intro_start">Начать</string>
 
@@ -206,8 +206,8 @@
     <string name="form_on_matrix">На матрице</string>
     <string name="form_ready">Готов</string>
     <string name="form_shake">потряси телефон 3 раза</string>
-    <string name="form_xp_left">ещё %1$d XP</string>
-    <string name="xp_progress">%1$s · %2$d/%3$d</string>
+    <string name="form_xp_left">ещё %1$d мин</string>
+    <string name="xp_progress">%1$s · %2$d из %3$d мин</string>
     <string name="xp_max">%1$s · макс.</string>
     <string name="grow_ready">Готов расти: потряси телефон 3 раза</string>
     <string name="grow_ready_pick">Готов расти: положи его на матрицу и потряси телефон 3 раза</string>
@@ -292,4 +292,7 @@
     <string name="state_trick_ask">Что он делает, когда его не трогают?</string>
     <string name="state_charging_ask">А если поставить телефон на зарядку?</string>
     <string name="xp_full">макс.</string>
+    <string name="xp_tile">%1$d/%2$d мин</string>
+    <string name="intro_needs_title">Еда, радость, энергия</string>
+    <string name="intro_needs_text">Заходи на пару минут, когда есть время. Одна еда — одна точка еды. Одна игра — точка радости, но тратит точку энергии. Устал — уснёт на полминуты, а если перевернуть телефон или поставить на зарядку, быстро отдохнёт. Растёт, пока он на экране бодрый и сытый: подросток через 15 минут, взрослый ещё через час.</string>
 </resources>

@@ -22,35 +22,27 @@ data class Growth(
 }
 
 /** Where experience came from: for the toy's debug log. */
-enum class XpSource { TIME, FEED, TRICK, SIGNATURE, DEBUG }
+enum class XpSource { TIME, DEBUG }
 
 /**
- * Growing by experience: all the numbers in one place. Only the active pet gains, and only while it is awake and
- * neither hungry nor sick; while all three needs are full (5 of 5 dots) every gain counts [FULL_MULTIPLIER] times.
+ * Growing by time together, and by nothing else: a minute with the pet on the screen (the matrix, or the app's Play
+ * tab), awake and not hungry, is a minute of experience. Feeding and playing keep it fed and awake, so they count only
+ * through that. Short visits of a couple of minutes, a few a day: a baby is ready in [BABY_TO_TEEN] minutes (the
+ * first day), a teen [TEEN_TO_ADULT] minutes later (two to four days), well inside the hour or two an owner spends
+ * with one pet before moving on to the next.
  */
 object XpRules {
-    const val BABY_TO_TEEN = 100
-    const val TEEN_TO_ADULT = 300
+    const val BABY_TO_TEEN = 15
+    const val TEEN_TO_ADULT = 60
 
-    /** A minute together: the pet on the matrix (live or Always-on), awake. */
+    /** A minute together: the pet on the screen, awake and not hungry. */
     const val PER_MINUTE = 1
-    /** A meal eaten while food showed [FEED_MAX_DOTS] dots or fewer. */
-    const val FEED = 10
-    const val FEED_MAX_DOTS = 3
-    /** A trick: [TRICK_PER] for every [TRICK_EVERY_MS] it played, up to [TRICK_MAX]. */
-    const val TRICK_PER = 1
-    const val TRICK_EVERY_MS = 5_000L
-    const val TRICK_MAX = 12
-    /** The signature effect watched to the end on the live matrix. */
-    const val SIGNATURE = 3
-    const val FULL_MULTIPLIER = 3
 
     /**
-     * The very first hero of all hatches this far along toward growing, so its owner sees an evolution in the first
-     * ten minutes rather than on the third evening: feeding the hungry newborn ([FEED]) and one mini-game ([TRICK_MAX])
-     * cover what is left of [BABY_TO_TEEN] between them. Every hero after it starts from 0.
+     * The very first hero of all hatches this far along, so its owner sees an evolution within five minutes of
+     * hatching it rather than on another day. Every hero after it starts from 0.
      */
-    const val FIRST_HEAD_START = 78
+    const val FIRST_HEAD_START = 10
 
     /** Minutes together count only while the toy reports at least this often; a longer gap was time away. */
     const val MAX_GAP_MS = 3 * 60_000L
@@ -62,19 +54,10 @@ object XpRules {
         Stage.ADULT -> null
     }
 
-    fun trick(playedMs: Long): Int = ((playedMs.coerceAtLeast(0) / TRICK_EVERY_MS) * TRICK_PER).toInt().coerceAtMost(TRICK_MAX)
-
     /** Whether the pet gains at all now: awake and not hungry. */
     fun gains(stats: PetStats, asleep: Boolean): Boolean = when (PetRules.mood(stats, asleep)) {
         Mood.SLEEPING, Mood.HUNGRY -> false
         else -> true
-    }
-
-    /** [base] as it counts now: times [FULL_MULTIPLIER] while every need shows all its dots. */
-    fun multiplied(base: Int, stats: PetStats): Int {
-        val full = NeedDots.of(stats.satiety) == NeedDots.MAX && NeedDots.of(stats.joy) == NeedDots.MAX &&
-            NeedDots.of(stats.energy) == NeedDots.MAX
-        return if (full) base * FULL_MULTIPLIER else base
     }
 
     /** A save from before experience: a teen's care days (of 3) become that share of its threshold, a baby starts at 0. */

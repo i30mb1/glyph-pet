@@ -234,7 +234,6 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             ButtonAction.FEED -> {
                 val fed = store.feed()
                 val accepted = fed.ate
-                gained(XpSource.FEED, fed.xp)
                 val kind = n.activeForm?.kind
                 if (!accepted && kind != null && n7.glyphpet.pet.Tricks.has(kind) && store.play() && engine.trick(kind)) {
                     // Full: it shows off its trick instead of refusing, and the owner plays along by tilting. Too
@@ -280,24 +279,13 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         haptics.play(HapticEvent(kind, strength))
     }
 
-    /** Feels what the engine collected in its last frame, and counts what the pet finished as experience. */
+    /** Feels what the engine collected in its last frame. Experience comes from time together alone ([XpRules]). */
     private fun feelEngine() {
         engine.haptics?.let { events ->
             for (e in events) feel(e.kind, e.strength)
             events.clear()
         }
-        val done = engine.events ?: return
-        for (e in done) when (e.kind) {
-            PetEvent.Kind.SIGNATURE -> award(XpRules.SIGNATURE, XpSource.SIGNATURE)
-            PetEvent.Kind.TRICK -> award(XpRules.trick(e.ms), XpSource.TRICK)
-        }
-        done.clear()
-    }
-
-    /** The pet earns [base] experience from [source] (see [PetStore.gain]); what it really gained. */
-    private fun award(base: Int, source: XpSource): Int {
-        if (base <= 0) return 0
-        return store.gain(base).also { gained(source, it) }
+        engine.events?.clear()
     }
 
     /** Experience from something the owner did: a spark rises above the pet, and the debug log hears of it. */

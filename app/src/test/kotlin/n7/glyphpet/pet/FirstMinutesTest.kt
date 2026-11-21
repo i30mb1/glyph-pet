@@ -23,11 +23,10 @@ class FirstMinutesTest {
     }
 
     @Test
-    fun `feeding the newborn fills it and is worth experience`() {
+    fun `feeding the newborn fills it a dot`() {
         val (fed, ate) = PetRules.feed(newborn)
         assertTrue(ate)
-        assertTrue(NeedDots.of(fed.satiety) > NeedDots.of(newborn.satiety))
-        assertTrue("a newborn's first meal earns its experience", NeedDots.of(newborn.satiety) <= XpRules.FEED_MAX_DOTS)
+        assertEquals(NeedDots.of(newborn.satiety) + 1, NeedDots.of(fed.satiety))
     }
 
     @Test
@@ -58,9 +57,9 @@ class FirstMinutesTest {
         assertFalse("it still has to be earned", first.ready)
         assertEquals(0, GrowthRules.hatched(today = 0).xp)
 
-        // Feeding the hungry newborn and one mini-game carry it the rest of the way.
+        // Five minutes together carry it the rest of the way.
         val left = XpRules.BABY_TO_TEEN - first.xp
-        assertTrue("$left left after the head start", XpRules.FEED + XpRules.TRICK_MAX >= left)
+        assertTrue("$left minutes left after the head start", left in 3..5)
     }
 
     @Test

@@ -52,6 +52,9 @@ class GrowthRulesTest {
     /** The experience the very first hero hatches with, so its owner meets an evolution soon (see [XpRules.FIRST_HEAD_START]). */
     private val headStart = XpRules.FIRST_HEAD_START
 
+    /** A little experience at a time: a couple of minutes together. */
+    private val STEP = 2
+
     @Test
     fun `a hatch makes a baby and the matrix shows it`() {
         val s = withFirstPet()
@@ -91,12 +94,12 @@ class GrowthRulesTest {
     @Test
     fun `experience is counted in little steps, and a ready pet earns no more`() {
         var s = withFirstPet()
-        repeat((XpRules.BABY_TO_TEEN - headStart) / XpRules.FEED) { s = s.earn(XpRules.FEED) }
+        repeat((XpRules.BABY_TO_TEEN - headStart) / STEP) { s = s.earn(STEP) }
         s = s.earn(XpRules.BABY_TO_TEEN)
         assertEquals(XpRules.BABY_TO_TEEN, s.grownOf().xp)
         assertTrue(s.grownOf().ready)
         // Whatever the owner does now, the pet waits for its shakes.
-        val (more, gained) = GrowthRules.gain(s, XpRules.FEED)
+        val (more, gained) = GrowthRules.gain(s, STEP)
         assertEquals(0, gained)
         assertSame(s, more)
     }
@@ -110,15 +113,15 @@ class GrowthRulesTest {
         repeat(EggRules.PRESSES_TO_HATCH) { s = NurseryRules.press(s, at(1, 11))!! }
         val second = s.active!!
         assertTrue(first != second)
-        s = s.earn(XpRules.FEED)
-        assertEquals(XpRules.FEED, s.grownOf(second).xp)
+        s = s.earn(STEP)
+        assertEquals(STEP, s.grownOf(second).xp)
         assertEquals("the pet that waits earns nothing", headStart, s.grownOf(first).xp)
         // An egg on the matrix sends the pet away: nothing it does counts.
         val away = NurseryRules.putOnMatrix(s, NurseryRules.available(s).first())
-        assertEquals(0, GrowthRules.gain(away, XpRules.FEED).second)
+        assertEquals(0, GrowthRules.gain(away, STEP).second)
         // Nor does a player without a pet at all.
         val empty = NurseryState().at(at(1, 10))
-        assertEquals(0, GrowthRules.gain(empty, XpRules.FEED).second)
+        assertEquals(0, GrowthRules.gain(empty, STEP).second)
     }
 
     @Test
@@ -225,27 +228,11 @@ class GrowthRulesTest {
     // --- What a gain is worth ------------------------------------------------------------------------
 
     @Test
-    fun `a pet with every need full earns three times as much`() {
-        val full = PetStats(100f, 100f, 100f, 0, 0)
-        assertEquals(XpRules.FEED * XpRules.FULL_MULTIPLIER, XpRules.multiplied(XpRules.FEED, full))
-        val hungry = PetStats(20f, 100f, 100f, 0, 0)
-        assertEquals(XpRules.FEED, XpRules.multiplied(XpRules.FEED, hungry))
-    }
-
-    @Test
     fun `a sleeping, sick or hungry pet gains nothing from time`() {
         assertFalse(XpRules.gains(PetStats(80f, 80f, 80f, 0, 0), asleep = true))
         assertFalse(XpRules.gains(PetStats(2f, 2f, 80f, 0, 0), asleep = false))
         assertFalse(XpRules.gains(PetStats(10f, 80f, 80f, 0, 0), asleep = false))
         assertTrue(XpRules.gains(PetStats(80f, 80f, 80f, 0, 0), asleep = false))
-    }
-
-    @Test
-    fun `a trick pays by how long it played, up to its ceiling`() {
-        assertEquals(0, XpRules.trick(0))
-        assertEquals(0, XpRules.trick(XpRules.TRICK_EVERY_MS - 1))
-        assertEquals(XpRules.TRICK_PER, XpRules.trick(XpRules.TRICK_EVERY_MS))
-        assertEquals(XpRules.TRICK_MAX, XpRules.trick(XpRules.TRICK_EVERY_MS * (XpRules.TRICK_MAX + 10)))
     }
 
     @Test

@@ -354,7 +354,7 @@ class PetStoreOldSaveTest {
         assertEquals(GrowResult.NONE, store.growShake(day1 + 3000))
 
         val day2 = day1 + PetStats.DAY_MS
-        // A hundred experience makes it ready; the debug button is the shortest way to it here.
+        // Its threshold of experience makes it ready; the debug button is the shortest way to it here.
         store.debugXp(XpRules.BABY_TO_TEEN, day2)
         assertTrue(PetStore(fakeContext(prefs)).nursery(day2).ready)
         assertEquals(GrowResult.SHOOK, store.growShake(day2))
@@ -372,24 +372,21 @@ class PetStoreOldSaveTest {
     }
 
     @Test
-    fun `a meal brings experience while the pet is hungry, and none once it is full`() {
+    fun `meals bring no experience, minutes together on the screen do`() {
         val now = at(2026, 11, 18, 12)
         val prefs = MemoryPrefs()
         write12(prefs, now, active = "cat", seen = mapOf("cat" to 1))
-        // Three dots of Food or fewer: the meal is worth something (see XpRules.FEED_MAX_DOTS).
-        // High enough that two meals fill the pet past PetRules.FULL; the second, at four dots, is worth nothing.
         prefs.map["satiety"] = 60f
         val store = PetStore(fakeContext(prefs))
-        val fed = store.feed(now)
-        assertTrue(fed.ate)
-        assertEquals(XpRules.FEED, fed.xp)
-        assertEquals(0, store.feed(now).xp)
-        assertEquals(XpRules.FEED, store.nursery(now).activeGrowth?.xp)
-        // Full now: the next meal is refused and brings nothing.
-        val refused = store.feed(now + 1000)
-        assertFalse(refused.ate)
-        assertEquals(0, refused.xp)
-        assertEquals(XpRules.FEED, store.nursery(now + 1000).activeGrowth?.xp)
+        assertTrue(store.feed(now).ate)
+        assertEquals(0, store.nursery(now).activeGrowth?.xp)
+        // Five minutes on the screen, the toy reporting every two seconds: the whole minutes since the first report.
+        var t = now
+        while (t < now + 5 * 60_000L) {
+            t += 2000L
+            store.together(seen = true, nowMs = t)
+        }
+        assertEquals(4, store.nursery(t).activeGrowth?.xp)
     }
 
     @Test
@@ -405,11 +402,12 @@ class PetStoreOldSaveTest {
         prefs.map["joy"] = 2f
         val store = PetStore(fakeContext(prefs))
         assertEquals(Mood.HUNGRY, PetRules.mood(store.nursery(now).stats, asleep = false))
-        assertEquals("a hungry pet earns nothing from time", 0, store.gain(XpRules.SIGNATURE, now))
+        assertEquals("a hungry pet earns nothing from time", 0, store.gain(XpRules.PER_MINUTE, now))
         for (key in listOf("care_day", "care_fed", "care_sick")) assertFalse(key, prefs.map.containsKey(key))
-        // A meal is a dot: the first leaves it hungry, earning nothing; the one that cures it counts.
-        assertEquals(0, store.feed(now + 1000).xp)
-        assertEquals(XpRules.FEED, store.feed(now + 2000).xp)
+        // Two meals of a dot each and it is no longer hungry: then time counts again.
+        store.feed(now + 1000)
+        store.feed(now + 2000)
+        assertEquals(XpRules.PER_MINUTE, store.gain(XpRules.PER_MINUTE, now + 3000))
     }
 
     @Test

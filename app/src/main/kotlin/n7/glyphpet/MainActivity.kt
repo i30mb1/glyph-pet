@@ -227,9 +227,15 @@ private fun Intro(onDone: () -> Unit) {
     val crowd = remember {
         listOf("owl", "ghost", "ufo").map { PetEngine.toCells(SpeciesRenderer.render(SpeciesCatalog.get(it)!!, Face.CONTENT)) }
     }
+    // The three needs: eating, playing happy, asleep.
+    val needs = remember {
+        val cat = SpeciesCatalog.get("cat")!!
+        listOf(Face.EAT, Face.CONTENT, Face.SLEEP).map { PetEngine.toCells(SpeciesRenderer.render(cat, it)) }
+    }
     val pages = listOf(
         Triple(listOf(egg), R.string.intro_1_title, R.string.intro_1_text),
         Triple(listOf(pet), R.string.intro_2_title, R.string.intro_2_text),
+        Triple(needs, R.string.intro_needs_title, R.string.intro_needs_text),
         Triple(crowd, R.string.intro_3_title, R.string.intro_3_text),
     )
     val (pictures, title, text) = pages[step]
@@ -1003,7 +1009,7 @@ private fun HeroTile(
     val xpLine = when {
         ready -> stringResource(R.string.form_ready)
         need == null -> stringResource(R.string.xp_full)
-        else -> "${growth.xp}/$need"
+        else -> stringResource(R.string.xp_tile, growth.xp, need)
     }
     val stage = forms[pager.currentPage].stage
     val reached = stage <= growth.reached

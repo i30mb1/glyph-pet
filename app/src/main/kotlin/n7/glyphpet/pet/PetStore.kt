@@ -65,7 +65,7 @@ data class Nursery(
 }
 
 /** What a meal did: whether the pet [ate] it, and the experience it brought. */
-data class FeedResult(val ate: Boolean, val xp: Int)
+data class FeedResult(val ate: Boolean)
 
 /**
  * The one save, shared by the app screen and the Glyph Toy service. Every change reads the latest
@@ -133,20 +133,12 @@ class PetStore(context: Context) {
         return stats
     }
 
-    /**
-     * Feeds the active pet; [FeedResult.ate] is false when it was full and refused. A meal eaten while food showed
-     * [XpRules.FEED_MAX_DOTS] dots or fewer is worth [XpRules.FEED] experience (see [gain]).
-     */
+    /** Feeds the active pet a dot of food; [FeedResult.ate] is false when it was full and refused. */
     @Synchronized
     fun feed(nowMs: Long = GameClock.now()): FeedResult {
         var ate = false
-        var low = false
-        update(nowMs) { stats ->
-            low = NeedDots.of(stats.satiety) <= XpRules.FEED_MAX_DOTS
-            PetRules.feed(stats).also { ate = it.second }.first
-        }
-        val xp = if (ate && low) gain(XpRules.FEED, nowMs) else 0
-        return FeedResult(ate, xp)
+        update(nowMs) { stats -> PetRules.feed(stats).also { ate = it.second }.first }
+        return FeedResult(ate)
     }
 
     /**
@@ -167,14 +159,14 @@ class PetStore(context: Context) {
     }
 
     /**
-     * The active pet earns [base] experience, if it gains now (awake, neither hungry nor sick, see [XpRules.gains]),
-     * times [XpRules.FULL_MULTIPLIER] while all its needs are full. Returns what it really gained; never throws.
+     * The active pet earns [base] experience, if it gains now (awake and not hungry, see [XpRules.gains]). Returns
+     * what it really gained; never throws.
      */
     @Synchronized
     fun gain(base: Int, nowMs: Long = GameClock.now()): Int = runCatching {
         val stats = update(nowMs)
         if (!XpRules.gains(stats, asleep(stats, nowMs))) return@runCatching 0
-        val (after, gained) = GrowthRules.gain(NurseryRules.advance(loadState(nowMs), nowMs, Random(nowMs)), XpRules.multiplied(base, stats))
+        val (after, gained) = GrowthRules.gain(NurseryRules.advance(loadState(nowMs), nowMs, Random(nowMs)), base)
         if (gained > 0) saveState(after)
         gained
     }.getOrDefault(0)
@@ -190,7 +182,7 @@ class PetStore(context: Context) {
         val stats = update(nowMs) { it.copy(seenAtMs = if (seen) nowMs else 0L) }
         val gains = seen && XpRules.gains(stats, asleep(stats, nowMs))
         val before = loadState(nowMs)
-        val (after, gained) = GrowthRules.together(before, nowMs, gains, XpRules.multiplied(XpRules.PER_MINUTE, stats))
+        val (after, gained) = GrowthRules.together(before, nowMs, gains, XpRules.PER_MINUTE)
         if (after != before) saveState(after)
         gained
     }.getOrDefault(0)
