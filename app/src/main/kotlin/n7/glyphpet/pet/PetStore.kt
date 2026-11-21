@@ -51,6 +51,9 @@ data class Nursery(
     val activeForm: Species? = active,
     val growth: Map<String, Growth> = emptyMap(),
     val justEvolved: Species? = null,
+    /** Minutes with an adult toward the next egg, and whether there is a hero left for it to bring. */
+    val eggMinutes: Int = 0,
+    val eggsLeft: Boolean = false,
 ) {
     fun pressesOf(id: String): Int = presses[id] ?: 0
 
@@ -122,6 +125,8 @@ class PetStore(context: Context) {
             activeForm = GrowthRules.activeForm(state),
             growth = state.seen.keys.mapNotNull { id -> GrowthRules.of(state, id)?.let { id to it } }.toMap(),
             justEvolved = GrowthRules.justEvolved(state, nowMs),
+            eggMinutes = state.eggMinutes,
+            eggsLeft = GrowthRules.eggsLeft(state),
         )
     }
 
@@ -371,6 +376,7 @@ class PetStore(context: Context) {
                 xpAtMs = prefs.getLong(KEY_XP_AT, 0),
                 evolvedAtMs = prefs.getLong(KEY_EVOLVED_AT, 0),
                 evolvedId = prefs.getString(KEY_EVOLVED_ID, null),
+                eggMinutes = prefs.getInt(KEY_EGG_MINUTES, 0),
             )
             val grown = SaveMigration.withGrowth(loaded, today)
             if (version < VERSION || grown !== loaded) saveState(grown)
@@ -413,6 +419,7 @@ class PetStore(context: Context) {
         e.putString(KEY_GROWTH, s.growth.entries.joinToString(",") { (kind, g) -> formatGrowth(kind, g) })
             .putLong(KEY_XP_AT, s.xpAtMs)
             .putLong(KEY_EVOLVED_AT, s.evolvedAtMs)
+            .putInt(KEY_EGG_MINUTES, s.eggMinutes)
         if (s.evolvedId != null) e.putString(KEY_EVOLVED_ID, s.evolvedId)
         e.apply()
     }
@@ -475,6 +482,7 @@ class PetStore(context: Context) {
         const val KEY_VIBRATION = "vibration"
         const val KEY_GROWTH = "growth"
         const val KEY_XP_AT = "xp_at"
+        const val KEY_EGG_MINUTES = "egg_minutes"
         const val KEY_EVOLVED_AT = "evolved_at"
         const val KEY_EVOLVED_ID = "evolved_id"
 

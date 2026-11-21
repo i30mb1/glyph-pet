@@ -101,3 +101,36 @@ class JoySpacingTest {
         assertTrue(bad.joinToString(), bad.isEmpty())
     }
 }
+
+/** An adult's minutes together are not lost: every [XpRules.EGG_MINUTES] bring an egg of a hero not collected yet. */
+class AdultEggTest {
+    private val day = 86_400_000L
+    private fun withAdult(): NurseryState {
+        val kind = "cat"
+        val g = Growth(Stage.ADULT, Stage.ADULT, xp = 0, ready = false, sinceDay = 1)
+        return NurseryState(active = kind, seen = mapOf(kind to 1), growth = mapOf(kind to g), xpAtMs = 10 * day)
+    }
+
+    private fun minutes(s: NurseryState, n: Int): NurseryState {
+        var state = s
+        for (m in 1..n) state = GrowthRules.together(state, 10 * day + m * XpRules.MINUTE_MS, gains = true, perMinute = 1).first
+        return state
+    }
+
+    @Test
+    fun `thirty minutes with an adult bring exactly one egg`() {
+        val half = minutes(withAdult(), 15)
+        assertTrue("${half.eggs} ${half.eggMinutes}", half.eggs.isEmpty() && half.eggMinutes == 15)
+        val full = minutes(withAdult(), 30)
+        assertTrue("${full.eggs} ${full.eggMinutes}", full.eggs.size == 1 && full.eggMinutes == 0)
+        assertTrue(SpeciesCatalog.get(full.eggs.single())!!.rarity != Rarity.ANOMALY)
+    }
+
+    @Test
+    fun `a baby's minutes go to growing, not to an egg, and a full collection brings none`() {
+        val b = minutes(withAdult().copy(growth = mapOf("cat" to Growth(Stage.BABY, Stage.BABY, 0, false, 1))), 30)
+        assertTrue(b.eggs.isEmpty() && b.eggMinutes == 0)
+        val a = minutes(withAdult().copy(seen = SpeciesCatalog.all.associate { it.id to 1 }), 30)
+        assertTrue(a.eggs.isEmpty() && a.eggMinutes == 0)
+    }
+}

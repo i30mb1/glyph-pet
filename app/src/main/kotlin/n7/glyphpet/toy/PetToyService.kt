@@ -574,6 +574,9 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         // An anomaly comes the moment its condition is met (see [n7.glyphpet.pet.AnomalyUnlocks]).
         store.anomalies(charging = power.plugged, battery = power.level, desk = posture == Posture.DESK, deskMs = deskMs)
         val n = store.nursery()
+        // A new egg came (an adult's minutes, the day's egg, an anomaly found): the pet flashes bright for a moment.
+        val before = nursery
+        if (before != null && n.eggs.size > before.eggs.size && n.eggOnMatrix == null) engine.surge()
         nursery = n
         mood = PetRules.mood(n.stats, store.asleep(n.stats))
         power = store.power()

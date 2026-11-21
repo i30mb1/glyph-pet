@@ -772,7 +772,7 @@ private fun NowCard(nursery: Nursery, mood: Mood, action: ButtonAction, onPutOnM
                     )
                 }
             } else {
-                XpBar(pet.id, growth)
+                XpBar(pet.id, growth, nursery)
                 when {
                     growing -> Text(stringResource(R.string.grow_ready), style = N7Type.Caption, color = N7Colors.Ink, textAlign = TextAlign.Center)
                     growth.threshold == null -> NextLine(nursery)
@@ -802,7 +802,7 @@ private fun NextLine(nursery: Nursery) {
  * while the screen is open, a "+N" shows beside it for a moment.
  */
 @Composable
-private fun XpBar(kind: String, growth: Growth) {
+private fun XpBar(kind: String, growth: Growth, nursery: Nursery) {
     val need = growth.threshold
     val xp = growth.xp
     var last by remember(kind, growth.reached) { mutableStateOf(xp) }
@@ -817,9 +817,14 @@ private fun XpBar(kind: String, growth: Growth) {
         }
     }
     val stage = stringResource(stageName(growth.reached))
-    val text = if (need != null) stringResource(R.string.xp_progress, stage, xp, need) else stringResource(R.string.xp_max, stage)
+    val toEgg = need == null && nursery.eggsLeft
+    val text = when {
+        need != null -> stringResource(R.string.xp_progress, stage, xp, need)
+        toEgg -> stringResource(R.string.egg_progress, stage, nursery.eggMinutes, XpRules.EGG_MINUTES)
+        else -> stringResource(R.string.xp_max, stage)
+    }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Dots(lit = if (need != null) (xp * 10 / need).coerceIn(0, 10) else 10, count = 10, dot = 6.dp, gap = 3.dp)
+        Dots(lit = when { need != null -> (xp * 10 / need).coerceIn(0, 10); toEgg -> (nursery.eggMinutes * 10 / XpRules.EGG_MINUTES).coerceIn(0, 10); else -> 10 }, count = 10, dot = 6.dp, gap = 3.dp)
         Text(text, style = N7Type.Caption, color = N7Colors.InkMuted, maxLines = 1)
         if (plus > 0) Text("+$plus", style = N7Type.Caption, color = N7Colors.Ink, maxLines = 1)
     }
@@ -923,6 +928,7 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
                             hero = s,
                             growth = growth,
                             count = count,
+                            toEgg = if (nursery.eggsLeft && nursery.active?.id == s.id) nursery.eggMinutes else null,
                             live = nursery.eggOnMatrix == null && nursery.active?.id == s.id,
                             cells = cells,
                             shadows = shadows,
@@ -1011,6 +1017,8 @@ private fun HeroTile(
     hero: Species,
     growth: Growth,
     count: Int,
+    /** For the active adult: minutes toward the next egg; null otherwise. */
+    toEgg: Int? = null,
     live: Boolean,
     cells: Map<String, List<Cell>>,
     shadows: Map<String, List<Cell>>,
@@ -1023,6 +1031,7 @@ private fun HeroTile(
     val need = growth.threshold
     val xpLine = when {
         ready -> stringResource(R.string.form_ready)
+        need == null && toEgg != null -> stringResource(R.string.egg_tile, toEgg, XpRules.EGG_MINUTES)
         need == null -> stringResource(R.string.xp_full)
         else -> stringResource(R.string.xp_tile, growth.xp, need)
     }

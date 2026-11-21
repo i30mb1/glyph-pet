@@ -28,6 +28,8 @@ data class NurseryState(
     /** When a pet last grew, and the id of the form it grew into ([SpeciesForms.id]). */
     val evolvedAtMs: Long = 0,
     val evolvedId: String? = null,
+    /** Minutes spent with an adult toward the next egg ([GrowthRules.together], [XpRules.EGG_MINUTES]). */
+    val eggMinutes: Int = 0,
 )
 
 /** What a press on an egg did. */

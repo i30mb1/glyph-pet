@@ -38,6 +38,9 @@ object XpRules {
     /** A minute together: the pet on the screen, awake and not hungry. */
     const val PER_MINUTE = 1
 
+    /** Minutes together with a grown-up pet that bring a new egg: an adult's time is not lost. */
+    const val EGG_MINUTES = 30
+
     /**
      * The very first hero of all hatches this far along, so its owner sees an evolution within five minutes of
      * hatching it rather than on another day. Every hero after it starts from 0.
@@ -134,7 +137,28 @@ object GrowthRules {
         val minutes = (since / XpRules.MINUTE_MS).toInt()
         if (minutes <= 0) return s to 0
         val moved = s.copy(xpAtMs = s.xpAtMs + minutes * XpRules.MINUTE_MS)
-        return if (gains) gain(moved, minutes * perMinute) else moved to 0
+        if (!gains) return moved to 0
+        // An adult has nowhere left to grow: its minutes go toward a new egg instead, while there are heroes to find.
+        val kind = moved.active
+        val g = kind?.let { of(moved, it) }
+        if (g != null && g.threshold == null && NurseryRules.onMatrix(moved) == null) return eggTime(moved, minutes, nowMs) to 0
+        return gain(moved, minutes * perMinute)
+    }
+
+    /** Whether minutes with an adult can still bring an egg: some hero the daily egg could bring is still missing. */
+    fun eggsLeft(s: NurseryState): Boolean = NurseryRules.missing(s).any { it.id !in s.eggs }
+
+    /** [minutes] more with an adult; each [XpRules.EGG_MINUTES] give an egg of a hero not collected yet. */
+    fun eggTime(s: NurseryState, minutes: Int, nowMs: Long): NurseryState {
+        if (!eggsLeft(s)) return if (s.eggMinutes != 0) s.copy(eggMinutes = 0) else s
+        var state = s.copy(eggMinutes = s.eggMinutes + minutes)
+        while (state.eggMinutes >= XpRules.EGG_MINUTES) {
+            val pool = NurseryRules.missing(state).filter { it.id !in state.eggs }
+            if (pool.isEmpty()) return state.copy(eggMinutes = 0)
+            val hero = SpeciesCatalog.roll(kotlin.random.Random(nowMs + state.eggs.size), pool)
+            state = state.copy(eggs = state.eggs + hero.id, eggMinutes = state.eggMinutes - XpRules.EGG_MINUTES)
+        }
+        return state
     }
 
     /**

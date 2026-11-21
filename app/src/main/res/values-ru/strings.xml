@@ -213,6 +213,8 @@
     <string name="form_xp_left">ещё %1$d мин</string>
     <string name="xp_progress">%1$s · %2$d из %3$d мин</string>
     <string name="xp_max">%1$s · макс.</string>
+    <string name="egg_progress">%1$s · до яйца %2$d из %3$d мин</string>
+    <string name="egg_tile">яйцо %1$d/%2$d мин</string>
     <string name="grow_ready">Готов расти: потряси телефон 3 раза</string>
     <string name="grow_ready_pick">Готов расти: положи его на матрицу и потряси телефон 3 раза</string>
     <!-- Signature effects: the states card's page and the collection tiles. -->
