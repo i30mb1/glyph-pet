@@ -134,7 +134,7 @@ enum class TiltStyle(val face: Face) {
                 val fw = w - iw
                 val v = at(iu, iw) * (1 - fu) * (1 - fw) + at(iu + 1, iw) * fu * (1 - fw) +
                     at(iu, iw + 1) * (1 - fu) * fw + at(iu + 1, iw + 1) * fu * fw
-                frame[y * size + x] = v.roundToInt()
+                frame[y * size + x] = if (n7.glyph.ui.matrix.GlyphMatrixSpec.isVisible(x, y)) v.roundToInt() else 0
             }
         }
 

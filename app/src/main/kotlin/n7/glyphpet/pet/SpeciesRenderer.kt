@@ -253,7 +253,8 @@ object SpeciesRenderer {
                 Face.SAD -> if (!MoodSigns.drawSad(frame, species, ox, oy, timeMs)) tear(frame, species, ox, oy, timeMs)
                 Face.TIRED, Face.YAWN -> MoodSigns.drawTired(frame, species, ox, oy, timeMs)
                 Face.ANGRY -> badge(frame, VEIN, zX, zY)
-                Face.DIZZY -> if (!MoodSigns.drawDizzy(frame, species, ox, oy, timeMs)) {
+                // Dizzy: each kind's own gag ([Gags]).
+                Face.DIZZY -> if (!Gags.dizzy(frame, species, ox, oy, timeMs) && !MoodSigns.drawDizzy(frame, species, ox, oy, timeMs)) {
                     badge(frame, STAR, heartX - 3, heartY + 1); badge(frame, STAR, heartX + 5, heartY + 1)
                 }
                 else -> Unit

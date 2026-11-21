@@ -34,6 +34,15 @@ class CravingsTest {
     }
 
     @Test
+    fun `every kind has a dizzy gag of its own, and it moves`() {
+        for (s in SpeciesCatalog.all) assertTrue("${s.id} has no dizzy gag", s.kind in Gags.DIZZY_KINDS)
+        for (s in SpeciesForms.all) {
+            val looks = (0 until 2400L step 100).map { SpeciesRenderer.render(s, Face.DIZZY, timeMs = it).toList() }.toSet()
+            assertTrue("${s.id}: the gag does not move", looks.size >= 2)
+        }
+    }
+
+    @Test
     fun `every kind has its own way of being tired, sad and dizzy`() {
         for (s in SpeciesCatalog.all) assertTrue("${s.id} lacks a mood sign", MoodSigns.hasAll(s.kind))
     }
