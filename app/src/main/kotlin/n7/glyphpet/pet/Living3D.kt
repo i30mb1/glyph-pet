@@ -35,7 +35,7 @@ internal class Living3D {
         const val FOLLOW_MS = 250f
         const val BASE_MS = 2500f
 
-        fun handles(species: Species): Boolean = species.rarity == Rarity.LEGENDARY || species.rarity == Rarity.MYTHIC
+        fun handles(species: Species): Boolean = (species.rarity == Rarity.LEGENDARY || species.rarity == Rarity.MYTHIC) && !n7.glyphpet.pet.drawn.Drawn.handles(species.kind)
 
         internal val VISIBLE = BooleanArray(GlyphMatrixSpec.SIZE * GlyphMatrixSpec.SIZE) { i ->
             GlyphMatrixSpec.isVisible(i % GlyphMatrixSpec.SIZE, i / GlyphMatrixSpec.SIZE)

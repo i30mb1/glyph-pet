@@ -10,7 +10,7 @@ import org.junit.Test
  * it so every drop flares in turn, it stays where the drawing puts it, and a sleeper's is faint.
  */
 class SpoutTest {
-    private val whales = SpeciesForms.all.filter { it.kind == "whale" }
+    private val whales = SpeciesForms.sprites.filter { it.kind == "whale" }
 
     @Test
     fun `every whale form has a spout, and its drops are exactly the drawing's, above the body`() {

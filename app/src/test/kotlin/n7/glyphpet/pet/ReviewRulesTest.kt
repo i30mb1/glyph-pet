@@ -55,7 +55,7 @@ class ReviewRulesTest {
 
     @Test
     fun `no habit during eating, refusing, celebrating, a peek, falling food, tired or sad`() {
-        for (s in SpeciesCatalog.all) {
+        for (s in SpeciesCatalog.sprites) {
             val cases = mapOf<String, Pair<Mood, (Long, PetEngine) -> Unit>>(
                 "eating" to (Mood.CONTENT to { t, e -> if (t % 1600 == 80L) e.feed(accepted = true) }),
                 "refusing" to (Mood.HAPPY to { t, e -> if (t % 1120 == 80L) e.feed(accepted = false) }),
@@ -81,7 +81,7 @@ class ReviewRulesTest {
 
     @Test
     fun `a habit that is playing stops at once when charging, sleep, a tilt or another mood comes`() {
-        for (s in SpeciesCatalog.all) {
+        for (s in SpeciesCatalog.sprites) {
             val interrupts = listOf<Pair<String, Scene>>(
                 "charging" to Scene(s, Mood.CONTENT, charging = true, watts = 15f, battery = 0.4f),
                 "asleep" to Scene(s, Mood.SLEEPING),
@@ -105,7 +105,7 @@ class ReviewRulesTest {
 
     @Test
     fun `the peek lasts about a second however it is started, and repeated pokes keep one eye open`() {
-        for (s in SpeciesCatalog.all) for (charging in listOf(false, true)) {
+        for (s in SpeciesCatalog.sprites) for (charging in listOf(false, true)) {
             val scene = Scene(s, Mood.SLEEPING, charging = charging, watts = 10f, battery = 0.5f)
             for (poke in listOf<(PetEngine) -> Unit>({ it.pet() }, { it.shake() }, { it.feed(true) }, { it.feed(false) }, { it.surge() })) {
                 val engine = PetEngine(Random(43))
@@ -135,7 +135,7 @@ class ReviewRulesTest {
     @Test
     fun `long random runs only make valid frames and consistent states`() {
         val moods = Mood.entries
-        for (seed in 0 until 6) for (s in SpeciesCatalog.all) {
+        for (seed in 0 until 6) for (s in SpeciesCatalog.sprites) {
             val r = Random(1000 + seed * 31 + s.id.hashCode())
             val engine = PetEngine(Random(seed), autoHabits = seed % 2 == 0)
             var mood = Mood.CONTENT
@@ -191,7 +191,7 @@ class ReviewRulesTest {
 
     @Test
     fun `Always-on stills are valid for every species, mood, charger and egg`() {
-        for (s in SpeciesCatalog.all) for (mood in Mood.entries) for (charging in listOf(false, true)) for (egg in listOf(null, EggView(EggStage.HATCHING, true))) {
+        for (s in SpeciesCatalog.sprites) for (mood in Mood.entries) for (charging in listOf(false, true)) for (egg in listOf(null, EggView(EggStage.HATCHING, true))) {
             val f = PetEngine().still(Scene(s, mood, charging = charging, egg = egg, watts = 20f, battery = 0.3f))
             assertValid("${s.id} $mood charging=$charging egg=${egg != null}", f)
         }
@@ -199,7 +199,7 @@ class ReviewRulesTest {
 
     @Test
     fun `every preview loops, the signature shows within each loop, for 10 loops`() {
-        for (s in SpeciesCatalog.all) for (st in PetState.entries) {
+        for (s in SpeciesCatalog.sprites) for (st in PetState.entries) {
             val p = StatePreview(s, st)
             val span = if (p.loopMs > 0) 10 * p.loopMs else 30_000L
             val shown = mutableListOf<Shown>()
@@ -227,7 +227,7 @@ class ReviewRulesTest {
 
     @Test
     fun `a preview never shows another state's claim where it should not`() {
-        for (s in SpeciesCatalog.all) {
+        for (s in SpeciesCatalog.sprites) {
             for (st in listOf(PetState.CALM, PetState.HUNGRY, PetState.SAD, PetState.TIRED)) {
                 val p = StatePreview(s, st)
                 repeat(200) {

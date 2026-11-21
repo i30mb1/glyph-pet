@@ -9,7 +9,7 @@ import kotlin.random.Random
 /** 1.1's timed egg into 1.2's egg game: [SaveMigration.from11]. */
 class SaveMigrationTest {
 
-    private val all = SpeciesCatalog.all.map { it.id }
+    private val all = SpeciesCatalog.eggable.map { it.id }
     private val today = 20261116
 
     private fun old(
@@ -76,7 +76,7 @@ class SaveMigrationTest {
 
     @Test
     fun `an unknown species in a save is never offered as an egg`() {
-        val s = SaveMigration.from11(old(egg = "dragon"), Random(1))
+        val s = SaveMigration.from11(old(egg = "griffin"), Random(1))
         assertEquals(1, s.eggs.size)
         assertTrue(s.eggs.single() in all)
     }

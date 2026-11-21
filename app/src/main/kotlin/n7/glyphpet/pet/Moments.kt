@@ -34,7 +34,7 @@ object Moments {
     fun hatchMs(rarity: Rarity): Long = when (rarity) {
         Rarity.COMMON, Rarity.RARE -> HATCH_MS
         Rarity.LEGENDARY -> LEGEND_HATCH_MS
-        Rarity.MYTHIC -> MYTHIC_HATCH_MS
+        Rarity.MYTHIC, Rarity.ANOMALY -> MYTHIC_HATCH_MS
     }
 
     // The evolution: the old form turns once around its vertical axis in pseudo-3D, faster and faster, filling with

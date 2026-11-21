@@ -10,18 +10,18 @@ class CuddlesTest {
 
     @Test
     fun `every kind has its own cuddle, and no two share both the move and the touch`() {
-        for (s in SpeciesCatalog.all) assertTrue("${s.id} has no cuddle", Cuddles.has(s.kind))
-        val styles = SpeciesCatalog.all.map { Cuddles.of(it.kind) }
+        for (s in SpeciesCatalog.sprites) assertTrue("${s.id} has no cuddle", Cuddles.has(s.kind))
+        val styles = SpeciesCatalog.sprites.map { Cuddles.of(it.kind) }
         assertEquals("two kinds cuddle alike", styles.size, styles.toSet().size)
     }
 
     @Test
     fun `every kind has its own joy, never its cuddle, and no two alike`() {
-        for (s in SpeciesCatalog.all) {
+        for (s in SpeciesCatalog.sprites) {
             assertTrue("${s.id} has no joy", Cuddles.hasJoy(s.kind))
             assertTrue("${s.id}: its joy is its cuddle", Cuddles.joyOf(s.kind) != Cuddles.of(s.kind))
         }
-        val joys = SpeciesCatalog.all.map { Cuddles.joyOf(it.kind) }
+        val joys = SpeciesCatalog.sprites.map { Cuddles.joyOf(it.kind) }
         assertEquals("two kinds rejoice alike", joys.size, joys.toSet().size)
     }
 
@@ -36,7 +36,7 @@ class CuddlesTest {
 
     @Test
     fun `a stroke moves on the matrix for every form, stays inside the round matrix, and ends`() {
-        for (s in SpeciesForms.all) {
+        for (s in SpeciesForms.sprites) {
             val frames = stroked(s)
             assertTrue("${s.id}: the cuddle does not move", frames.toSet().size > 3)
             for (f in frames) for (i in f.indices) if (f[i] > 0) {

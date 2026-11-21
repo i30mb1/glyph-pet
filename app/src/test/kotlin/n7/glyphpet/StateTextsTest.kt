@@ -13,7 +13,7 @@ class StateTextsTest {
 
     @Test
     fun `every species names its own trick`() {
-        val names = SpeciesCatalog.all.map { s ->
+        val names = SpeciesCatalog.sprites.map { s ->
             assertNotNull("${s.id}: ${s.habit.id} has no name", habitName(s.habit.id))
             stateName(PetState.TRICK, s)
         }
@@ -22,7 +22,7 @@ class StateTextsTest {
 
     @Test
     fun `every state has its own name and when line`() {
-        val cat = SpeciesCatalog.all.first()
+        val cat = SpeciesCatalog.sprites.first()
         val names = PetState.entries.map { stateName(it, cat) }
         val lines = PetState.entries.map { stateWhen(it) }
         assertEquals(names.size, names.toSet().size)

@@ -51,7 +51,7 @@ object NurseryRules {
     private fun has(s: NurseryState, id: String) = (s.seen[id] ?: 0) > 0
 
     /** The heroes not collected yet, in catalogue order. */
-    fun missing(s: NurseryState): List<Species> = SpeciesCatalog.all.filter { !has(s, it.id) }
+    fun missing(s: NurseryState): List<Species> = SpeciesCatalog.eggable.filter { !has(s, it.id) }
 
     /**
      * Eggs ready to open, oldest first: the daily ones, then, for a supporter, every other missing hero. The

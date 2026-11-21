@@ -51,6 +51,10 @@
     <string name="rarity_group_rare">Rare · %1$d/%2$d</string>
     <string name="rarity_group_legendary">Legendary · %1$d/%2$d</string>
     <string name="rarity_group_mythic">Mythic · %1$d/%2$d</string>
+    <string name="rarity_anomaly">Anomaly</string>
+    <string name="rarity_group_anomaly">Anomalies · %1$d/%2$d</string>
+    <string name="anomaly_hint_title">How to find it</string>
+    <string name="anomaly_hint_tap">HOW TO FIND?</string>
 
     <string name="supporter_title">Supporter</string>
     <string name="supporter_thanks">Thank you for supporting n7!</string>

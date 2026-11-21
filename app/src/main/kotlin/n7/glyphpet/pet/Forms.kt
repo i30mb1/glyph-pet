@@ -531,8 +531,13 @@ object SpeciesForms {
 
     /** Every form: baby, teen, adult of each hero, in catalogue order. */
     val all: List<Species> = SpeciesCatalog.all.flatMap { teen ->
-        listOf(form(teen, Stage.BABY, BABY.getValue(teen.id)), teen, form(teen, Stage.ADULT, ADULT.getValue(teen.id)))
+        val drawn = n7.glyphpet.pet.drawn.Drawn.of(teen.kind)
+        if (drawn != null) n7.glyphpet.pet.drawn.Drawn.forms(drawn)
+        else listOf(form(teen, Stage.BABY, BABY.getValue(teen.id)), teen, form(teen, Stage.ADULT, ADULT.getValue(teen.id)))
     }
+
+    /** The sprite heroes' forms only (what the sprite rules and their tests cover). */
+    val sprites: List<Species> = all.filter { !n7.glyphpet.pet.drawn.Drawn.handles(it.kind) }
 
     private val byId = all.associateBy { it.id }
 

@@ -145,7 +145,7 @@ class StatePreview(val species: Species, val state: PetState) {
 
     /** Starts the preview over, as if its page had just come on screen. */
     fun reset() {
-        engine = PetEngine(Random(31 * state.ordinal + species.id.hashCode()), autoHabits = false, autoSignatures = false)
+        engine = PetEngine(Random(31 * state.ordinal + species.id.hashCode()), autoHabits = false, autoSignatures = false, quickJoy = true)
         timeMs = 0
         cueMs = -1
         nextCueMs = state.stage.cueFirstMs

@@ -28,7 +28,7 @@ class ChargeRendererTest {
 
     @Test
     fun `every form shows every charging state inside the round matrix`() {
-        for (s in SpeciesForms.all) {
+        for (s in SpeciesForms.sprites) {
             val states = buildList<Pair<ChargeState, Long?>> {
                 for (level in listOf(0f, 0.37f, 1f)) for (watts in listOf(0f, 5f, 65f)) for (t in 0L..4000L step 480) {
                     add(state(watts, level, time = t) to null)
@@ -49,7 +49,7 @@ class ChargeRendererTest {
 
     @Test
     fun `every teen and adult has its own charging, and it shows more as the battery fills`() {
-        for (s in SpeciesForms.all.filter { it.stage != Stage.BABY }) {
+        for (s in SpeciesForms.sprites.filter { it.stage != Stage.BABY }) {
             val own = KindCharge.way(s) != null || KindCharge2.way(s) != null ||
                 (s.charge != ChargeWay.WHEEL && s.charge != ChargeWay.FILL)
             assertTrue("${s.id} shares the wheel or the fill", own)

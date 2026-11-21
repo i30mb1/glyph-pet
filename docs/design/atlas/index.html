@@ -70,7 +70,7 @@ table.atlas { border-collapse: separate; border-spacing: 0; font-size: 12px }
 .atlas thead th.pet { z-index: 3 }
 .pet .n { font: 600 14px var(--display); display: block }
 .pet .r { font: 500 10px var(--body); letter-spacing: .08em; text-transform: uppercase }
-.r.COMMON { color: var(--muted) } .r.RARE { color: #8fc3ff } .r.LEGENDARY { color: #f2b35b } .r.MYTHIC { color: #e79bff } .r.ANOMALY { color: #ff7a6b }
+.r.COMMON { color: var(--muted) } .r.RARE { color: #8fc3ff } .r.LEGENDARY { color: #f2b35b } .r.MYTHIC { color: #e79bff } .r.ANOMALY { color: #ff7a6b } .r.IDEA { color: #7fd6ff }
 .pet .u { display: block; color: var(--muted); font-size: 11px; line-height: 1.35; margin-top: 4px; max-width: 120px }
 .pet .k { color: var(--muted); font-size: 11px }
 td.cell { padding: 8px 6px 7px; text-align: center; vertical-align: top; cursor: pointer; transition: opacity .15s }
@@ -91,13 +91,28 @@ dialog button { background: none; border: 1px solid var(--line); color: var(--in
 .summary { margin: -12px 0 0; display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--muted); font-size: 13px }
 .summary b { color: var(--ink); font: 700 20px/1 var(--display); margin-right: 5px; font-variant-numeric: tabular-nums }
 @media (prefers-reduced-motion: reduce) { td.cell { transition: none } }
+.ideas { display: grid; gap: 22px }
+.ideas .bar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between }
+.ideas .bar p { margin: 0; color: var(--muted) }
+.ideas .bar b { color: var(--ink); font: 700 18px var(--display); margin: 0 4px }
+.ideas h3 { font: 600 13px var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: grid; gap: 6px; align-content: start; transition: border-color .15s, opacity .15s }
+.card canvas { width: 100%; max-width: 128px; aspect-ratio: 1; margin: 0 auto; display: block; cursor: pointer }
+.card .n { font: 600 14px var(--display) }
+.card .i { color: var(--muted); font-size: 12px; line-height: 1.35 }
+.card .vote { display: flex; gap: 6px; margin-top: 2px }
+.card .vote button { flex: 1; min-height: 34px; background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 8px; cursor: pointer; font: 500 13px var(--body) }
+.card .vote button:hover { color: var(--ink); border-color: var(--muted) }
+.card.like { border-color: #7ee0b5 } .card.like .vote [data-v="like"] { background: #7ee0b5; border-color: #7ee0b5; color: #0b0c0e }
+.card.no { opacity: .45 } .card.no .vote [data-v="no"] { background: #3a3e46; color: var(--ink) }
 </style>
 
 <div class="wrap">
   <header>
     <h1>Атлас Glyph Pet</h1>
     <p class="lede">Все питомцы по вертикали, все анимации по горизонтали. Кадры записаны из настоящего движка игры (<code>AtlasExport</code>), так что здесь видно ровно то, что играет на матрице. Метка под кадром показывает, общая это анимация или своя у питомца. Тап по клетке открывает её крупно.</p>
-    <p class="lede"><b style="color:#ff7a6b">Аномалии</b> — новый тир выше мифических, пока концепт: кадры нарисованы отдельным генератором (<code>Anomalies</code>), в игре их ещё нет. Каждая занимает всю матрицу, у каждой своё правило и свой секретный способ открыть.</p>
+    <p class="lede"><b style="color:#ff7a6b">Рисованные герои</b> — 17 новых: 8 аномалий (свой тир, приходят, когда выполнишь условие) и 9 из яйца. Они не спрайты, а рисунок на всю матрицу (<code>pet/drawn</code>); кадры здесь — их собственные клипы.</p>
   </header>
 
   <section class="top">
@@ -197,7 +212,8 @@ const COLS = [
   ["charging", "Зарядка", "Телефон на зарядке", "Система"],
   ["grow", "Рост", "Яйцо: 5 нажатий. Рост: тряска, когда готов", "Система"],
 ];
-const RAR = { COMMON: "Обычный", RARE: "Редкий", LEGENDARY: "Легендарный", MYTHIC: "Мифический", ANOMALY: "Аномалия · концепт" };
+const RAR = { COMMON: "Обычный", RARE: "Редкий", LEGENDARY: "Легендарный", MYTHIC: "Мифический", ANOMALY: "Аномалия" };
+const IDEA_GROUPS = [["ANOMALY", "Аномалии · полный концепт, все анимации в таблице ниже"], ["IDEA_COMMON", "Обычные · ожившие вещи"], ["IDEA_RARE", "Редкие · звери с фишкой"], ["IDEA_LEGEND", "Легендарные · мифы и фольклор"], ["IDEA_GENRE", "Жанры · фантастика и приключения"], ["IDEA_ODD", "Странные · ломают правила"]];
 const STAGE = { baby: "BABY", teen: "TEEN", adult: "ADULT" };
 
 let meta, mask, stage = "teen", frames = {}, focus = false, query = "", rarityOn = new Set(Object.keys(RAR));
@@ -328,7 +344,7 @@ async function loadStage(s) {
 // The counts over every hero at this stage, whatever the filters: states, heroes, animations and how many are their own.
 function summarize() {
   let cells = 0, own = 0, std = 0, rep = 0;
-  for (const p of meta.pets) for (const [id] of COLS) {
+  for (const p of meta.pets.filter(p => !p.rarity.startsWith("IDEA"))) for (const [id] of COLS) {
     if (!(frames[p.kind] && frames[p.kind][id])) continue;
     cells++;
     const c = tagOf(p, id, p.forms[STAGE[stage]])[0];
@@ -336,7 +352,7 @@ function summarize() {
   }
   const stageName = { baby: "малыша", teen: "подростка", adult: "взрослого" }[stage];
   document.getElementById("summary").innerHTML =
-    `<span><b>${COLS.length}</b>состояний</span><span><b>${meta.pets.length}</b>питомцев</span>` +
+    `<span><b>${COLS.length}</b>состояний</span><span><b>${meta.pets.filter(p => !p.rarity.startsWith("IDEA")).length}</b>питомцев</span>` +
     `<span><b>${cells}</b>анимаций у ${stageName}</span><span><b>${own}</b>своих</span><span><b>${std}</b>общих</span>` +
     (rep ? `<span><b>${rep}</b>повторов</span>` : "");
 }
@@ -345,16 +361,16 @@ function render() {
   summarize();
   const grid = document.getElementById("grid");
   live.clear(); visible.clear(); io.disconnect();
-  const pets = meta.pets.filter(p => rarityOn.has(p.rarity) &&
+  const pets = meta.pets.filter(p => !p.rarity.startsWith("IDEA") && rarityOn.has(p.rarity) &&
     (!query || (p.name + " " + p.kind + " " + p.forms[STAGE[stage]].name).toLowerCase().includes(query)));
   const groups = [];
   for (const c of COLS) { const g = groups[groups.length - 1]; if (g && g[0] === c[3]) g[1]++; else groups.push([c[3], 1]); }
   let h = `<table class="atlas"><thead><tr class="groups"><th class="pet"></th>${groups.map(([g, n]) => `<th colspan="${n}">${g}</th>`).join("")}</tr>`;
-  h += `<tr class="cols"><th class="pet"><span class="n">Питомец</span><span class="w">${pets.length} из ${meta.pets.length}</span></th>`;
+  h += `<tr class="cols"><th class="pet"><span class="n">Питомец</span><span class="w">${pets.length} из ${meta.pets.filter(p => !p.rarity.startsWith("IDEA")).length}</span></th>`;
   h += COLS.map(([, n, w]) => `<th><span class="n">${n}</span><span class="w">${w}</span></th>`).join("") + `</tr></thead><tbody>`;
   for (const p of pets) {
     const form = p.forms[STAGE[stage]];
-    h += `<tr><th class="pet" scope="row"><span class="r ${p.rarity}">${RAR[p.rarity]}</span><span class="n">${form.name}</span><span class="k">${p.kind}</span>${p.concept ? `<span class="u" title="${p.idea}">Открыть: ${p.unlock}</span>` : ""}</th>`;
+    h += `<tr><th class="pet" scope="row"><span class="r ${p.rarity}">${RAR[p.rarity]}</span><span class="n">${form.name}</span><span class="k">${p.kind}</span>${p.concept ? `<span class="u" title="${p.idea}">${p.unlock ? "Как найти: " + p.unlock : p.idea}</span>` : ""}</th>`;
     for (const [id, name] of COLS) {
       const data = frames[p.kind] && frames[p.kind][id];
       if (!data) { h += `<td class="empty" title="Нет у этого питомца">–</td>`; continue; }

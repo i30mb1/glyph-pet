@@ -35,11 +35,11 @@ class EggRulesTest {
 
     @Test
     fun `the catalog has 29 pets in four tiers`() {
-        assertEquals(29, SpeciesCatalog.all.size)
-        assertEquals(10, SpeciesCatalog.all.count { it.rarity == Rarity.COMMON })
-        assertEquals(13, SpeciesCatalog.all.count { it.rarity == Rarity.RARE })
-        assertEquals(4, SpeciesCatalog.all.count { it.rarity == Rarity.LEGENDARY })
-        assertEquals(2, SpeciesCatalog.all.count { it.rarity == Rarity.MYTHIC })
+        assertEquals(29, SpeciesCatalog.sprites.size)
+        assertEquals(10, SpeciesCatalog.sprites.count { it.rarity == Rarity.COMMON })
+        assertEquals(13, SpeciesCatalog.sprites.count { it.rarity == Rarity.RARE })
+        assertEquals(4, SpeciesCatalog.sprites.count { it.rarity == Rarity.LEGENDARY })
+        assertEquals(2, SpeciesCatalog.sprites.count { it.rarity == Rarity.MYTHIC })
     }
 
     private fun draw(f: (IntArray) -> Unit) = IntArray(625).also(f)

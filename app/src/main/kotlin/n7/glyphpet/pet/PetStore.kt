@@ -193,6 +193,31 @@ class PetStore(context: Context) {
         gained
     }.getOrDefault(0)
 
+    /**
+     * Grants the egg of every anomaly whose condition is met now ([AnomalyUnlocks]) and the player has neither hatched
+     * nor been given yet. Returns the kinds granted.
+     */
+    @Synchronized
+    fun anomalies(charging: Boolean, battery: Float, desk: Boolean, deskMs: Long, nowMs: Long = GameClock.now()): List<String> = runCatching {
+        val state = loadState(nowMs)
+        val facts = facts(state, charging, battery, desk, deskMs, nowMs)
+        val new = n7.glyphpet.pet.drawn.Drawn.anomalies.map { it.kind }
+            .filter { (state.seen[it] ?: 0) == 0 && it !in state.eggs && AnomalyUnlocks.met(it, facts) }
+        if (new.isNotEmpty()) saveState(state.copy(eggs = new + state.eggs))
+        new
+    }.getOrDefault(emptyList())
+
+    /** The facts [AnomalyUnlocks] reads, for the nursery's hints. */
+    fun anomalyFacts(nowMs: Long = GameClock.now()): AnomalyUnlocks.Facts =
+        facts(loadState(nowMs), false, 0f, false, 0L, nowMs)
+
+    private fun facts(state: NurseryState, charging: Boolean, battery: Float, desk: Boolean, deskMs: Long, nowMs: Long) = AnomalyUnlocks.Facts(
+        charging = charging, battery = battery, stats = runCatching { loadStats(nowMs) }.getOrNull(),
+        collected = state.seen.filterValues { it > 0 }.keys,
+        adults = state.growth.values.count { it.reached == Stage.ADULT },
+        nowMs = nowMs, desk = desk, deskMs = deskMs,
+    )
+
     /** A shake while the active pet is ready to grow: counts it, the last one grows the pet (see [GrowthRules.shake]). */
     @Synchronized
     fun growShake(nowMs: Long = GameClock.now()): GrowResult {

@@ -18,15 +18,15 @@ class FormsTest {
         }
     }
 
-    private val babiesAndAdults = SpeciesForms.all.filter { it.stage != Stage.TEEN }
+    private val babiesAndAdults = SpeciesForms.sprites.filter { it.stage != Stage.TEEN }
 
     @Test
     fun `three forms per hero, the teens are the catalogue itself`() {
         // Three forms each, no two sharing an id.
-        val forms = SpeciesCatalog.all.size * Stage.entries.size
-        assertEquals(forms, SpeciesForms.all.size)
-        assertEquals(forms, SpeciesForms.all.map { it.id }.toSet().size)
-        for (teen in SpeciesCatalog.all) {
+        val forms = SpeciesCatalog.sprites.size * Stage.entries.size
+        assertEquals(forms, SpeciesForms.sprites.size)
+        assertEquals(forms, SpeciesForms.sprites.map { it.id }.toSet().size)
+        for (teen in SpeciesCatalog.sprites) {
             val forms = SpeciesForms.all(teen.id)
             assertEquals(Stage.entries, forms.map { it.stage })
             assertTrue(forms.all { it.kind == teen.id && it.name == teen.name && it.rarity == teen.rarity && it.inverted == teen.inverted })
@@ -58,7 +58,7 @@ class FormsTest {
 
     @Test
     fun `babies fill up on the charger, every older form charges the hero's way`() {
-        for (teen in SpeciesCatalog.all) {
+        for (teen in SpeciesCatalog.sprites) {
             assertEquals("${teen.id}.baby", ChargeWay.FILL, SpeciesForms.of(teen.id, Stage.BABY).charge)
             assertEquals("${teen.id}.adult", teen.charge, SpeciesForms.of(teen.id, Stage.ADULT).charge)
         }
@@ -66,7 +66,7 @@ class FormsTest {
 
     @Test
     fun `habits by stage - the teen's own, none for babies, adults their grown-up habit`() {
-        for (teen in SpeciesCatalog.all) {
+        for (teen in SpeciesCatalog.sprites) {
             assertEquals(teen.habit.id, Habits.forStage(teen.id, Stage.TEEN, teen.rows).id)
             assertTrue("${teen.id}.baby", SpeciesForms.of(teen.id, Stage.BABY).habit.none)
             // An adult has its own habit now (Habits.forStage, Stage.ADULT), or the wiggle where it has none.
@@ -80,7 +80,7 @@ class FormsTest {
 
     @Test
     fun `every face of every form renders inside the matrix`() {
-        for (s in SpeciesForms.all) {
+        for (s in SpeciesForms.sprites) {
             for (face in Face.entries) for (blink in listOf(false, true)) {
                 val grid = SpeciesRenderer.carve(s, face, blink = blink)
                 assertEquals(s.height, grid.size)
@@ -97,7 +97,7 @@ class FormsTest {
 
     @Test
     fun `every habit frame of every form renders inside the matrix`() {
-        for (s in SpeciesForms.all) for (dx in -4..4) for (f in s.habit.frames) for (face in listOf(Face.IDLE, Face.CONTENT, Face.HAPPY)) {
+        for (s in SpeciesForms.sprites) for (dx in -4..4) for (f in s.habit.frames) for (face in listOf(Face.IDLE, Face.CONTENT, Face.HAPPY)) {
             assertValid("${s.id} habit dx=$dx", SpeciesRenderer.render(s, f.face ?: face, dx = dx, habit = f, lift = 1))
         }
     }
@@ -106,7 +106,7 @@ class FormsTest {
     fun `every form charges inside the matrix`() {
         fun state(watts: Float, level: Float, t: Long, still: Boolean = false) =
             ChargeState(timeMs = t, spin = t * 0.012, pace = t * 0.003, watts = watts, level = level, still = still)
-        for (s in SpeciesForms.all) {
+        for (s in SpeciesForms.sprites) {
             val states = buildList<Pair<ChargeState, Long?>> {
                 for (level in listOf(0f, 0.37f, 1f)) for (watts in listOf(0f, 5f, 65f)) for (t in 0L..4000L step 480) add(state(watts, level, t) to null)
                 add(state(18f, 0.6f, 0, still = true) to null)
@@ -125,7 +125,7 @@ class FormsTest {
 
     @Test
     fun `the engine plays every form in every mood, with and without an egg, on and off the charger`() {
-        for (s in SpeciesForms.all) {
+        for (s in SpeciesForms.sprites) {
             for (mood in Mood.entries) for (egg in listOf(null, EggView(EggStage.CRACKED, golden = true))) for (charging in listOf(false, true)) {
                 val engine = PetEngine(Random(s.id.hashCode() + mood.ordinal))
                 val scene = Scene(s, mood, charging = charging, egg = egg, watts = 20f, battery = 0.5f)

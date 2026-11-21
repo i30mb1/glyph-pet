@@ -7,6 +7,7 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sign
 import kotlin.random.Random
+import n7.glyphpet.pet.drawn.Drawn
 
 /**
  * Everything the matrix needs to know right now. [species] is null before the first egg hatches. [egg] is the egg the
@@ -78,6 +79,8 @@ class PetEngine(
     private val random: Random = Random.Default,
     private val autoHabits: Boolean = true,
     private val autoSignatures: Boolean = true,
+    /** A preview of the happy state shows its burst of joy every couple of seconds, not spaced out like the live pet. */
+    private val quickJoy: Boolean = false,
 ) {
 
     companion object {
@@ -91,6 +94,12 @@ class PetEngine(
         /** Rows a happy pet is off the ground, frame by frame (80 ms each). */
         private val HOP = intArrayOf(1, 2, 2, 1)
         const val HOP_MS = 320L
+
+        /** A happy pet's own burst of joy comes once in this long, at random, like a habit... */
+        const val JOY_EVERY_MIN_MS = 10_000L
+        const val JOY_EVERY_MAX_MS = 20_000L
+        /** ...and the first one this soon after it became happy. */
+        const val JOY_FIRST_MS = 2000L
 
         const val ALERT_MS = 1400L
 
@@ -247,7 +256,7 @@ class PetEngine(
     private var watts = 0f
     private var spin = 0.0
     private var pace = 0.0
-    private var hopInMs = 2000L
+    private var hopInMs = if (quickJoy) 300L else JOY_FIRST_MS
     private var hopMs = -1L
     /** A happy pet's own burst of joy ([Cuddles.joyOf]) playing now, ms in; -1 when none. */
     private var joyMs = -1L
@@ -571,6 +580,7 @@ class PetEngine(
             Mood.TIRED -> if (SpeciesRenderer.showsMouth(species)) Face.YAWN else Face.TIRED
             else -> moodFace(scene.mood)
         }
+        if (Drawn.handles(species.kind)) return Drawn.frame(species.kind, if (scene.charging) "charging" else "calm", 0, species.stage, frame = frame)
         if (scene.charging) {
             val body3d = if (Living3D.handles(species)) runCatching { living.still(species) }.getOrNull() else null
             ChargeRenderer.render(species, chargeState(scene, still = true), frame = frame, body3d = body3d)
@@ -593,7 +603,11 @@ class PetEngine(
                     is Hatch -> Moments.hatchFeel(before, momentMs, feel)
                     is Evolve -> Moments.evolveFeel(before, momentMs, feel)
                 }
-                when (m) {
+                val grown = when (m) { is Hatch -> m.baby; is Evolve -> m.to }
+                if (Drawn.handles(grown.kind)) {
+                    // A drawn hero hatches and grows its own way: its "grow" clip, stretched over the moment.
+                    Drawn.frame(grown.kind, "grow", momentMs * Drawn.length("grow") / m.durationMs, grown.stage, frame = frame)
+                } else when (m) {
                     is Hatch -> Moments.hatch(frame, momentMs, m.baby, m.golden)
                     is Evolve -> Moments.evolve(frame, momentMs, m.from, m.to)
                 }
@@ -657,6 +671,12 @@ class PetEngine(
             trickAsked = false
             // The charging indicator has the whole matrix: a kind's own meal does not play here either.
             if (foodY != null || feastMs >= 0) { foodY = null; feastMs = -1; start(Action.EATING, 1800) }
+            if (Drawn.handles(species.kind)) {
+                Drawn.frame(species.kind, "charging", time, species.stage, frame = frame)
+                if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
+                shown = Shown(null, charging = true)
+                return frame
+            }
             // The top tiers stay in 3D on the charger ([Living3D]).
             val body3d = if (Living3D.handles(species)) runCatching { living.live(species, dtMs, scene.tilt, scene.tiltY, time, -1f, scene.yaw) }.getOrNull() else null
             ChargeRenderer.render(species, chargeState(scene, still = asleep), plugMs.takeIf { it >= 0 }, frame, body3d)
@@ -706,8 +726,12 @@ class PetEngine(
         val fe = feast
         if (fe != null && updateFeast(dtMs, species, asleep)) {
             // This kind eats its own way: its meal has the whole matrix until it is finished. It draws the food itself,
-            // so it is handed a plain content face, not [Face.EAT], whose badge would be a second piece beside the pet.
-            fe.draw(frame, input(species, feastMs, dtMs, scene, Face.CONTENT))
+            // so it is handed a plain face, not [Face.EAT], whose badge would be a second piece beside the pet. Food does
+            // not cheer a sad pet up (only play and strokes do): it eats with its sad face, in its rain.
+            val sad = scene.mood == Mood.SAD
+            fe.draw(frame, input(species, feastMs, dtMs, scene, if (sad) Face.SAD else Face.CONTENT))
+            cover.fill(SpeciesRenderer.COVER_NONE)
+            weather.draw(frame, dtMs, if (sad) Weather.Kind.RAIN else Weather.Kind.NONE, scene.tilt, scene.tiltY, cover)
             if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
             shown = Shown(Face.EAT, dx = x.roundToInt())
             return frame
@@ -723,6 +747,8 @@ class PetEngine(
             return frame
         }
 
+
+        if (Drawn.handles(species.kind)) return drawn(dtMs, species, scene, asleep, frame)
 
         // The frame of the species' habit playing now, if one is. The pet answers a tilted or turned phone with its
         // eyes alone ([look]): shifting the top of its body sideways read as a glitch of the sprite, not as a lean.
@@ -805,6 +831,50 @@ class PetEngine(
         weather.draw(frame, dtMs, sky, scene.tilt, scene.tiltY, cover)
         if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
         shown = Shown(face, habit = own != null, lift = lift, step = own, dx = dx, cheer = joyMs >= 0 && cuddle != null)
+        return frame
+    }
+
+    /** A drawn hero's habit playing now, ms in; -1 when none. */
+    private var drawnHabitMs = -1L
+
+    /**
+     * Everything else a drawn hero ([Drawn]) shows: its clip for the reaction, the lean, its habit or its mood. Its
+     * game, signature and meal have already played through the usual registries.
+     */
+    private fun drawn(dtMs: Long, species: Species, scene: Scene, asleep: Boolean, frame: IntArray): IntArray {
+        val sliding = !asleep && action == Action.NONE && abs(scene.tilt) > SLIDE_TILT
+        val free = !asleep && action == Action.NONE && !sliding && (scene.mood == Mood.CONTENT || scene.mood == Mood.HAPPY)
+        if (drawnHabitMs >= 0) {
+            drawnHabitMs += dtMs
+            if (!free || drawnHabitMs >= Drawn.length("habit")) { drawnHabitMs = -1; habitInMs = nextHabitIn() }
+        } else if (free && (trickAsked || (autoHabits && quietMs >= QUIET_MS && habitInMs <= 0 && signatureMs < 0 && announceMs < 0))) {
+            trickAsked = false
+            drawnHabitMs = 0
+        }
+        val (col, t) = when {
+            action == Action.LOVED -> "loved" to (Cuddles.DURATION_MS - actionLeftMs)
+            action == Action.DIZZY -> "dizzy" to (2500 - actionLeftMs)
+            action == Action.EATING -> "eating" to time
+            action == Action.REFUSING -> "tired" to time
+            action == Action.SURGE -> "happy" to time
+            sliding -> "tilt" to time
+            drawnHabitMs >= 0 -> "habit" to drawnHabitMs
+            asleep -> "asleep" to time
+            scene.mood == Mood.HUNGRY -> "hungry" to time
+            scene.mood == Mood.SAD -> "sad" to time
+            scene.mood == Mood.TIRED -> "tired" to time
+            scene.mood == Mood.HAPPY && joyMs >= 0 -> "happy" to joyMs
+            else -> "calm" to time
+        }
+        Drawn.frame(species.kind, col, t, species.stage, if (sliding) scene.tilt else 0f, frame)
+        if (scene.ready && action != Action.SURGE) { val phase = time % READY_EVERY_MS; if (phase < READY_SWEEP_MS) surgeGlow(frame) }
+        if (action == Action.SURGE) surgeGlow(frame)
+        if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
+        val state = PetState.entries.firstOrNull { it.id == (if (col == "habit") "trick" else col) }
+        shown = Shown(
+            face = if (col == "habit") null else state?.stage?.face ?: Face.IDLE,
+            habit = col == "habit", lift = if (col == "happy") 1 else 0, cheer = col == "happy",
+        )
         return frame
     }
 
@@ -935,22 +1005,25 @@ class PetEngine(
             return
         }
         hopsLeft = 0
-        if (mood != Mood.HAPPY || action != Action.NONE || sliding || habitMs >= 0) {
+        if (mood != Mood.HAPPY || action != Action.NONE || sliding || habitMs >= 0 || drawnHabitMs >= 0) {
             hopMs = -1
             joyMs = -1
-            joyMs = -1
+            // Not happy now: the next time it is, its first burst comes soon, so the change shows.
+            if (mood != Mood.HAPPY) hopInMs = if (quickJoy) 300L else random.nextLong(JOY_FIRST_MS, JOY_FIRST_MS + 1001)
             return
         }
-        // Happy: every few seconds the kind's own burst of joy, instead of the same hop for all.
+        // Happy: now and then the kind's own burst of joy, spaced out like a habit; in between, just a happy face.
         if (joyMs >= 0) {
             joyMs += dtMs
-            if (joyMs >= Cuddles.JOY_MS) joyMs = -1
+            if (joyMs >= (if (Drawn.handles(kindNow)) Drawn.length("happy") else Cuddles.JOY_MS)) joyMs = -1
             return
         }
         hopInMs -= dtMs
         if (hopInMs <= 0) {
+            // A signature on its way or playing goes first: the burst waits a moment.
+            if (signatureMs >= 0 || announceMs >= 0 || signatureDue()) { hopInMs = 2000; return }
             joyMs = 0
-            hopInMs = random.nextLong(2000, 4001)
+            hopInMs = if (quickJoy) random.nextLong(1500, 2501) else random.nextLong(JOY_EVERY_MIN_MS, JOY_EVERY_MAX_MS + 1)
         }
     }
 

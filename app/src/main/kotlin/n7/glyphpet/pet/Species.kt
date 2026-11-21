@@ -4,7 +4,7 @@ package n7.glyphpet.pet
  * A hero's status. [weight] is the tier's share of the eggs in per mille, split evenly over its heroes by
  * [SpeciesCatalog.roll]: over the whole catalogue 70% common, 24.5% rare, 4% legendary and 1.5% mythic.
  */
-enum class Rarity(val weight: Int) { COMMON(700), RARE(245), LEGENDARY(40), MYTHIC(15) }
+enum class Rarity(val weight: Int) { COMMON(700), RARE(245), LEGENDARY(40), MYTHIC(15), ANOMALY(0) }
 
 /**
  * How far a pet has grown. A hero hatches as a [BABY], grows into a [TEEN] (the form [SpeciesCatalog] draws) and
@@ -116,7 +116,8 @@ object SpeciesCatalog {
         Overlay(listOf(".o.", "o.."), 7, 15),
     )
 
-    val all: List<Species> = listOf(
+    /** The sprite heroes, drawn by [SpeciesRenderer]. */
+    val sprites: List<Species> = listOf(
         // The first batch: cat, ghost, bot, frog, dino (the rarity is on each species)
         Species(
             "cat", "Cat", Rarity.RARE,
@@ -438,6 +439,12 @@ object SpeciesCatalog {
             habit = Habits::raccoon,
         ),
     )
+
+    /** Every hero: the sprite ones, then the drawn ones ([n7.glyphpet.pet.drawn.Drawn]). */
+    val all: List<Species> = sprites + n7.glyphpet.pet.drawn.Drawn.all.map { n7.glyphpet.pet.drawn.Drawn.forms(it)[1] }
+
+    /** The heroes the daily egg can bring: every one but the anomalies, which are found ([AnomalyUnlocks]). */
+    val eggable: List<Species> = all.filter { it.rarity != Rarity.ANOMALY }
 
     private val byId = all.associateBy { it.id }
 

@@ -440,6 +440,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         )
         sync(force = false)
         val desk = posture == Posture.DESK
+        deskMs = if (desk) deskMs + dt else 0L
         updateToward(dt)
         val frame = engine.tick(dt, scene(tilt = motion.tilt, tiltY = motion.tiltY, desk = desk, spin = if (desk) motion.spin else 0f, toward = toward,
             yaw = if (posture == Posture.HAND) motion.yaw else 0f))
@@ -561,12 +562,17 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         )
     }
 
+    /** How long the phone has lain screen down, matrix up, without a break. */
+    private var deskMs = 0L
+
     private fun sync(force: Boolean) {
         val now = SystemClock.uptimeMillis()
         if (!force && now - lastSyncAt < SYNC_MS) return
         lastSyncAt = now
         // Time together: the pet is on the matrix while it is lit.
         gained(XpSource.TIME, store.together(seen = connected && !dark))
+        // An anomaly comes the moment its condition is met (see [n7.glyphpet.pet.AnomalyUnlocks]).
+        store.anomalies(charging = power.plugged, battery = power.level, desk = posture == Posture.DESK, deskMs = deskMs)
         val n = store.nursery()
         nursery = n
         mood = PetRules.mood(n.stats, store.asleep(n.stats))

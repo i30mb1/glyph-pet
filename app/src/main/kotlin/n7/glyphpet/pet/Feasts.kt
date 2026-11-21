@@ -27,7 +27,7 @@ import n7.glyphpet.pet.signature.SafeSignature
  * length and draws the frame, the pet included. Each is wrapped so a bug in it can never break the matrix.
  */
 object Feasts {
-    val all: Map<String, () -> Signature> = mapOf(
+    val all: Map<String, () -> Signature> = n7.glyphpet.pet.drawn.Drawn.all.associate { h -> h.kind to { SafeSignature(n7.glyphpet.pet.drawn.DrawnClip.meal(h.kind)) } } + mapOf(
         "raccoon" to { SafeSignature(RaccoonWashFood()) },
         "frog" to { SafeSignature(TongueMeal()) },
         "chameleon" to { SafeSignature(TongueMeal()) },

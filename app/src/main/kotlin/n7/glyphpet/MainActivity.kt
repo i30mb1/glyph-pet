@@ -53,7 +53,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
+import n7.glyphpet.pet.drawn.Drawn
+import n7.glyphpet.pet.AnomalyUnlocks
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -360,7 +364,7 @@ private fun PetScreen(
                 while (true) {
                     if (sinceSync >= 1000) { refresh(); sinceSync = 0 }
                     // Time on the Play tab is time together, as on the matrix: the needs run on its fast clock.
-                    if (sinceSeen >= SEEN_EVERY_MS) { store.together(seen = playing && nursery.active != null); sinceSeen = 0 }
+                    if (sinceSeen >= SEEN_EVERY_MS) { store.together(seen = playing && nursery.active != null); store.anomalies(charging = power.plugged, battery = power.level, desk = false, deskMs = 0L); sinceSeen = 0 }
                     if (playing && motion.consumeShake()) shaken()
                     // Two light taps on the back stroke it, as on the matrix.
                     val stroke = playing && motion.consumeStroke()
@@ -864,7 +868,27 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
     fun eggPicture(view: EggView) = eggCells.getOrPut(view) {
         PetEngine.toCells(IntArray(SpeciesRenderer.SIZE * SpeciesRenderer.SIZE).also { EggRenderer.big(it, view) })
     }
-    val cells = remember { SpeciesForms.all.associate { s -> s.id to PetEngine.toCells(SpeciesRenderer.render(s, Face.IDLE)) } }
+    val cells = remember {
+        SpeciesForms.all.associate { s ->
+            s.id to PetEngine.toCells(if (Drawn.handles(s.kind)) Drawn.frame(s.kind, "calm", 800, s.stage) else SpeciesRenderer.render(s, Face.IDLE))
+        }
+    }
+    // An anomaly not found yet: a tap tells how to find it.
+    var hintFor by remember { mutableStateOf<Species?>(null) }
+    val context = LocalContext.current
+    hintFor?.let { hero ->
+        val facts = remember(hero) { PetStore(context).anomalyFacts() }
+        val ru = java.util.Locale.getDefault().language == "ru"
+        val text = (if (ru) Drawn.of(hero.kind)?.unlock else AnomalyUnlocks.HINTS_EN[hero.kind]).orEmpty()
+        val progress = AnomalyUnlocks.progress(hero.kind, facts)?.let { (have, need) -> "$have / $need" }
+            ?: if (hero.kind == "moonrabbit") AnomalyUnlocks.daysToFullMoon(facts.nowMs).let { d -> if (d == 0) (if (ru) "Полнолуние сейчас!" else "Full moon now!") else (if (ru) "До полнолуния: $d дн." else "Full moon in $d d") } else null
+        AlertDialog(
+            onDismissRequest = { hintFor = null },
+            confirmButton = { TextButton(onClick = { hintFor = null }) { Text("OK") } },
+            title = { Text(stringResource(R.string.anomaly_hint_title)) },
+            text = { Text(listOfNotNull(text, progress).joinToString("\n\n")) },
+        )
+    }
     // A form not reached yet: every LED of it dim, no face.
     val unknown = remember {
         val frame = IntArray(SpeciesRenderer.SIZE * SpeciesRenderer.SIZE)
@@ -875,7 +899,8 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
     val shadows = remember {
         SpeciesForms.all.associate { s ->
             val frame = IntArray(SpeciesRenderer.SIZE * SpeciesRenderer.SIZE)
-            SpeciesRenderer.glyph(frame, s.rows, s.ox, s.oy, hashValue = 220, brightValue = 220)
+            if (Drawn.handles(s.kind)) Drawn.frame(s.kind, "calm", 800, s.stage).forEachIndexed { i, v -> if (v > 0) frame[i] = 220 }
+            else SpeciesRenderer.glyph(frame, s.rows, s.ox, s.oy, hashValue = 220, brightValue = 220)
             s.id to PetEngine.toCells(frame)
         }
     }
@@ -924,7 +949,7 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
                             .clip(RoundedCornerShape(16.dp))
                             .background(N7Colors.SurfaceRaised)
                             .then(if (framed) Modifier.border(1.dp, N7Colors.ControlBorder, RoundedCornerShape(16.dp)) else Modifier)
-                            .clickable(enabled = egg, role = Role.Button) { onEgg(s) }
+                            .clickable(enabled = egg || s.rarity == Rarity.ANOMALY, role = Role.Button) { if (egg) onEgg(s) else hintFor = s }
                             .padding(vertical = 8.dp)
                             .semantics(mergeDescendants = true) { contentDescription = description },
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -935,6 +960,7 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
                         GlyphMatrix(cells = picture, glow = false, modifier = Modifier.size(TILE_MATRIX))
                         // Nothing under a hero not met yet: its question mark says it all, its status is the group's.
                         if (egg) Text(label.uppercase(), style = N7Type.Caption, color = N7Colors.Ink, textAlign = TextAlign.Center, maxLines = 1)
+                        else if (s.rarity == Rarity.ANOMALY) Text(stringResource(R.string.anomaly_hint_tap), style = N7Type.Caption, color = N7Colors.InkMuted, textAlign = TextAlign.Center, maxLines = 1)
                     }
                 }
                 repeat(TILES_PER_ROW - row.size) { Spacer(Modifier.weight(1f)) }
@@ -971,6 +997,7 @@ private fun rarityGroupName(rarity: Rarity): Int = when (rarity) {
     Rarity.RARE -> R.string.rarity_group_rare
     Rarity.LEGENDARY -> R.string.rarity_group_legendary
     Rarity.MYTHIC -> R.string.rarity_group_mythic
+    Rarity.ANOMALY -> R.string.rarity_group_anomaly
 }
 
 /**
@@ -1328,6 +1355,7 @@ private fun rarityName(rarity: Rarity): Int = when (rarity) {
     Rarity.RARE -> R.string.rarity_rare
     Rarity.LEGENDARY -> R.string.rarity_legendary
     Rarity.MYTHIC -> R.string.rarity_mythic
+    Rarity.ANOMALY -> R.string.rarity_anomaly
 }
 
 /** The pet's mood in a few words with what to do about it, under its name. */

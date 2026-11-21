@@ -12,7 +12,7 @@ class PetEngineTest {
 
     @Test
     fun `every species draws every face inside the round matrix`() {
-        for (s in SpeciesCatalog.all) {
+        for (s in SpeciesCatalog.sprites) {
             assertTrue("${s.id} rows have equal width", s.rows.all { it.length == s.width })
             for (face in Face.entries) {
                 val frame = SpeciesRenderer.render(s, face)
@@ -24,7 +24,7 @@ class PetEngineTest {
 
     @Test
     fun `species keep most of their body on screen`() {
-        for (s in SpeciesCatalog.all) {
+        for (s in SpeciesCatalog.sprites) {
             val cells = SpeciesRenderer.silhouette(s)
             val visible = cells.count { (x, y) -> GlyphMatrixSpec.isVisible(x, y) }
             assertTrue("${s.id}: $visible of ${cells.size}", visible >= cells.size * 0.9)
@@ -41,7 +41,7 @@ class PetEngineTest {
     @Test
     fun `wandering pet never leaves the matrix`() {
         val engine = PetEngine(Random(1))
-        for (s in SpeciesCatalog.all) {
+        for (s in SpeciesCatalog.sprites) {
             repeat(200) {
                 val frame = engine.tick(80, Scene(s, Mood.HAPPY, tilt = if (it % 60 < 30) 1f else -1f))
                 for (i in frame.indices) if (frame[i] > 0) assertTrue(GlyphMatrixSpec.isVisible(i % 25, i / 25))
@@ -62,7 +62,7 @@ class PetEngineTest {
 
     @Test
     fun `hungry and sad look clearly different on every species, live and on Always-on`() {
-        for (s in SpeciesCatalog.all) {
+        for (s in SpeciesCatalog.sprites) {
             val idle = SpeciesRenderer.render(s, Face.IDLE)
             val hungry = SpeciesRenderer.render(s, Face.HUNGRY)
             val sad = SpeciesRenderer.render(s, Face.SAD)
@@ -77,14 +77,14 @@ class PetEngineTest {
 
     @Test
     fun `a happy face differs from a calm one on every species, mouth or not`() {
-        for (s in SpeciesCatalog.all) {
+        for (s in SpeciesCatalog.sprites) {
             assertTrue(s.id, differing(SpeciesRenderer.render(s, Face.CONTENT), SpeciesRenderer.render(s, Face.IDLE)) >= 2)
         }
     }
 
     @Test
     fun `every species has room for its food thought wherever it walks`() {
-        for (s in SpeciesCatalog.all) {
+        for (s in SpeciesCatalog.sprites) {
             val room = ((19 - s.width) / 2).coerceIn(0, 4)
             for (dx in -room..room) assertTrue("${s.id} dx=$dx", SpeciesRenderer.thoughtSpot(s, dx) != null)
         }
@@ -92,7 +92,7 @@ class PetEngineTest {
 
     @Test
     fun `the tear runs down`() {
-        for (s in SpeciesCatalog.all) {
+        for (s in SpeciesCatalog.sprites) {
             // Not every kind cries one tear: the rest are sad their own way ([MoodSigns]), checked by changing too.
             val frames = (0 until 5).map { SpeciesRenderer.render(s, Face.SAD, timeMs = it * SpeciesRenderer.TEAR_STEP_MS).toList() }
             if (MoodSigns.sad(s.kind) == MoodSigns.Sad.TEAR) assertEquals(s.id, 5, frames.toSet().size)
@@ -105,7 +105,7 @@ class PetEngineTest {
 
     @Test
     fun `the tear runs down in the app's look too`() {
-        for (s in SpeciesCatalog.all) {
+        for (s in SpeciesCatalog.sprites) {
             val frames = (0 until 5).map { appLook(SpeciesRenderer.render(s, Face.SAD, timeMs = it * SpeciesRenderer.TEAR_STEP_MS)) }
             if (MoodSigns.sad(s.kind) == MoodSigns.Sad.TEAR) assertEquals(s.id, 5, frames.toSet().size)
             else assertTrue(s.id, frames.toSet().size >= 2)
@@ -119,7 +119,7 @@ class PetEngineTest {
 
     @Test
     fun `the peek opens an eye that shows, not only the Z going away`() {
-        for (s in SpeciesCatalog.all) {
+        for (s in SpeciesCatalog.sprites) {
             val sleep = SpeciesRenderer.render(s, Face.SLEEP)
             val peek = SpeciesRenderer.render(s, Face.PEEK)
             // Only the pet itself: the Z floats above it.
@@ -132,7 +132,7 @@ class PetEngineTest {
     @Test
     fun `Always-on stills of two moods never look alike`() {
         val problems = mutableListOf<String>()
-        for (s in SpeciesCatalog.all) for (egg in listOf<EggView?>(null)) {
+        for (s in SpeciesCatalog.sprites) for (egg in listOf<EggView?>(null)) {
             val stills = Mood.entries.associateWith { PetEngine().still(Scene(s, it, egg = egg)) }
             for ((a, fa) in stills) for ((b, fb) in stills) {
                 if (a.ordinal >= b.ordinal) continue
@@ -151,7 +151,7 @@ class PetEngineTest {
 
     @Test
     fun `on the charger Always-on shows the sleeping pet and its charge, whatever the mood, as in 1,1`() {
-        for (s in SpeciesCatalog.all) {
+        for (s in SpeciesCatalog.sprites) {
             fun still(mood: Mood) = PetEngine().still(Scene(s, mood, charging = true, watts = 20f, battery = 0.5f)).toList()
             val asleep = still(Mood.SLEEPING)
             for (mood in Mood.entries) assertEquals("${s.id} $mood", asleep, still(mood))
@@ -159,13 +159,13 @@ class PetEngineTest {
     }
 
     @Test
-    fun `a happy pet shows its own joy every 2 to 4 seconds, a calm one never does`() {
+    fun `a happy pet shows its own joy soon, then every 10 to 20 seconds, a calm one never does`() {
         val cat = SpeciesCatalog.get("cat")!!
         fun hops(mood: Mood): List<Long> {
             val engine = PetEngine(Random(11), autoHabits = false)
             val starts = mutableListOf<Long>()
             var wasUp = false
-            for (t in 1..250) {
+            for (t in 1..750) {
                 engine.tick(80, Scene(cat, mood))
                 val up = engine.shown.cheer
                 if (up && !wasUp) starts += t * 80L
@@ -174,11 +174,12 @@ class PetEngineTest {
             return starts
         }
         val happy = hops(Mood.HAPPY)
-        // A hop waits for the signature effect, which has the whole matrix: fewer hops in the same 20 s, and the gap
-        // across one effect is longer (PetEngine.updateHop, updateSignature).
+        // The first burst comes within a few seconds; then they are spaced like a habit. A burst waits for the
+        // signature effect, which has the whole matrix, so a gap across one is longer (PetEngine.updateHop).
         val signature = Signatures.of(cat.kind)?.durationMs ?: 0L
-        assertTrue("${happy.size} hops in 20 s", happy.size in 3..10)
-        happy.zipWithNext().forEach { (a, b) -> assertTrue("gap ${b - a}", b - a in 2000L..(4500L + signature)) }
+        assertTrue("first at ${happy.firstOrNull()}", (happy.firstOrNull() ?: 99_999) <= 3500)
+        assertTrue("${happy.size} bursts in 60 s", happy.size in 3..7)
+        happy.zipWithNext().forEach { (a, b) -> assertTrue("gap ${b - a}", b - a in 10_000L..(22_000L + signature)) }
         assertTrue(hops(Mood.CONTENT).isEmpty())
     }
 
@@ -215,7 +216,7 @@ class PetEngineTest {
 
     @Test
     fun `fed, every kind plays its own meal to the end`() {
-        for (s in SpeciesCatalog.all) {
+        for (s in SpeciesCatalog.sprites) {
             val engine = PetEngine(Random(2), autoHabits = false, autoSignatures = false)
             val before = engine.tick(80, Scene(s, Mood.CONTENT))
             engine.feed(accepted = true)

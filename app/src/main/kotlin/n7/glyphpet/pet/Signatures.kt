@@ -52,7 +52,8 @@ interface Signature {
  */
 object Signatures {
     private fun factory(kind: String): (() -> Signature)? =
-        LegendSignatures.all[kind] ?: RareSignatures.all[kind] ?: CommonSignatures.all[kind]
+        (if (n7.glyphpet.pet.drawn.Drawn.handles(kind)) ({ n7.glyphpet.pet.signature.SafeSignature(n7.glyphpet.pet.drawn.DrawnClip.signature(kind)) }) else null)
+            ?: LegendSignatures.all[kind] ?: RareSignatures.all[kind] ?: CommonSignatures.all[kind]
 
     fun of(kind: String): Signature? = factory(kind)?.invoke()
 

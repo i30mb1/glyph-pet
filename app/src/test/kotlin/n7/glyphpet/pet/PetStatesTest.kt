@@ -44,7 +44,7 @@ class PetStatesTest {
 
     @Test
     fun `every state of every species stays on the matrix`() {
-        for (s in SpeciesCatalog.all) for (st in PetState.entries) {
+        for (s in SpeciesCatalog.sprites) for (st in PetState.entries) {
             val p = StatePreview(s, st)
             for ((n, f) in play(p, span(p)).frames.withIndex()) {
                 assertEquals(625, f.size)
@@ -60,7 +60,7 @@ class PetStatesTest {
 
     @Test
     fun `every staged scene shows the face it claims`() {
-        for (s in SpeciesCatalog.all) for (st in PetState.entries) {
+        for (s in SpeciesCatalog.sprites) for (st in PetState.entries) {
             val p = StatePreview(s, st)
             val run = play(p, span(p))
             val share = run.shown.count { shows(st, it) }.toFloat() / run.shown.size
@@ -76,7 +76,7 @@ class PetStatesTest {
 
     @Test
     fun `a happy preview shows its joy, an asleep one peeks, a tired one yawns`() {
-        for (s in SpeciesCatalog.all) {
+        for (s in SpeciesCatalog.sprites) {
             assertTrue(s.id, play(StatePreview(s, PetState.HAPPY), 6000).shown.any { it.cheer })
             assertTrue(s.id, play(StatePreview(s, PetState.ASLEEP), 6000).shown.any { it.face == Face.PEEK })
             assertTrue(s.id, play(StatePreview(s, PetState.TIRED), 8000).shown.any { it.face == Face.YAWN })
@@ -92,7 +92,7 @@ class PetStatesTest {
             listOf(PetState.SIGNATURE, PetState.ASLEEP, PetState.EATING, PetState.LOVED, PetState.DIZZY, PetState.TRICK),
             cued,
         )
-        for (s in SpeciesCatalog.all) for (st in cued) {
+        for (s in SpeciesCatalog.sprites) for (st in cued) {
             val p = StatePreview(s, st)
             assertTrue(p.loopMs >= 2000)
             val run = play(p, 4 * p.loopMs)
@@ -118,7 +118,7 @@ class PetStatesTest {
 
     @Test
     fun `a preview repeats exactly from reset`() {
-        for (s in SpeciesCatalog.all) for (st in PetState.entries) {
+        for (s in SpeciesCatalog.sprites) for (st in PetState.entries) {
             val p = StatePreview(s, st)
             val first = play(p, 5000).frames.map { it.toList() }
             p.reset()
@@ -130,7 +130,7 @@ class PetStatesTest {
 
     @Test
     fun `the still of a page that is not playing shows its state`() {
-        for (s in SpeciesCatalog.all) for (st in PetState.entries) {
+        for (s in SpeciesCatalog.sprites) for (st in PetState.entries) {
             val still = StatePreview(s, st).still()
             assertEquals(625, still.size)
             assertTrue("${s.id} ${st.id} still is empty", still.count { it > 0 } > 20)
@@ -153,7 +153,7 @@ class PetStatesTest {
     @Test
     fun `every still tells its state apart from calm on the matrix`() {
         val problems = mutableListOf<String>()
-        for (s in SpeciesCatalog.all) {
+        for (s in SpeciesCatalog.sprites) {
             val calmRaw = StatePreview(s, PetState.CALM).still()
             for (st in PetState.entries - PetState.CALM) {
                 val still = StatePreview(s, st).still()
@@ -172,7 +172,7 @@ class PetStatesTest {
 
     @Test
     fun `the happy still is caught in its joy and the trick still on a full-bright habit frame`() {
-        for (s in SpeciesCatalog.all) {
+        for (s in SpeciesCatalog.sprites) {
             val happy = StatePreview(s, PetState.HAPPY).still()
             val trick = StatePreview(s, PetState.TRICK).still()
             fun caught(st: PetState, still: IntArray, ok: (Shown) -> Boolean): Boolean {
@@ -187,7 +187,7 @@ class PetStatesTest {
 
     @Test
     fun `taking a still does not disturb the playing preview`() {
-        for (s in SpeciesCatalog.all) for (st in PetState.entries) {
+        for (s in SpeciesCatalog.sprites) for (st in PetState.entries) {
             val plain = StatePreview(s, st)
             val first = play(plain, 4000).frames.map { it.toList() }
             val p = StatePreview(s, st)
@@ -200,7 +200,7 @@ class PetStatesTest {
 
     @Test
     fun `no two states of a species look the same`() {
-        for (s in SpeciesCatalog.all) {
+        for (s in SpeciesCatalog.sprites) {
             val looks = PetState.entries.associateWith { st ->
                 play(StatePreview(s, st), 8000).frames.map { it.toList() }.toSet()
             }

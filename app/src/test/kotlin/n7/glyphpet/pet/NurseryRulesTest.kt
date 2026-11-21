@@ -13,7 +13,7 @@ import kotlin.random.Random
 class NurseryRulesTest {
 
     private val random = Random(7)
-    private val all = SpeciesCatalog.all.map { it.id }
+    private val all = SpeciesCatalog.eggable.map { it.id }
 
     private fun at(day: Int, h: Int, m: Int = 0): Long = Calendar.getInstance().apply {
         clear()
@@ -117,12 +117,12 @@ class NurseryRulesTest {
     @Test
     fun `the roll keeps the rarity weights among the missing pets`() {
         val r = Random(5)
-        val missing = SpeciesCatalog.all.filter { it.id in setOf("cat", "jelly", "eye") } // rare, common, legendary
+        val missing = SpeciesCatalog.eggable.filter { it.id in setOf("cat", "jelly", "eye") } // rare, common, legendary
         val counts = HashMap<String, Int>()
         repeat(30_000) { counts.merge(SpeciesCatalog.roll(r, missing).id, 1, Int::plus) }
         val total = counts.values.sum().toFloat()
         // Each tier's weight is split evenly over its whole tier (SpeciesCatalog.roll), not over the pool drawn from.
-        val tier = SpeciesCatalog.all.groupingBy { it.rarity }.eachCount()
+        val tier = SpeciesCatalog.eggable.groupingBy { it.rarity }.eachCount()
         fun share(id: String): Float {
             val rarity = SpeciesCatalog.get(id)!!.rarity
             return rarity.weight.toFloat() / tier.getValue(rarity)
@@ -249,7 +249,7 @@ class NurseryRulesTest {
     @Test
     fun `only collected pets can be put on the matrix`() {
         val s = withFirstPet()
-        val stranger = SpeciesCatalog.all.first { (s.seen[it.id] ?: 0) == 0 }.id
+        val stranger = SpeciesCatalog.eggable.first { (s.seen[it.id] ?: 0) == 0 }.id
         assertEquals(s, NurseryRules.setActive(s, stranger))
         val friend = s.copy(seen = s.seen + (stranger to 1))
         assertEquals(stranger, NurseryRules.setActive(friend, stranger).active)

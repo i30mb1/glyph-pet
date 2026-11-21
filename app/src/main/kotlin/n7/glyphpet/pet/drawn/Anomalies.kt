@@ -1,7 +1,11 @@
-package n7.glyphpet.tools
+package n7.glyphpet.pet.drawn
 
 import n7.glyph.ui.matrix.GlyphMatrixSpec
+import n7.glyphpet.pet.ChargeWay
 import n7.glyphpet.pet.Face
+import n7.glyphpet.pet.Habit
+import n7.glyphpet.pet.Rarity
+import n7.glyphpet.pet.Species
 import n7.glyphpet.pet.SpeciesForms
 import n7.glyphpet.pet.SpeciesRenderer
 import n7.glyphpet.pet.Stage
@@ -20,13 +24,14 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * A concept, not the game: the "anomalies", a tier above mythic, drawn frame by frame for the atlas so they can be judged
- * on the matrix before any of them is built into the engine. Each one is a whole-matrix effect with a rule of its own.
- * [AtlasExport] records them next to the real heroes, marked as concepts.
+ * The drawn heroes: pets that are not a sprite but a whole-matrix drawing of their own, frame by frame, for every state
+ * ([COLS]). The anomalies (a tier of their own, found by doing something, never in the daily egg) and a few others.
+ * [n7.glyphpet.pet.PetEngine] hands the matrix to [frame] for them; their game, signature and meal play through the
+ * usual registries as [DrawnClip]s.
  */
-object Anomalies {
+object Drawn {
 
-    /** The atlas columns an anomaly fills, and how long each clip runs. */
+    /** The states a drawn hero draws, and how long each clip runs before it loops. */
     val COLS = listOf(
         "calm" to 3200L, "happy" to 2400L, "habit" to 3200L, "signature" to 6400L, "hungry" to 3200L, "sad" to 3200L,
         "tired" to 3200L, "asleep" to 4000L, "eating" to 3200L, "game" to 6400L, "loved" to 2400L, "dizzy" to 2400L,
@@ -34,11 +39,30 @@ object Anomalies {
     )
     const val STEP = 160L
 
-    val all: List<Anomaly> = listOf(Phoenix, BlackHole, Swarm, Dragon, Mimic, MoonRabbit, Schrodinger, LavaLamp)
+    val anomalies: List<Anomaly> = listOf(Phoenix, BlackHole, Swarm, Dragon, Mimic, MoonRabbit, Schrodinger, LavaLamp)
+    val all: List<Anomaly> = anomalies + IdeaHeroes.all
+    private val byKind = all.associateBy { it.kind }
 
-    /** The clip of one column at one stage (0 baby, 1 teen, 2 adult). */
+    fun handles(kind: String?): Boolean = kind != null && kind in byKind
+    fun of(kind: String): Anomaly? = byKind[kind]
+
+    fun length(col: String): Long = COLS.first { it.first == col }.second
+
+    /** One frame of [kind] in state [col], [t] ms into the clip (looped), at [stage], leaned [tilt]. */
+    fun frame(kind: String, col: String, t: Long, stage: Stage, tilt: Float = 0f, frame: IntArray = IntArray(625)): IntArray {
+        val hero = byKind[kind] ?: return frame
+        val c = Cv()
+        // The clips are drawn on a 160 ms beat: a frame between two steps shows the earlier one, as the atlas does.
+        val tt = (Math.floorMod(t, length(col)) / STEP) * STEP
+        runCatching { hero.draw(c, col, tt, stage.ordinal, tilt) }
+        val v = c.ints()
+        for (i in v.indices) if (v[i] > frame[i]) frame[i] = v[i]
+        return frame
+    }
+
+    /** The clip of one column at one stage (0 baby, 1 teen, 2 adult), as the atlas records it. */
     fun clip(a: Anomaly, col: String, st: Int): List<IntArray> {
-        val ms = COLS.first { it.first == col }.second
+        val ms = length(col)
         val out = ArrayList<IntArray>()
         var t = 0L
         while (t < ms) {
@@ -54,14 +78,25 @@ object Anomalies {
         }
         return out
     }
+
+    /** A drawn hero's three forms as [Species], for the catalogue: a token silhouette, the matrix is drawn by [frame]. */
+    private val formCache = HashMap<String, List<Species>>()
+    fun forms(a: Anomaly): List<Species> = synchronized(formCache) { formCache.getOrPut(a.kind) { makeForms(a) } }
+    private fun makeForms(a: Anomaly): List<Species> = Stage.entries.map { st ->
+        Species(
+            id = if (st == Stage.TEEN) a.kind else "${a.kind}.${st.name.lowercase()}", name = a.names[st.ordinal], rarity = a.rarity,
+            rows = listOf("#####", "#####", "#####", "#####", "#####"), ox = 10, oy = 10,
+            eyes = emptyList(), mouth = null, charge = ChargeWay.FILL, habit = { Habit.NONE }, kind = a.kind, stage = st,
+        )
+    }
 }
 
 // --- the canvas ---------------------------------------------------------------------------------------------------------
 
-private const val BODY = 0.3f
-private const val DIM = 0.13f
-private const val HI = 1f
-private val TAU = (2 * PI).toFloat()
+internal const val BODY = 0.3f
+internal const val DIM = 0.13f
+internal const val HI = 1f
+internal val TAU = (2 * PI).toFloat()
 
 class Cv {
     val v = FloatArray(625)
@@ -112,33 +147,36 @@ class Cv {
     }
     fun fill(b: Float) { for (y in 0..24) for (x in 0..24) put(x, y, b) }
     fun scale(k: Float) { for (i in v.indices) v[i] *= k }
-    fun ints() = IntArray(625) { (v[it] * 4095).roundToInt() }
+    fun ints() = IntArray(625) { (v[it] * SpeciesRenderer.BRIGHT).roundToInt().coerceIn(0, 4095) }
 }
 
-private fun rnd(a: Int, b: Int = 0): Float {
+internal fun rnd(a: Int, b: Int = 0): Float {
     var h = a * 374761393 + b * 668265263
     h = (h xor (h ushr 13)) * 1274126177
     return ((h xor (h ushr 16)) and 0xffff) / 65535f
 }
-private fun ease(p: Float) = p.coerceIn(0f, 1f).let { it * it * (3 - 2 * it) }
-private fun seg(t: Long, from: Long, to: Long) = ((t - from).toFloat() / (to - from)).coerceIn(0f, 1f)
-private fun mix(a: Float, b: Float, p: Float) = a + (b - a) * p
+internal fun ease(p: Float) = p.coerceIn(0f, 1f).let { it * it * (3 - 2 * it) }
+internal fun seg(t: Long, from: Long, to: Long) = ((t - from).toFloat() / (to - from)).coerceIn(0f, 1f)
+internal fun mix(a: Float, b: Float, p: Float) = a + (b - a) * p
 
 abstract class Anomaly(
     val kind: String,
     val names: List<String>,
-    /** How it is found: never in a daily egg. */
+    /** How it is found, for the nursery; empty for a hero that comes in the daily egg. */
     val unlock: String,
     /** Its one rule of its own. */
     val idea: String,
-    /** The short label of each column in the atlas. */
+    /** The short label of each state, for the atlas. */
     val tags: Map<String, String>,
 ) {
     abstract fun draw(c: Cv, col: String, t: Long, st: Int, tilt: Float)
+    open val rarity: Rarity get() = Rarity.ANOMALY
+    /** The unlock hint in English. */
+    open val unlockEn: String get() = ""
 }
 
 /** Twinkling sparks rising from [top] around [cx]. */
-private fun sparks(c: Cv, cx: Float, top: Float, t: Long, n: Int, spread: Float, rise: Float = 7f, salt: Int = 0) {
+internal fun sparks(c: Cv, cx: Float, top: Float, t: Long, n: Int, spread: Float, rise: Float = 7f, salt: Int = 0) {
     for (i in 0 until n) {
         val period = 900f + rnd(i, salt) * 700f
         val ph = ((t + rnd(i, salt + 1) * period) % period) / period
@@ -667,7 +705,7 @@ private object Swarm : Anomaly(
                 if (col == "tilt") {
                     if (t == 0L) { flock = Flock(n, st).also { it.step(0f, 25f, 2000) } }
                     val f = flock!!
-                    f.step(tilt * 30f, 22f, Anomalies.STEP)
+                    f.step(tilt * 30f, 22f, Drawn.STEP)
                     for (i in 0 until n) c.put(f.x[i], f.y[i], blink(i, t) * 0.8f + 0.2f)
                 } else {
                     val p = seg(t, 0, 2900)
@@ -1504,7 +1542,7 @@ private object LavaLamp : Anomaly(
             }
             "game" -> {
                 if (t == 0L) { bx = 12f; bv = 0f }
-                bv += tilt * 40f * Anomalies.STEP / 1000f; bv *= 0.85f; bx = (bx + bv * Anomalies.STEP / 1000f * 6f).coerceIn(6f, 18f)
+                bv += tilt * 40f * Drawn.STEP / 1000f; bv *= 0.85f; bx = (bx + bv * Drawn.STEP / 1000f * 6f).coerceIn(6f, 18f)
                 val eaten = (t / 1280).toInt()
                 val drops = List(5) { i -> Blob(4f + rnd(i, 121) * 16f, 8f + rnd(i, 122) * 9f, 0.8f) }.drop(eaten)
                 lava(c, listOf(Blob(bx, 13f, r * (1f + 0.12f * eaten))) + drops, eyes = 0)

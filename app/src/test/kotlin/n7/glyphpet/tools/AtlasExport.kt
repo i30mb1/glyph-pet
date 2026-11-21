@@ -21,6 +21,7 @@ import n7.glyphpet.pet.StatePreview
 import n7.glyphpet.pet.Staging
 import n7.glyphpet.pet.TiltStyle
 import n7.glyphpet.pet.TrickList
+import n7.glyphpet.pet.drawn.Drawn
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.io.File
@@ -46,11 +47,11 @@ class AtlasExport {
         val dir = File(out!!).let { if (it.isAbsolute) it else File(File(System.getProperty("user.dir")).parentFile, out) }
         dir.mkdirs()
 
-        val kinds = SpeciesCatalog.all.map { it.kind }
+        val kinds = SpeciesCatalog.sprites.map { it.kind }
         // How many kinds share each signature, trick and habit: one is the kind's own, more are a repeat.
         val sigOf = kinds.associateWith { k -> Signatures.of(k)?.let(::nameOf) }
         val trickOf = kinds.associateWith { k -> TrickList.all[k]?.invoke()?.let(::nameOf) }
-        val habitOf = SpeciesForms.all.associate { it.id to it.habit.id }
+        val habitOf = SpeciesForms.sprites.associate { it.id to it.habit.id }
         val sigCount = sigOf.values.filterNotNull().groupingBy { it }.eachCount()
         val trickCount = trickOf.values.filterNotNull().groupingBy { it }.eachCount()
         val habitCount = habitOf.values.groupingBy { it }.eachCount()
@@ -79,9 +80,13 @@ class AtlasExport {
             meta.append("}}")
         }
         // The anomalies: concepts drawn by [Anomalies], not the engine.
-        for (a in Anomalies.all) {
-            meta.append(",{\"kind\":\"${a.kind}\",\"name\":\"${a.names[1]}\",\"rarity\":\"ANOMALY\",\"concept\":true")
+        for (a in Drawn.all) {
+            meta.append(",{\"kind\":\"${a.kind}\",\"name\":\"${a.names[1]}\",\"rarity\":\"${a.rarity}\",\"concept\":true")
             meta.append(",\"unlock\":").append(js(a.unlock)).append(",\"idea\":").append(js(a.idea))
+            IdeaGames.all[a.kind]?.let { g ->
+                meta.append(",\"game\":{\"name\":").append(js(g.name)).append(",\"how\":").append(js(g.how))
+                meta.append(",\"uses\":[").append(g.uses.joinToString(",") { "\"$it\"" }).append("]}")
+            }
             meta.append(",\"tags\":{").append(a.tags.entries.joinToString(",") { "\"${it.key}\":\"${it.value}\"" }).append("}")
             meta.append(",\"tilt\":\"OWN\",\"sig\":null,\"sigShared\":[],\"trick\":null,\"trickShared\":[],\"feast\":false,\"meal\":null,\"forms\":{")
             meta.append(Stage.entries.mapIndexed { j, st -> "\"${st.name}\":{\"name\":\"${a.names[j]}\",\"habit\":\"own\",\"habitShared\":1,\"charge\":null}" }.joinToString(","))
@@ -110,9 +115,9 @@ class AtlasExport {
                 }
                 sb.append('}')
             }
-            for (a in Anomalies.all) {
+            for (a in Drawn.all) {
                 sb.append(",\"${a.kind}\":{")
-                sb.append(Anomalies.COLS.joinToString(",") { (id, _) -> clipJson(id, Anomalies.clip(a, id, st.ordinal)) })
+                sb.append(Drawn.COLS.joinToString(",") { (id, _) -> clipJson(id, Drawn.clip(a, id, st.ordinal)) })
                 sb.append('}')
             }
             sb.append('}')

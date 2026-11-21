@@ -31,14 +31,14 @@ class HabitsTest {
 
     @Test
     fun `every species has its own habit of 1 to 1,5 seconds`() {
-        val ids = SpeciesCatalog.all.map { it.habit.id }
+        val ids = SpeciesCatalog.sprites.map { it.habit.id }
         assertEquals(ids.size, ids.toSet().size)
-        for (s in SpeciesCatalog.all) assertTrue("${s.id} ${s.habit.durationMs}", s.habit.durationMs in 1000L..1500L)
+        for (s in SpeciesCatalog.sprites) assertTrue("${s.id} ${s.habit.durationMs}", s.habit.durationMs in 1000L..1500L)
     }
 
     @Test
     fun `every habit frame stays on the matrix and the habit differs from plain idle`() {
-        for (s in SpeciesCatalog.all) {
+        for (s in SpeciesCatalog.sprites) {
             val idle = SpeciesRenderer.render(s, Face.IDLE).toList()
             var differentMs = 0L
             for (dx in listOf(-4, -2, 0, 2, 4, -3)) for (f in s.habit.frames) {
@@ -57,13 +57,13 @@ class HabitsTest {
             val h = SpeciesRenderer.render(s, f.face ?: Face.IDLE, habit = f)
             h.indices.filter { h[it] != idle[it] }.toSet()
         }.toSet()
-        val all = SpeciesCatalog.all.associate { it.id to changes(it) }
+        val all = SpeciesCatalog.sprites.associate { it.id to changes(it) }
         for ((a, ca) in all) for ((b, cb) in all) if (a < b) assertFalse("$a and $b", ca == cb)
     }
 
     @Test
     fun `the habit plays now and then, only after the pet was left alone for a while`() {
-        for (s in SpeciesCatalog.all) for (mood in listOf(Mood.CONTENT, Mood.HAPPY)) {
+        for (s in SpeciesCatalog.sprites) for (mood in listOf(Mood.CONTENT, Mood.HAPPY)) {
             val engine = PetEngine(Random(21))
             val starts = mutableListOf<Long>()
             var was = false
@@ -82,7 +82,7 @@ class HabitsTest {
 
     @Test
     fun `the signature comes by itself about once a minute, small habits fill the quiet between`() {
-        for (s in SpeciesCatalog.all) {
+        for (s in SpeciesCatalog.sprites) {
             if (!Signatures.has(s.kind)) continue
             val engine = PetEngine(Random(24))
             var sigs = 0
@@ -109,7 +109,7 @@ class HabitsTest {
 
     @Test
     fun `no habit during a reaction, asleep, on the charger, sliding or in other moods`() {
-        for (s in SpeciesCatalog.all) {
+        for (s in SpeciesCatalog.sprites) {
             val busy = mapOf<String, Pair<(Long) -> Scene, (Long, PetEngine) -> Unit>>(
                 "stroked" to Pair({ _ -> Scene(s, Mood.CONTENT) }, { t, e -> if (t % 1200 == 80L) e.pet() }),
                 "dizzy" to Pair({ _ -> Scene(s, Mood.HAPPY) }, { t, e -> if (t % 2000 == 80L) e.shake() }),
@@ -143,7 +143,7 @@ class HabitsTest {
     @Test
     fun `no habit loses LEDs off the round matrix, at home and wherever the engine plays it`() {
         val problems = mutableListOf<String>()
-        for (s in SpeciesCatalog.all) {
+        for (s in SpeciesCatalog.sprites) {
             val spots = PetEngine.habitSpots(s)
             if (0 !in spots) problems += "${s.id}: the habit does not fit at home"
             if (spots.size < 2) problems += "${s.id}: the habit fits only at $spots"
@@ -154,7 +154,7 @@ class HabitsTest {
         }
         assertTrue(problems.joinToString("\n"), problems.isEmpty())
         // The engine only starts a habit where it fits: every habit frame of long runs, redrawn where it was shown.
-        for (s in SpeciesCatalog.all) for (seed in 0 until 3) {
+        for (s in SpeciesCatalog.sprites) for (seed in 0 until 3) {
             val engine = PetEngine(Random(30 + seed))
             var t = 0L
             var habits = 0

@@ -6,7 +6,7 @@ import org.junit.Test
 /** The eyes are what makes a pet read as a face: they must stay whole, at every stage and whatever the pet does. */
 class EyesTest {
 
-    private val forms = SpeciesForms.all
+    private val forms = SpeciesForms.sprites
 
     @Test
     fun `every eye is carved inside the body, with body on both sides of it`() {
