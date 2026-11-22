@@ -226,9 +226,12 @@ const COLS = [
   ["turn", "Поворот краем", "Повернул телефон краем к себе", "Действия"],
   ["charging", "Зарядка", "Телефон на зарядке", "Система"],
   ["grow", "Рост", "Яйцо: 5 нажатий. Рост: тряска, когда готов", "Система"],
-  ["shiny", "Блестящий", "Каждый 5-й из яйца: перелив при наклоне, искры", "Новое"],
-  ["wind", "Ветер", "Подуй на матрицу (пока только облачко)", "Новое"],
+  ["shiny", "Блестящий", "5% из яйца, кому подходит: перелив при наклоне, искры", "Новое"],
+  ["wind", "Ветер", "Подуй на матрицу", "Новое"],
   ["clap", "Хлопок", "Хлопни в ладоши рядом", "Новое"],
+  ["typing", "Печатает", "Телефон на столе у клавиатуры, ты печатаешь", "Новое"],
+  ["ring", "Звонок", "Телефон звонит: поверх всего, игра ждёт", "Новое"],
+  ["notice", "Уведомление", "Пришло уведомление: короткий свой жест", "Новое"],
 ];
 const RAR = { COMMON: "Обычный", RARE: "Редкий", LEGENDARY: "Легендарный", MYTHIC: "Мифический", ANOMALY: "Аномалия" };
 const IDEA_GROUPS = [["ANOMALY", "Аномалии · полный концепт, все анимации в таблице ниже"], ["IDEA_COMMON", "Обычные · ожившие вещи"], ["IDEA_RARE", "Редкие · звери с фишкой"], ["IDEA_LEGEND", "Легендарные · мифы и фольклор"], ["IDEA_GENRE", "Жанры · фантастика и приключения"], ["IDEA_ODD", "Странные · ломают правила"]];
@@ -270,6 +273,7 @@ const TILT_RU = { TURN: "поворачивается головой вверх"
 // How much each column of a hero is its own, the shared one, a repeat, or missing.
 function tagOf(pet, col, form) {
   if (col === "shiny") return ["std", "фольга"];
+  if (["wind", "clap", "typing", "ring", "notice"].includes(col)) return ["own", { wind: "свой ветер", clap: "свой испуг", typing: "своя клавиатура", ring: "свой звонок", notice: "свой жест" }[col]];
   if (pet.concept) return ["own", (pet.tags && pet.tags[col]) || "своя"];
   const stageForm = pet.forms[STAGE[stage]];
   switch (col) {
@@ -304,8 +308,11 @@ function tagOf(pet, col, form) {
     case "hungry": return ["own", "думает о своей еде"];
     case "grow": return ["std", stage === "baby" ? "вылупление" : "эволюция"];
     case "shiny": return ["std", "фольга"];
-    case "wind": return ["own", "сносит, клочки"];
-    case "clap": return ["std", "вздрагивает"];
+    case "wind": return ["own", "свой ветер"];
+    case "clap": return ["own", "свой испуг"];
+    case "typing": return ["own", "своя клавиатура"];
+    case "ring": return ["own", "свой звонок"];
+    case "notice": return ["own", "свой жест"];
     default: return ["std", ""];
   }
 }

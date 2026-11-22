@@ -129,7 +129,7 @@ class AtlasExport {
                     } else Drawn.clip(a, id, st.ordinal)
                     clipJson(id, frames)
                 })
-                sb.append(',').append(clipJson("shiny", shiny(SpeciesForms.of(a.kind, st))))
+                for ((id, frames) in news(SpeciesForms.of(a.kind, st))) if (frames != null) sb.append(',').append(clipJson(id, frames))
                 sb.append('}')
             }
             sb.append('}')
@@ -173,17 +173,26 @@ class AtlasExport {
             "turn" to (if (Living3D.handles(s)) custom(s, 4800) { _, t ->
                 scene(s, yaw = (0.7 * sin(2 * PI * t / 4800.0)).toFloat(), tilt = (0.4 * sin(2 * PI * t / 4800.0 + 1)).toFloat())
             } else null),
-            "shiny" to shiny(s),
-            "wind" to (if (Blows.handles(s.kind)) custom(s, 5600) { _, t ->
-                // Blown on for two seconds, harder then softer, then left to drift home.
-                scene(s).copy(wind = if (t < 2400) (0.6f + 0.4f * sin(PI * t / 2400.0).toFloat()) else 0f)
-            } else null),
-            "clap" to custom(s, 2400, start = { it.clap() }) { _, _ -> scene(s) },
+        ) + news(s) + listOf(
             "grow" to custom(s, 6400, start = { e ->
                 if (s.stage == Stage.BABY) e.hatchOf(SpeciesForms.of(s.kind, Stage.TEEN), golden = false) else e.evolveInto(s)
             }) { _, _ -> scene(s) },
         )
     }
+
+    /** The new columns, the same for a sprite and a drawn hero: shiny, the wind, a clap, typing, a ring, a notice. */
+    private fun news(s: Species): List<Pair<String, List<IntArray>?>> = listOf(
+        "shiny" to shiny(s),
+        "wind" to (if (Blows.handles(s.kind)) custom(s, 5600) { _, t ->
+            // Blown on for two seconds, harder then softer, then left to drift home.
+            scene(s).copy(wind = if (t < 2400) (0.6f + 0.4f * sin(PI * t / 2400.0).toFloat()) else 0f)
+        } else null),
+        "clap" to custom(s, 2400, start = { it.clap() }) { _, _ -> scene(s) },
+        // Typing by the phone: a key every 240 ms, a little uneven, like real typing.
+        "typing" to custom(s, 4800) { e, t -> if (t % 240 == 0L || t % 720 == 80L) e.key(); scene(s).copy(typing = true) },
+        "ring" to custom(s, 3200) { _, _ -> scene(s).copy(ringing = true) },
+        "notice" to custom(s, 2400, start = { it.notice() }) { _, _ -> scene(s) },
+    )
 
     /** The shiny pet, calm, while the light swings from one side to the other and back, as a lean of the phone does. */
     private fun shiny(s: Species): List<IntArray> = try {
