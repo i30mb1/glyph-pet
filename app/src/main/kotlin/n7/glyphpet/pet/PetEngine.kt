@@ -128,8 +128,6 @@ class PetEngine(
 
         const val ALERT_MS = 1400L
 
-        /** How long a clap startles the pet ([clap]). */
-        const val STARTLE_MS = 900L
 
         /** How long the egg wobbles after a press. */
         const val CRACK_WOBBLE_MS = 600L
@@ -284,11 +282,20 @@ class PetEngine(
     /** How bright the pet is drawn while it shrinks back from the viewer, eased ([BACK_DIM]). */
     private var backK = 1f
 
-    /** How far the wind has pushed the pet (cells, [Blows]), which way it blows, and what it tore off and blows along. */
+    /**
+     * The wind on the pet ([Blows]): how far it has pushed it (cells; for a kind carried through the edge, wrapped round
+     * the matrix), which way it blows, whether it is blowing now, what it tore off and blows along, and the kind's own
+     * answer: lifted (rows), turned (radians), faded (0..1, 1 whole), and the hops it took.
+     */
     private var windPush = 0f
     private var windDir = 1
     private var blown = false
     private val blowBits = mutableListOf<Blows.Bit>()
+    private var blowLiftF = 0f
+    private var blowAngle = 0f
+    private var blowDim = 1f
+    private var blowHopMs = -1L
+    private var blowHopTo = 0f
     private var action = Action.NONE
     private var actionLeftMs = 0L
     private var foodY: Float? = null
@@ -559,8 +566,14 @@ class PetEngine(
     /** Dizzy stars; a sleeper only opens one eye. */
     fun shake() = react { start(Action.DIZZY, 2500) }
 
-    /** A clap or a bang near the phone: the pet starts, wide-eyed, with a jump. A sleeper only opens one eye. */
-    fun clap() = react { start(Action.STARTLE, STARTLE_MS); hopsLeft = 1 }
+    /** A clap or a bang near the phone: the pet starts, each kind its own way ([Startles]). A sleeper only opens one eye. */
+    fun clap() = react {
+        startleDir = if (random.nextBoolean()) 1 else -1
+        start(Action.STARTLE, Startles.of(kindNow).durationMs)
+    }
+
+    /** The side a startled pet darts to ([Startles.Move.DART]). */
+    private var startleDir = 1
 
     /** The egg just hatched into [baby] (a supporter's egg is [golden]; a [shiny] baby sparkles out): [Moments.hatch] plays. */
     fun hatch(baby: Species, golden: Boolean, shiny: Boolean = false) = startMoment(Hatch(baby, golden, shiny))
@@ -850,11 +863,16 @@ class PetEngine(
         if (was != null && face != was && own == null && face !in SHUT_FACES && was !in SHUT_FACES) faceBlinkMs = FACE_BLINK_MS
         lastFace = face
         val tiltStyle = TiltStyle.of(species.kind)
+        val way = updateWind(dtMs, species, scene, asleep, sliding, own)
+        // Startled by a clap: each kind its own jolt ([Startles]).
+        val startle = if (action == Action.STARTLE && own == null && !asleep) Startles.of(species.kind) else null
+        val startleMs = startle?.let { it.durationMs - actionLeftMs } ?: 0L
         val lift = when {
             hopMs >= 0 -> HOP.getOrElse((hopMs / 80).toInt()) { 0 }
             sliding && own == null -> tiltStyle.lift(slideMs)
+            blowHopMs >= 0 -> HOP.getOrElse((blowHopMs / 80).toInt()) { 0 }.coerceAtLeast(0)
             else -> 0
-        }
+        } + blowLift() + (startle?.let { Startles.lift(it, startleMs) } ?: 0)
         // Stroked: each kind its own way ([Cuddles]); a sleeper only peeks.
         val cuddle = when {
             action == Action.LOVED && !asleep && own == null -> Cuddles.of(species.kind)
@@ -866,10 +884,13 @@ class PetEngine(
         // A refusal sways slowly, "no, thanks"; a surge trembles.
         val jitterMs = if (action == Action.REFUSING) 300L else 120L
         val jitter = if (shudder) (if ((time / jitterMs) % 2 == 0L) -1 else 1) else 0
-        updateWind(dtMs, species, scene, asleep, sliding, own)
         val slide = slideRange(species)
-        val pushed = (x + windPush).roundToInt().coerceIn(slide.first, slide.last) - x.roundToInt()
-        val dx = x.roundToInt() + pushed + jitter + (cuddle?.let { Cuddles.dx(it, cuddleMs) } ?: 0)
+        val wraps = way != null && (way.move == Blows.Move.WRAP || way.move == Blows.Move.TUMBLE)
+        val pushed = if (wraps) windPush.roundToInt() else (x + windPush).roundToInt().coerceIn(slide.first, slide.last) - x.roundToInt()
+        // Holding on in a strong wind: it trembles.
+        val holdShake = if (way?.move == Blows.Move.HOLD && blown && scene.wind > 0.45f) (if ((time / 90) % 2 == 0L) -1 else 1) else 0
+        val dx = x.roundToInt() + pushed + jitter + holdShake + (cuddle?.let { Cuddles.dx(it, cuddleMs) } ?: 0) +
+            (startle?.let { Startles.dx(it, startleMs, startleDir) } ?: 0)
         cover.fill(SpeciesRenderer.COVER_NONE)
         // Legendary and mythic pets are drawn in 3D, turning a little with the phone ([Living3D]).
         val painter = if (Living3D.handles(species)) {
@@ -882,10 +903,20 @@ class PetEngine(
             species, face, blink = blinkLeftMs > 0, dx = dx, frame = frame, timeMs = time, lift = lift + (cuddle?.let { Cuddles.lift(it, cuddleMs) } ?: 0),
             eyesShut = faceBlinkMs > 0,
             habit = if (painter != null) living.habitFor(species, own) else own,
-            eyeDx = look(centerX, scene, asleep), shadow = true, cover = cover, painter = painter,
+            eyeDx = if (way?.move == Blows.Move.LOOK && blown) -windDir else look(centerX, scene, asleep), shadow = true, cover = cover, painter = painter,
             badges = (!(sliding && own == null) || tiltStyle == TiltStyle.STICK) && cuddle == null,
             spout = own == null && !sliding,
         )
+        if (way != null) blownPose(frame, species, face, dx, lift, painter, wraps)
+        if (startle != null) {
+            val top = species.oy - SpeciesRenderer.jumpOf(face) - lift
+            val left = species.ox + dx
+            val angle = Startles.angle(startle, startleMs)
+            if (abs(angle) > 0.03f) TiltStyle.rotate(frame, left, left + species.width - 1, top, top + species.height - 1, angle)
+            val k = Startles.dim(startle, startleMs)
+            if (k < 0.995f) for (i in frame.indices) frame[i] = (frame[i] * k).toInt()
+            Startles.mark(frame, startle, startleMs, left, left + species.width - 1, top, top + species.height - 1, startleDir)
+        }
         if (cuddle != null) {
             val top = species.oy - SpeciesRenderer.jumpOf(face) - lift - Cuddles.lift(cuddle, cuddleMs)
             Cuddles.draw(frame, species, cuddle, species.ox + dx, top, cuddleMs)
@@ -933,7 +964,7 @@ class PetEngine(
             }
         }
         weather.draw(frame, dtMs, sky, scene.tilt, scene.tiltY, cover)
-        if (blowBits.isNotEmpty()) Blows.draw(frame, blowBits, windDir)
+        if (blowBits.isNotEmpty()) Blows.draw(frame, blowBits, windDir, time)
         if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
         shown = Shown(face, habit = own != null, lift = lift, step = own, dx = dx, cheer = joyMs >= 0 && cuddle != null, shut = faceBlinkMs > 0)
         return frame
@@ -1187,7 +1218,7 @@ class PetEngine(
         Action.PEEK -> Face.PEEK
         Action.ALERT -> Face.SCARED
         Action.SURGE -> Face.IDLE
-        Action.STARTLE -> Face.SCARED
+        Action.STARTLE -> Startles.of(kindNow).face
     }
 
     private fun start(next: Action, durationMs: Long) {
@@ -1294,12 +1325,18 @@ class PetEngine(
 
     /**
      * The wind ([Scene.wind]) on a kind that feels it ([Blows]): only while the pet is free, so it never cuts a habit,
-     * a reaction or a nap; it blows the way the phone leans (to the right when it stands straight). Whatever it tore off
-     * flies on after it stops, and the pet drifts home.
+     * a reaction or a nap; it blows the way the phone leans (to the right when it stands straight). The kind answers its
+     * own way ([Blows.Way]); whatever the wind tore off flies on after it stops, and the pet comes home. Returns the way.
      */
-    private fun updateWind(dtMs: Long, species: Species, scene: Scene, asleep: Boolean, sliding: Boolean, own: HabitFrame?) {
+    private fun updateWind(dtMs: Long, species: Species, scene: Scene, asleep: Boolean, sliding: Boolean, own: HabitFrame?): Blows.Way? {
+        val way = Blows.of(species.kind)
+        if (way == null) {
+            windPush = 0f; blown = false; blowLiftF = 0f; blowAngle = 0f; blowDim = 1f; blowHopMs = -1; blowHopTo = 0f
+            blowBits.clear()
+            return null
+        }
         val free = !asleep && action == Action.NONE && own == null && habitMs < 0 && signatureMs < 0 && trickMs < 0 &&
-            feastMs < 0 && foodY == null && !sliding && Blows.handles(species.kind)
+            feastMs < 0 && foodY == null && !sliding
         val wind = if (free) scene.wind else 0f
         val wasBlown = blown
         blown = wind >= Blows.FELT
@@ -1308,12 +1345,76 @@ class PetEngine(
             scene.tilt < -0.06f -> -1
             else -> 1
         }
-        val target = if (blown) windDir * Blows.PUSH * wind else 0f
-        val speed = (if (blown) Blows.PUSH_SPEED else Blows.BACK_SPEED) * dtMs / 1000f
-        windPush += (target - windPush).coerceIn(-speed, speed)
-        val left = species.ox + (x + windPush).roundToInt()
-        val top = species.oy
-        Blows.step(blowBits, dtMs, wind, windDir, left, left + species.width - 1, top, top + species.height - 1, random)
+        val dt = dtMs / 1000f
+        val wrap = TiltStyle.WRAP_CELLS
+        when (way.move) {
+            Blows.Move.WRAP, Blows.Move.TUMBLE -> {
+                // Carried along and round the matrix; once the wind drops, the shortest way home.
+                if (blown) windPush += windDir * way.speed * wind * dt
+                else windPush += (-windPush).coerceIn(-Blows.BACK_SPEED * dt, Blows.BACK_SPEED * dt)
+                if (windPush > wrap / 2f) windPush -= wrap
+                if (windPush < -wrap / 2f) windPush += wrap
+            }
+            Blows.Move.HOP -> {
+                // A hop at a time away from the wind, each one taking it two cells further.
+                if (blown && blowHopMs < 0 && abs(blowHopTo) < way.push) { blowHopMs = 0; blowHopTo += windDir * 2f }
+                if (!blown && blowHopMs < 0) blowHopTo = 0f
+                if (blowHopMs >= 0) { blowHopMs += dtMs; if (blowHopMs >= HOP_MS) blowHopMs = -1 }
+                val speed = (if (blowHopMs >= 0) 6f else if (blown) 0f else Blows.BACK_SPEED) * dt
+                windPush += (blowHopTo - windPush).coerceIn(-speed, speed)
+            }
+            else -> {
+                val reach = when (way.move) {
+                    Blows.Move.HOLD -> 0.6f
+                    Blows.Move.LIFT -> way.push * 0.6f
+                    else -> way.push
+                }
+                val target = if (blown) windDir * reach * wind else 0f
+                val speed = (if (blown) way.speed else Blows.BACK_SPEED) * dt
+                windPush += (target - windPush).coerceIn(-speed, speed)
+            }
+        }
+        val ease = (dtMs / 250f).coerceAtMost(1f)
+        blowLiftF += ((if (way.move == Blows.Move.LIFT && blown) 1f + 2f * wind else 0f) - blowLiftF) * ease
+        blowDim += ((if (way.move == Blows.Move.DIM && blown) 1f - 0.75f * wind else 1f) - blowDim) * (dtMs / 400f).coerceAtMost(1f)
+        blowAngle = when (way.move) {
+            // Rolled along: it turns as far as it went, round its own middle.
+            Blows.Move.ROLL -> windPush / (species.height / 2f).coerceAtLeast(2f)
+            Blows.Move.TUMBLE -> windPush * 0.45f
+            Blows.Move.FLIP -> {
+                val to = if (blown) PI.toFloat() else 0f
+                blowAngle + (to - blowAngle).coerceIn(-5f * dt, 5f * dt)
+            }
+            else -> 0f
+        }
+        val left = species.ox + x.roundToInt() + windPush.roundToInt()
+        val top = species.oy - blowLift()
+        val box = Blows.Box(
+            left, left + species.width - 1, top, top + species.height - 1,
+            species.eyes.map { (ex, ey) -> left + ex to top + ey }.ifEmpty { listOf(left + species.width / 2 to top + species.height / 3) },
+            species.mouth?.let { (mx, my) -> left + mx + 1 to top + my } ?: (left + species.width / 2 to top + species.height / 2),
+        )
+        Blows.step(blowBits, dtMs, wind, windDir, way, box, random)
+        return way
+    }
+
+    private fun blowLift(): Int = blowLiftF.roundToInt()
+
+    /**
+     * The blown pet's pose over the frame just drawn: turned (rolled, tumbled or upside down), coming in from the other
+     * side as it is carried through the edge, or faded into hiding.
+     */
+    private fun blownPose(frame: IntArray, species: Species, face: Face, dx: Int, lift: Int, painter: BodyPainter?, wraps: Boolean) {
+        val top = species.oy - SpeciesRenderer.jumpOf(face) - lift
+        val left = species.ox + dx
+        if (abs(blowAngle) > 0.03f) TiltStyle.rotate(frame, left, left + species.width - 1, top, top + species.height - 1, blowAngle)
+        if (wraps && windPush.roundToInt() != 0) {
+            SpeciesRenderer.render(
+                species, face, dx = dx - sign(windPush).toInt() * TiltStyle.WRAP_CELLS, frame = frame, timeMs = time, lift = lift,
+                shadow = true, painter = painter, badges = false,
+            )
+        }
+        if (blowDim < 0.995f) for (i in frame.indices) frame[i] = (frame[i] * blowDim).toInt()
     }
 
     private fun updateBlink(dtMs: Long, asleep: Boolean) {
@@ -1355,8 +1456,8 @@ class PetEngine(
         action != Action.NONE -> reaction() ?: Face.IDLE
         // Each kind takes a slope its own way ([TiltStyle]).
         sliding -> TiltStyle.of(kindNow).face
-        // Into the wind: eyes screwed up ([Blows]).
-        blown -> Blows.FACE
+        // Into the wind: each kind its own face ([Blows]).
+        blown -> Blows.of(kindNow)?.face ?: Face.TIRED
         // Brought closer to the viewer: wide happy eyes.
         closer -> Face.HAPPY
         yawnLeftMs > 0 -> Face.YAWN
