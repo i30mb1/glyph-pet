@@ -341,6 +341,12 @@ private fun PetScreen(
     var tab by rememberSaveable { mutableIntStateOf(TAB_PLAY) }
     val found = remember { HashSet<String>() }
     val glyphPhone = remember { hasGlyphToys(context) }
+    // The microphone, on the Play tab as on the matrix: blowing, a clap and typing reach the pet on the screen too.
+    val ears = remember { n7.glyphpet.toy.Mic(context) }
+    androidx.compose.runtime.DisposableEffect(engine) {
+        PetAlerts.onNotificationApp = { if (!engine.playingTrick) engine.notice() }
+        onDispose { PetAlerts.onNotificationApp = null }
+    }
 
     /** A shake, as on the matrix: a step toward growing when ready, else the signature, or dizzy stars. */
     fun shaken() {
@@ -370,10 +376,14 @@ private fun PetScreen(
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             val playing = tab == TAB_PLAY
             if (playing) motion.start()
+            if (playing && store.mic) ears.start()
             try {
                 var sinceSync = Long.MAX_VALUE
                 var sinceSeen = Long.MAX_VALUE
                 var gameMs = 0L
+                var windWas = false
+                var gustJoyMs = 0L
+                var typedMs = 0L
                 while (true) {
                     if (sinceSync >= 1000) { refresh(); sinceSync = 0 }
                     // Time on the Play tab is time together, as on the matrix: the needs run on its fast clock.
@@ -385,6 +395,18 @@ private fun PetScreen(
                         if (PetRules.mood(nursery.stats, store.asleep(nursery.stats)) != Mood.SLEEPING) store.stroke()
                         engine.pet()
                     }
+                    // Blowing, a clap and typing, as on the matrix: each brings half a dot of joy like a stroke.
+                    val withPet = playing && nursery.active != null && nursery.eggOnMatrix == null && !engine.playingTrick
+                    val awake = PetRules.mood(nursery.stats, store.asleep(nursery.stats)) != Mood.SLEEPING
+                    if (playing && ears.consumeClap(motion.lastJoltMs) && withPet) { if (awake) store.stroke(); engine.clap() }
+                    val gust = ears.wind >= n7.glyphpet.pet.Blows.FELT
+                    gustJoyMs += FRAME_MS
+                    if (gust && !windWas && withPet && awake && gustJoyMs >= 2000L) { store.stroke(); gustJoyMs = 0L }
+                    windWas = gust
+                    val keys = ears.consumeKeys()
+                    val typing = playing && ears.typing()
+                    if (typing) repeat(minOf(keys, 3)) { engine.key() }
+                    if (typing && withPet && awake) { typedMs += FRAME_MS; if (typedMs >= 30_000L) { store.stroke(); typedMs = 0L } }
                     val scene = Scene(
                         species = nursery.activeForm,
                         mood = PetRules.mood(nursery.stats, store.asleep(nursery.stats)),
@@ -399,8 +421,13 @@ private fun PetScreen(
                         missedCall = notifications && PetAlerts.missedCalls > 0,
                         ready = nursery.ready,
                         shiny = nursery.activeShiny,
+                        wind = if (playing) ears.wind else 0f,
+                        typing = typing,
+                        ringing = PetAlerts.ringing,
                     )
-                    frame = PetEngine.toCells(engine.tick(FRAME_MS, scene))
+                    // The light on the pet follows the phone's lean, as on the matrix (the screen faces the other way).
+                    n7.glyphpet.pet.Shading.light = if (playing) n7.glyphpet.pet.Shading.lightFor(-motion.tilt, motion.tiltY) else n7.glyphpet.pet.Shading.DEFAULT_LIGHT
+                    frame = try { PetEngine.toCells(engine.tick(FRAME_MS, scene)) } finally { n7.glyphpet.pet.Shading.light = n7.glyphpet.pet.Shading.DEFAULT_LIGHT }
                     // A game's joy comes while it is played, a second's worth at a time.
                     if (engine.playingTrick) gameMs += FRAME_MS
                     if (gameMs >= 1000L || (!engine.playingTrick && gameMs > 0L)) { store.playing(gameMs); gameMs = 0L }
@@ -416,6 +443,7 @@ private fun PetScreen(
                 }
             } finally {
                 if (playing) motion.stop()
+                ears.stop()
             }
         }
     }
@@ -531,10 +559,12 @@ private fun PetScreen(
                     // The circle is the Glyph button, held as on the back of the phone, and nothing more: the lean and
                     // the shake are read off the phone, as on the matrix.
                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        // A little smaller than the screen and without the halo: the pixel art reads crisper.
                         GlyphMatrix(
                             cells = frame,
+                            glow = false,
                             modifier = Modifier
-                                .fillMaxWidth(0.86f)
+                                .fillMaxWidth(0.76f)
                                 .aspectRatio(1f)
                                 .clip(CircleShape)
                                 .combinedClickable(

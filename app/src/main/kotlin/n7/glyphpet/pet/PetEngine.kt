@@ -143,9 +143,13 @@ class PetEngine(
         const val READY_EVERY_MS = 3200L
         const val READY_SWEEP_MS = 700L
 
-        /** Frame brightness to the 0..1 levels the Compose preview draws, scaled so the body reads as white. */
+        /**
+         * Frame brightness to the 0..1 levels the app's screen draws, as the eye sees the real LEDs: the body a soft grey,
+         * the bright details (eyes, outlines, sparks) white, the shading in between, so a pet reads as clearly on a
+         * phone without a Glyph matrix as on the matrix itself. (Scaling the body to white made it one white blot.)
+         */
         fun toCells(frame: IntArray): List<Cell> = buildList {
-            for (i in frame.indices) if (frame[i] > 0) add(Cell(i % SIZE, i / SIZE, (frame[i] / BODY.toFloat()).coerceIn(0.15f, 1f)))
+            for (i in frame.indices) if (frame[i] > 0) add(Cell(i % SIZE, i / SIZE, kotlin.math.sqrt(frame[i] / BRIGHT.toFloat()).coerceIn(0.14f, 1f)))
         }
 
         /** How far a species may walk from its home spot without leaving the round matrix. */

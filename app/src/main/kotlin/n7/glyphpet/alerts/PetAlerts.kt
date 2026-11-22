@@ -16,6 +16,9 @@ object PetAlerts {
     /** Called on the main thread for every notification that would alert the owner (not a ringing call: see [ringing]). */
     @Volatile var onNotification: (() -> Unit)? = null
 
+    /** The same for the app's own screen, where a phone without a Glyph matrix keeps its pet. */
+    @Volatile var onNotificationApp: (() -> Unit)? = null
+
     /** The phone is ringing now: an incoming call waits to be answered. */
     @Volatile var ringing: Boolean = false
         internal set

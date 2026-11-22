@@ -26,7 +26,7 @@ class PetNotificationListener : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification, rankingMap: RankingMap) {
         countMissedCalls()
         checkRinging()
-        if (!isCall(sbn) && alerts(sbn, rankingMap)) main.post { PetAlerts.onNotification?.invoke() }
+        if (!isCall(sbn) && alerts(sbn, rankingMap)) main.post { PetAlerts.onNotification?.invoke(); PetAlerts.onNotificationApp?.invoke() }
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification, rankingMap: RankingMap) { countMissedCalls(); checkRinging() }
