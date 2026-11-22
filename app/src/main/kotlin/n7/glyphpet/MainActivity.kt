@@ -237,6 +237,8 @@ private fun Intro(onDone: () -> Unit) {
     val crowd = remember {
         listOf("owl", "ghost", "ufo").map { PetEngine.toCells(SpeciesRenderer.render(SpeciesCatalog.get(it)!!, Face.CONTENT)) }
     }
+    // Blown on: the cloud squints into the wind.
+    val hears = remember { PetEngine.toCells(SpeciesRenderer.render(SpeciesCatalog.get("cloud")!!, Face.TIRED)) }
     // The three needs: eating, playing happy, asleep.
     val needs = remember {
         val cat = SpeciesCatalog.get("cat")!!
@@ -246,6 +248,7 @@ private fun Intro(onDone: () -> Unit) {
         Triple(listOf(egg), R.string.intro_1_title, R.string.intro_1_text),
         Triple(listOf(pet), R.string.intro_2_title, R.string.intro_2_text),
         Triple(needs, R.string.intro_needs_title, R.string.intro_needs_text),
+        Triple(listOf(hears), R.string.intro_hear_title, R.string.intro_hear_text),
         Triple(crowd, R.string.intro_3_title, R.string.intro_3_text),
     )
     val (pictures, title, text) = pages[step]
@@ -263,7 +266,7 @@ private fun Intro(onDone: () -> Unit) {
                 val size = if (pictures.size == 1) 240.dp else 100.dp
                 pictures.forEach { GlyphMatrix(cells = it, modifier = Modifier.size(size)) }
             }
-            Text(stringResource(title), style = N7Type.Headline, color = N7Colors.Ink)
+            Text(if (title == R.string.intro_3_title) stringResource(title, SpeciesCatalog.all.size) else stringResource(title), style = N7Type.Headline, color = N7Colors.Ink)
             Text(stringResource(text), style = N7Type.Body, color = N7Colors.InkMuted)
             Spacer(Modifier.weight(1f))
             N7Button(
