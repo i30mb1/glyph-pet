@@ -143,8 +143,6 @@ internal class CrabTrick : Trick(0L) {
                 val half = sandHalf(row)
                 for (cx in (MID - half).toInt()..(MID + half).toInt()) canvas.max(cx, row, (if (row == SAND_Y) 500f else 250f) * g)
             }
-            // The pile of shells collected so far, at the right of the beach.
-            for (p in 0 until (count % DANCE)) canvas.max((MID + 3f + p * 1.2f).toInt(), SAND_Y + 2, 1800f * g)
             if (wave >= 0L) {
                 val p = wave.toFloat() / WAVE_MS
                 val reach = (if (p < 0.5f) p * 2f else (1f - p) * 2f) * 20f

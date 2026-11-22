@@ -158,14 +158,12 @@ internal class BeeTrick : Trick(0L) {
         layer.spriteAt(s, homing.x, homing.y, homing.s, homing.s)
         canvas.over(layer)
         if (!going) {
-            // Wings buzzing above, and the pollen it carries as dots under it.
+            // Wings buzzing above. (No dots for the pollen carried: a game draws no score.)
             val top = homing.y - sp.height * homing.s / 2f - 0.6f
             if ((t / 60L) % 2L == 0L) {
                 canvas.splat(homing.x - 1.2f, top, 1800f * g)
                 canvas.splat(homing.x + 1.2f, top, 1800f * g)
             }
-            val low = homing.y + sp.height * homing.s / 2f + 0.8f
-            for (p in 0 until pollen) canvas.max((homing.x - (pollen - 1) + p * 2f).toInt(), low.toInt(), 2600f)
             if (party > 0L && (t / 150L) % 2L == 0L) {
                 canvas.max((homing.x - 3f).toInt(), (top - 1f).toInt(), 3000f)
                 canvas.max((homing.x + 3f).toInt(), (top).toInt(), 3000f)

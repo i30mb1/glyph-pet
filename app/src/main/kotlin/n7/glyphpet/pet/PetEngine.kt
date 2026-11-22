@@ -48,6 +48,8 @@ data class Scene(
      * when its right side came toward the viewer. The 3D pets show their side; flat ones look and lean that way.
      */
     val yaw: Float = 0f,
+    /** Hungry and sad at once ([PetRules.alsoSad]): hunger shows, in the rain of the sadness. */
+    val alsoSad: Boolean = false,
 )
 
 /**
@@ -96,7 +98,7 @@ class PetEngine(
         const val HOP_MS = 320L
 
         /** How long the old frame dissolves under the new one when the pet's state changes. */
-        const val FADE_MS = 260L
+        const val FADE_MS = 450L
 
         /** A happy pet's own burst of joy comes once in this long, at random, like a habit... */
         const val JOY_EVERY_MIN_MS = 10_000L
@@ -609,14 +611,19 @@ class PetEngine(
         val frame = tickRaw(dtMs, scene)
         val look = listOf(shown.face, shown.habit, shown.charging, trickMs >= 0, signatureMs >= 0, feastMs >= 0, moment != null, scene.egg != null, scene.species?.id)
         val prev = lastOut
+        // A change in the middle of a fade starts from what was on the matrix then, so nothing jumps.
         if (lastLook != null && look != lastLook && prev != null) { fadeFrom = prev; fadeMs = 0 }
         lastLook = look
         val from = fadeFrom
         if (fadeMs >= 0 && from != null) {
             fadeMs += dtMs
-            val left = 1f - fadeMs.toFloat() / FADE_MS
-            if (left <= 0f) { fadeMs = -1; fadeFrom = null }
-            else for (i in frame.indices) { val v = (from[i] * left).toInt(); if (v > frame[i]) frame[i] = v }
+            val p = fadeMs.toFloat() / FADE_MS
+            if (p >= 1f) { fadeMs = -1; fadeFrom = null }
+            else {
+                // A cross-dissolve: the old frame fades out while the new one fades in, so one flows into the other.
+                val k = p * p * (3 - 2 * p)
+                for (i in frame.indices) frame[i] = (frame[i] * k + from[i] * (1 - k)).toInt()
+            }
         }
         lastOut = frame.copyOf()
         return frame
@@ -758,7 +765,8 @@ class PetEngine(
             // This kind eats its own way: its meal has the whole matrix until it is finished. It draws the food itself,
             // so it is handed a plain face, not [Face.EAT], whose badge would be a second piece beside the pet. Food does
             // not cheer a sad pet up (only play and strokes do): it eats with its sad face, in its rain.
-            val sad = scene.mood == Mood.SAD
+            // (A drawn hero has no rain: its sadness is its own clip, so its meal stays dry.)
+            val sad = (scene.mood == Mood.SAD || scene.alsoSad) && !Drawn.handles(species.kind)
             fe.draw(frame, input(species, feastMs, dtMs, scene, if (sad) Face.SAD else Face.CONTENT))
             cover.fill(SpeciesRenderer.COVER_NONE)
             weather.draw(frame, dtMs, if (sad) Weather.Kind.RAIN else Weather.Kind.NONE, scene.tilt, scene.tiltY, cover)
@@ -853,10 +861,13 @@ class PetEngine(
         if (announceMs >= 0) sweep(frame, species, dx, lift, announceMs.toFloat() / ANNOUNCE_MS)
         // Rain for a sad pet, a calm snow for a sleeper (the charger returns earlier, so never there); drawn behind
         // everything lit so far.
-        val sky = when (scene.mood) {
+        val sky = when {
+            scene.mood == Mood.HUNGRY && scene.alsoSad -> Weather.Kind.RAIN
+            else -> when (scene.mood) {
             Mood.SAD -> Weather.Kind.RAIN
             Mood.SLEEPING -> Weather.Kind.SNOW
             else -> Weather.Kind.NONE
+            }
         }
         weather.draw(frame, dtMs, sky, scene.tilt, scene.tiltY, cover)
         if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
@@ -897,6 +908,9 @@ class PetEngine(
             else -> "calm" to time
         }
         Drawn.frame(species.kind, col, t, species.stage, if (sliding) scene.tilt else 0f, frame)
+        // Hungry and sad at once: its hungry clip, dimmed by the sadness.
+        if (col == "hungry" && scene.alsoSad) for (i in frame.indices) frame[i] = frame[i] * 7 / 10
+        Drawn.cameFrom[species.kind] = col
         if (scene.ready && action != Action.SURGE) { val phase = time % READY_EVERY_MS; if (phase < READY_SWEEP_MS) surgeGlow(frame) }
         if (action == Action.SURGE) surgeGlow(frame)
         if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)

@@ -5,6 +5,7 @@ import n7.glyphpet.pet.drawn.Drawn
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.random.Random
+import kotlin.math.abs
 
 /** The drawn heroes ([Drawn]): every state of every form shows on the matrix and moves; the engine plays them all. */
 class DrawnHeroesTest {
@@ -159,5 +160,50 @@ class DrawnFrameRateTest {
         val a = Drawn.frame("phoenix", "calm", 1600, Stage.TEEN)
         val b = Drawn.frame("phoenix", "calm", 1640, Stage.TEEN)
         assertTrue(!a.contentEquals(b))
+    }
+}
+
+/** Feeding a hungry or a sad pet flows into its meal: no frame jumps away from the one before. */
+class MealTransitionTest {
+    @Test
+    fun `a hungry or sad pet flows into its meal without a jump`() {
+        val bad = mutableListOf<String>()
+        for (s in SpeciesForms.all.filter { it.stage == Stage.TEEN }) for (mood in listOf(Mood.HUNGRY, Mood.SAD)) {
+            val e = PetEngine(Random(2), autoHabits = false, autoSignatures = false)
+            var prev = IntArray(625)
+            repeat(12) { prev = e.tick(80, Scene(species = s, mood = mood)).copyOf() }
+            e.feed(accepted = true)
+            repeat(4) {
+                val f = e.tick(80, Scene(species = s, mood = mood)).copyOf()
+                // A jump is the light changing at once or the picture leaping away; things flying along are motion.
+                val sf = f.sum().toDouble(); val sp = prev.sum().toDouble()
+                fun centre(a: IntArray): Pair<Double, Double> { val tot = maxOf(1.0, a.sum().toDouble()); return a.indices.sumOf { (it % 25) * a[it].toDouble() } / tot to a.indices.sumOf { (it / 25) * a[it].toDouble() } / tot }
+                val (fx, fy) = centre(f); val (px, py) = centre(prev)
+                val leap = kotlin.math.hypot(fx - px, fy - py)
+                if (abs(sf - sp) > 0.4 * maxOf(sf, sp) || leap > 3.0) bad += "${s.kind}/$mood: light ${(abs(sf - sp) * 100 / maxOf(1.0, maxOf(sf, sp))).toInt()}% leap ${"%.1f".format(leap)}"
+                prev = f
+            }
+        }
+        assertTrue(bad.distinct().joinToString(), bad.isEmpty())
+    }
+}
+
+/** Hungry and sad at once: hunger shows, in the rain of the sadness, and the rain goes on through the meal. */
+class HungryAndSadTest {
+    @Test
+    fun `hungry and sad shows the rain, hungry alone does not`() {
+        val st = PetStats(satiety = 10f, joy = 10f, energy = 80f, bornAtMs = 0, updatedAtMs = 0)
+        assertTrue(PetRules.alsoSad(st, false))
+        assertTrue(!PetRules.alsoSad(st.copy(joy = 60f), false))
+        assertTrue(!PetRules.alsoSad(st.copy(satiety = 80f), false))
+        for (s in SpeciesForms.sprites.filter { it.stage == Stage.TEEN }) {
+            fun lit(alsoSad: Boolean): Int {
+                val e = PetEngine(Random(4), autoHabits = false, autoSignatures = false)
+                var n = 0
+                repeat(20) { n += e.tick(80, Scene(species = s, mood = Mood.HUNGRY, alsoSad = alsoSad)).count { it > 0 } }
+                return n
+            }
+            assertTrue(s.kind, lit(true) > lit(false) + 20)
+        }
     }
 }

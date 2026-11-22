@@ -558,6 +558,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         return Scene(
             species = n.activeForm,
             mood = mood,
+            alsoSad = PetRules.alsoSad(n.stats, store.asleep(n.stats)),
             tilt = tilt,
             tiltY = tiltY,
             charging = power.plugged,

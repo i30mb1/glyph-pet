@@ -117,7 +117,13 @@ class AtlasExport {
             }
             for (a in Drawn.all) {
                 sb.append(",\"${a.kind}\":{")
-                sb.append(Drawn.COLS.joinToString(",") { (id, _) -> clipJson(id, Drawn.clip(a, id, st.ordinal)) })
+                sb.append(Drawn.COLS.joinToString(",") { (id, _) ->
+                    // The game is a real one now: recorded from the engine, played by a slow sway of the lean.
+                    val frames = if (id == "game") SpeciesForms.of(a.kind, st).let { sp ->
+                        custom(sp, 6400, start = { it.trick(a.kind, seed = 3) }) { _, t -> scene(sp, tilt = (0.8 * sin(2 * PI * t / 2600.0)).toFloat(), tiltY = 0.3f) }
+                    } else Drawn.clip(a, id, st.ordinal)
+                    clipJson(id, frames)
+                })
                 sb.append('}')
             }
             sb.append('}')

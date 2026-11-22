@@ -33,7 +33,15 @@ import n7.glyphpet.pet.trick.UfoTrick
 
 /** The tricks by kind (see [Tricks]); each lives in pet/trick/ and is wrapped so a bug in it never breaks the matrix. */
 object TrickList {
-    val all: Map<String, () -> Signature> = n7.glyphpet.pet.drawn.Drawn.all.associate { h -> h.kind to { SafeSignature(n7.glyphpet.pet.drawn.DrawnClip.game(h.kind)) } } + mapOf(
+    /** The drawn heroes' real games ([n7.glyphpet.pet.drawn.Drawn]). */
+    private val drawnGames: Map<String, () -> Signature> = mapOf(
+        "swarm" to { n7.glyphpet.pet.trick.SwarmTrick() },
+    ) + n7.glyphpet.pet.trick.DrawnTricks.all
+
+    val all: Map<String, () -> Signature> = n7.glyphpet.pet.drawn.Drawn.all.associate { h ->
+        // A drawn hero with a real game of its own plays it; the others loop their game clip for now.
+        h.kind to { SafeSignature(drawnGames[h.kind]?.invoke() ?: n7.glyphpet.pet.drawn.DrawnClip.game(h.kind)) }
+    } + mapOf(
         "slime" to { SafeSignature(SlimeTrick()) },
         "cat" to { SafeSignature(CatTrick()) },
         "bot" to { SafeSignature(BotTrick()) },

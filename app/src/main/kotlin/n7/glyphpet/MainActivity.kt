@@ -375,6 +375,7 @@ private fun PetScreen(
                     val scene = Scene(
                         species = nursery.activeForm,
                         mood = PetRules.mood(nursery.stats, store.asleep(nursery.stats)),
+                        alsoSad = PetRules.alsoSad(nursery.stats, store.asleep(nursery.stats)),
                         // The screen faces the owner, the matrix faces away: a lean to the left is the other way round.
                         tilt = if (playing) -motion.tilt else 0f,
                         tiltY = if (playing) motion.tiltY else 1f,

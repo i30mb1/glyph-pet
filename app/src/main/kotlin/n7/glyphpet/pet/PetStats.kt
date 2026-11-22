@@ -117,6 +117,9 @@ object PetRules {
     const val TIRED = 20f
     const val HUNGRY = 25f
 
+    /** Joy below this, a quarter: the pet is sad. */
+    const val SAD = 25f
+
     /** Time counts as on the matrix only this long after the toy last said so; a longer silence was time away. */
     const val SEEN_GAP_MS = 3 * 60_000L
 
@@ -202,11 +205,17 @@ object PetRules {
     /** Stroked: half a dot of joy. */
     fun stroke(stats: PetStats): PetStats = stats.copy(joy = (stats.joy + PET_JOY).clamp())
 
+    /**
+     * Hungry and low on joy at once: the pet shows its hunger (that comes first) in the rain of its sadness, so the
+     * sadness that is still there after the meal is no surprise.
+     */
+    fun alsoSad(stats: PetStats, asleep: Boolean): Boolean = mood(stats, asleep) == Mood.HUNGRY && stats.joy < SAD
+
     fun mood(stats: PetStats, asleep: Boolean): Mood = when {
         asleep -> Mood.SLEEPING
         stats.satiety < HUNGRY -> Mood.HUNGRY
         stats.energy < TIRED -> Mood.TIRED
-        stats.joy < 25f -> Mood.SAD
+        stats.joy < SAD -> Mood.SAD
         stats.joy > 70f && stats.satiety > 50f -> Mood.HAPPY
         else -> Mood.CONTENT
     }

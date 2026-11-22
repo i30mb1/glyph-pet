@@ -48,6 +48,9 @@ object Drawn {
 
     fun length(col: String): Long = COLS.first { it.first == col }.second
 
+    /** The state each drawn hero was last shown in before its meal, game or signature took over: where those start from. */
+    val cameFrom = java.util.concurrent.ConcurrentHashMap<String, String>()
+
     /** One frame of [kind] in state [col], [t] ms into the clip (looped), at [stage], leaned [tilt]. */
     fun frame(kind: String, col: String, t: Long, stage: Stage, tilt: Float = 0f, frame: IntArray = IntArray(625)): IntArray {
         val hero = byKind[kind] ?: return frame
@@ -630,6 +633,13 @@ private object Swarm : Anomaly(
         val a = i * GOLD + t / 1400f
         return (12 + r * cos(a) + sin(t / 700f + i) * 0.6f) to (cy + r * sin(a) * 0.85f + cos(t / 900f + i * 1.3f) * 0.6f + sin(t / 1000f))
     }
+    /** Where a sad swarm lies: along the bottom of the matrix. */
+    private fun sadPose(i: Int, n: Int, st: Int): Pair<Float, Float> {
+        val x = 12f + (i.toFloat() / n - 0.5f) * (6f + 4 * st)
+        val floor = 12f + sqrt(max(0f, 10.5f * 10.5f - (x - 12) * (x - 12))) - 0.5f
+        return x to (floor - (i % 2))
+    }
+
     private fun heart(i: Int, n: Int, s: Float): Pair<Float, Float> {
         val u = i.toFloat() / n * TAU
         val x = 16 * sin(u).pow(3); val y = 13 * cos(u) - 5 * cos(2 * u) - 2 * cos(3 * u) - cos(4 * u)
@@ -720,7 +730,16 @@ private object Swarm : Anomaly(
                 for (i in 0 until n) {
                     val a = i * GOLD + t / 300f
                     val tight = (1.5f + rnd(i, 4) * 1.2f) * (if (t > 2200) 1f + seg(t, 2200, 3200) * 1.5f else 1f)
-                    dot(c, lerp(cloud(i, n, t, st), (12 + cos(a) * tight) to (dy + sin(a) * tight), k), glow * blink(i, t) + 0.2f)
+                    // The meal grows out of the hungry ring: the open mouth breaks up and its fireflies fly to the drop.
+                    val start = when (Drawn.cameFrom[kind]) {
+                        "hungry" -> (i.toFloat() / n * TAU).let { ang -> val r = s * 0.7f; (12 + cos(ang) * r * 1.2f) to (12 + sin(ang) * r * 0.8f) }
+                        "sad" -> sadPose(i, n, st)
+                        else -> cloud(i, n, t, st)
+                    }
+                    val from = lerp(start, cloud(i, n, t, st), ease(seg(t, 0, 700)))
+                    // Coming from a dim, sad swarm the fireflies light up slowly, not all at once.
+                    val wake = if (Drawn.cameFrom[kind] == "sad") mix(0.3f, 1f, ease(seg(t, 0, 900))) else 1f
+                    dot(c, lerp(from, (12 + cos(a) * tight) to (dy + sin(a) * tight), k), (glow * blink(i, t) + 0.2f) * wake)
                 }
             }
             "game" -> {

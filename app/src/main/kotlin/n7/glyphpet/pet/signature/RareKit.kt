@@ -36,6 +36,12 @@ internal object Kit {
     ) {
         val tmp = IntArray(N * N)
         cover.fill(SpeciesRenderer.COVER_NONE)
+        // A drawn hero has no sprite: its own calm picture stands in for it.
+        if (n7.glyphpet.pet.drawn.Drawn.handles(species.kind)) {
+            n7.glyphpet.pet.drawn.Drawn.frame(species.kind, "calm", 800, species.stage, frame = tmp)
+            for (i in 0 until N * N) if (VISIBLE[i]) { val v = (tmp[i] * gain).toInt(); if (v > frame[i]) frame[i] = v }
+            return
+        }
         SpeciesRenderer.render(species, face, blink = blink, dx = dx, frame = tmp, lift = lift, cover = cover, painter = painter)
         for (i in 0 until N * N) {
             if (!VISIBLE[i]) continue
