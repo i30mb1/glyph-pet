@@ -119,7 +119,7 @@ enum class TiltStyle(val face: Face) {
             val y0 = (cy - r).toInt().coerceAtLeast(0)
             val y1 = (cy + r).toInt().coerceAtMost(size - 1)
             val copy = frame.copyOf()
-            fun at(x: Int, y: Int): Float = if (x in left..right && y in top..bottom) copy[y * size + x].toFloat() else 0f
+            fun at(x: Int, y: Int): Float = if (x in left..right && y in top..bottom && x in 0 until size && y in 0 until size) copy[y * size + x].toFloat() else 0f
             val c = kotlin.math.cos(angle)
             val s = kotlin.math.sin(angle)
             for (y in y0..y1) for (x in x0..x1) {

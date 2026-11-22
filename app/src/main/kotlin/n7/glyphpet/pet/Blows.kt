@@ -9,7 +9,8 @@ import kotlin.random.Random
  * Blowing on the pet ([Scene.wind], from the microphone): each kind takes the wind its own way ([Way]): how its body
  * goes ([Move]), the face it makes, and what the wind tears off it or blows past it ([Debris]). No two kinds share all
  * three. Only a free pet feels it: a habit, a game, a meal, a reaction or sleep goes on as if nothing blew, so the wind
- * never cuts an animation. Faint streaks of air cross the matrix while it blows, whoever the pet is.
+ * never cuts an animation. The wind blows up the matrix, from its bottom edge, the way breath on the microphone at the
+ * bottom of the phone goes; faint streaks of air rise across the matrix while it blows, whoever the pet is.
  */
 object Blows {
 
@@ -183,8 +184,8 @@ object Blows {
     class Box(val left: Int, val right: Int, val top: Int, val bottom: Int, val eyes: List<Pair<Int, Int>>, val mouth: Pair<Int, Int>)
 
     /**
-     * Sends new debris of [way] (and streaks of air) while the wind blows, and moves everything on. [dir] +1 blows to
-     * the right.
+     * Sends new debris of [way] (and streaks of air) while the wind blows up the matrix, and moves everything on.
+     * [dir] is kept for the callers; the wind always blows up.
      */
     fun step(bits: MutableList<Bit>, dtMs: Long, wind: Float, dir: Int, way: Way, box: Box, random: Random) {
         val dt = dtMs / 1000f
@@ -214,19 +215,20 @@ object Blows {
             n -= 1f
             fun between(a: Int, b: Int) = if (b <= a) a else random.nextInt(a, b + 1)
             val (x, y) = when (s.from) {
-                From.DOWNWIND -> (if (dir > 0) box.right else box.left).toFloat() to between(box.top + 1, box.bottom - 1).toFloat()
+                From.DOWNWIND -> between(box.left + 1, box.right - 1).toFloat() to box.top.toFloat()
                 From.TOP -> between(box.left + 1, box.right - 1).toFloat() to box.top.toFloat()
                 From.BODY -> between(box.left, box.right).toFloat() to between(box.top, box.bottom).toFloat()
-                From.EDGE -> (if (dir > 0) -2f else GlyphMatrixSpec.SIZE + 1f) to between(3, GlyphMatrixSpec.SIZE - 4).toFloat()
+                From.EDGE -> between(3, GlyphMatrixSpec.SIZE - 4).toFloat() to GlyphMatrixSpec.SIZE + 1f
                 From.GROUND -> between(box.left - 1, box.right + 1).toFloat() to (box.bottom + 1).toFloat()
-                From.EYES -> box.eyes.random(random).let { (ex, ey) -> (ex + if (dir > 0) 1 else 0).toFloat() to ey.toFloat() }
+                From.EYES -> box.eyes.random(random).let { (ex, ey) -> (ex + random.nextInt(2)).toFloat() to ey.toFloat() }
                 From.MOUTH -> box.mouth.first.toFloat() to box.mouth.second.toFloat()
                 From.AROUND -> between(box.left - 2, box.right + 2).toFloat() to between(box.top - 2, box.bottom + 2).toFloat()
             }
             var life = if (s.life.last > s.life.first) random.nextLong(s.life.first, s.life.last + 1) else s.life.first
             fun pick(r: ClosedFloatingPointRange<Float>) = r.start + random.nextFloat() * (r.endInclusive - r.start)
-            var vx = dir * pick(s.vx) * (0.6f + 0.4f * wind)
-            var vy = pick(s.vy)
+            // Along the wind is up the matrix; what the spec gives across it becomes a sway to either side.
+            var vy = -pick(s.vx) * (0.6f + 0.4f * wind)
+            var vx = pick(s.vy) * 0.5f * (if (random.nextBoolean()) 1 else -1)
             if (s.inward) {
                 // Pulled straight in to the middle of the pet, and gone when it gets there.
                 val tx = (box.left + box.right) / 2f - x
@@ -251,15 +253,15 @@ object Blows {
             if (b.twinkle) k *= 0.55f + 0.45f * sin(timeMs / 90f + b.phase)
             val v = (b.value * k).toInt()
             if (v <= 0) continue
-            val x = b.x
-            val y = b.y + b.wobble * sin(timeMs / 260f + b.phase) * 0.35f
+            val x = b.x + b.wobble * sin(timeMs / 260f + b.phase) * 0.35f
+            val y = b.y
             when (Shape.entries[b.shape]) {
                 Shape.DOT, Shape.DROP -> dot(frame, x, y, v)
                 Shape.TUFT -> {
                     // A tuft tumbles: its second hair turns about the first.
                     val flip = ((timeMs / 140 + b.phase.toInt()) % 2 == 0L)
                     dot(frame, x, y, v)
-                    dot(frame, x - dir * 0.9f, y + if (flip) 0.9f else -0.9f, v / 2)
+                    dot(frame, x + if (flip) 0.9f else -0.9f, y + 0.9f, v / 2)
                 }
                 Shape.LEAF -> {
                     val spin = ((timeMs / 180 + b.phase.toInt()) % 3).toInt()
@@ -270,8 +272,9 @@ object Blows {
                     dot(frame, x, y, v)
                     for ((a, c) in listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1)) dot(frame, x + a, y + c, v / 4)
                 }
-                Shape.TRAIL -> for (j in 0 until b.length) dot(frame, x - dir * j, y, (v * (1f - j / (b.length + 0.5f))).toInt())
-                Shape.BAR -> for (j in -1..1) dot(frame, x, y + j, if (j == 0) v else v * 2 / 3)
+                // A streak trails behind its head, back along the way it flies.
+                Shape.TRAIL -> for (j in 0 until b.length) dot(frame, x, y + (if (b.vy <= 0f) j else -j), (v * (1f - j / (b.length + 0.5f))).toInt())
+                Shape.BAR -> for (j in -1..1) dot(frame, x + j, y, if (j == 0) v else v * 2 / 3)
                 Shape.SCRAP -> {
                     val upright = ((timeMs / 200 + b.phase.toInt()) % 2 == 0L)
                     dot(frame, x, y, v)

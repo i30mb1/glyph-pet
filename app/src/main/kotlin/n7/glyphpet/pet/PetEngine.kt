@@ -931,9 +931,11 @@ class PetEngine(
             sliding && own == null -> tiltStyle.lift(slideMs)
             blowHopMs >= 0 -> HOP.getOrElse((blowHopMs / 80).toInt()) { 0 }.coerceAtLeast(0)
             else -> 0
-        }.plus(blowLift() + (startle?.let { Startles.lift(it, startleMs) } ?: 0) + (typeStyle?.let { Typing.lift(it, sinceKey) } ?: 0))
+        }.plus(blowLift() + windUp(way) + (startle?.let { Startles.lift(it, startleMs) } ?: 0) + (typeStyle?.let { Typing.lift(it, sinceKey) } ?: 0))
             // Never up through the round top edge: a big pet jumps only as high as there is room.
             .coerceAtMost(maxOf(0, species.oy - 4))
+            // Carried right out through the top by the wind, and in again from the bottom.
+            .plus(if (way != null && (way.move == Blows.Move.WRAP || way.move == Blows.Move.TUMBLE)) windPush.roundToInt() else 0)
         // Stroked: each kind its own way ([Cuddles]); a sleeper only peeks.
         val cuddle = when {
             action == Action.LOVED && !asleep && own == null -> Cuddles.of(species.kind)
@@ -945,12 +947,10 @@ class PetEngine(
         // A refusal sways slowly, "no, thanks"; a surge trembles.
         val jitterMs = if (action == Action.REFUSING) 300L else 120L
         val jitter = if (shudder) (if ((time / jitterMs) % 2 == 0L) -1 else 1) else 0
-        val slide = slideRange(species)
         val wraps = way != null && (way.move == Blows.Move.WRAP || way.move == Blows.Move.TUMBLE)
-        val pushed = if (wraps) windPush.roundToInt() else (x + windPush).roundToInt().coerceIn(slide.first, slide.last) - x.roundToInt()
         // Holding on in a strong wind: it trembles.
         val holdShake = if (way?.move == Blows.Move.HOLD && blown && scene.wind > 0.45f) (if ((time / 90) % 2 == 0L) -1 else 1) else 0
-        val dx = x.roundToInt() + pushed + jitter + holdShake + (cuddle?.let { Cuddles.dx(it, cuddleMs) } ?: 0) +
+        val dx = x.roundToInt() + jitter + holdShake + (cuddle?.let { Cuddles.dx(it, cuddleMs) } ?: 0) +
             (startle?.let { Startles.dx(it, startleMs, startleDir) } ?: 0) + (typeStyle?.let { Typing.dx(it, sinceKey, keySide) } ?: 0)
         cover.fill(SpeciesRenderer.COVER_NONE)
         // Legendary and mythic pets are drawn in 3D, turning a little with the phone ([Living3D]).
@@ -1113,8 +1113,9 @@ class PetEngine(
         var dx = 0; var dy = 0; var angle = 0f; var dim = 1f
         if (way != null) {
             val wind = windMotion(dtMs, way, if (free) scene.wind else 0f, scene, b - tp + 1)
-            dx += windPush.roundToInt() + if (way.move == Blows.Move.HOLD && blown && scene.wind > 0.45f) (if ((time / 90) % 2 == 0L) -1 else 1) else 0
-            dy -= blowLift() + if (blowHopMs >= 0) HOP.getOrElse((blowHopMs / 80).toInt()) { 0 }.coerceAtLeast(0) else 0
+            dx += if (way.move == Blows.Move.HOLD && blown && scene.wind > 0.45f) (if ((time / 90) % 2 == 0L) -1 else 1) else 0
+            // The wind blows up the matrix: the picture is pushed up (and, carried off, out at the top and in at the bottom).
+            dy -= blowLift() + windPush.roundToInt() + if (blowHopMs >= 0) HOP.getOrElse((blowHopMs / 80).toInt()) { 0 }.coerceAtLeast(0) else 0
             angle += blowAngle
             dim *= blowDim
             val box = Blows.Box(l + dx, r + dx, tp + dy, b + dy, listOf((l + r) / 2 + dx to (tp + b) / 2 + dy), (l + r) / 2 + dx to (tp + b) / 2 + 1 + dy)
@@ -1178,7 +1179,7 @@ class PetEngine(
         return frame
     }
 
-    /** Moves the whole picture [dx] across and [dy] down; with [wraps], what leaves one side comes in on the other. */
+    /** Moves the whole picture [dx] across and [dy] down; with [wraps], what leaves the top comes in at the bottom. */
     private fun shiftWhole(frame: IntArray, dx: Int, dy: Int, wraps: Boolean) {
         if (dx == 0 && dy == 0) return
         val src = frame.copyOf()
@@ -1186,9 +1187,9 @@ class PetEngine(
         for (y in 0 until SIZE) for (x0 in 0 until SIZE) {
             val v = src[y * SIZE + x0]
             if (v == 0) continue
-            var nx = x0 + dx
-            val ny = y + dy
-            if (wraps) nx = Math.floorMod(nx, SIZE)
+            val nx = x0 + dx
+            var ny = y + dy
+            if (wraps) ny = Math.floorMod(ny, SIZE)
             if (GlyphMatrixSpec.isVisible(nx, ny)) frame[ny * SIZE + nx] = maxOf(frame[ny * SIZE + nx], v)
         }
     }
@@ -1511,8 +1512,8 @@ class PetEngine(
         val free = !asleep && action == Action.NONE && own == null && habitMs < 0 && signatureMs < 0 && trickMs < 0 &&
             feastMs < 0 && foodY == null && !sliding
         val wind = windMotion(dtMs, way, if (free) scene.wind else 0f, scene, species.height)
-        val left = species.ox + x.roundToInt() + windPush.roundToInt()
-        val top = species.oy - blowLift()
+        val left = species.ox + x.roundToInt()
+        val top = species.oy - blowLift() - windPush.roundToInt()
         val box = Blows.Box(
             left, left + species.width - 1, top, top + species.height - 1,
             species.eyes.map { (ex, ey) -> left + ex to top + ey }.ifEmpty { listOf(left + species.width / 2 to top + species.height / 3) },
@@ -1583,6 +1584,11 @@ class PetEngine(
 
     private fun blowLift(): Int = blowLiftF.roundToInt()
 
+    /** How far up the wind has pushed the pet now (rows): the wind blows up the matrix ([Blows]). */
+    private fun windUp(way: Blows.Way?): Int =
+        if (way == null || way.move == Blows.Move.WRAP || way.move == Blows.Move.TUMBLE || way.move == Blows.Move.LIFT) 0
+        else windPush.roundToInt().coerceAtLeast(0)
+
     /**
      * The blown pet's pose over the frame just drawn: turned (rolled, tumbled or upside down), coming in from the other
      * side as it is carried through the edge, or faded into hiding.
@@ -1592,9 +1598,10 @@ class PetEngine(
         val left = species.ox + dx
         if (abs(blowAngle) > 0.03f) TiltStyle.rotate(frame, left, left + species.width - 1, top, top + species.height - 1, blowAngle)
         if (wraps && windPush.roundToInt() != 0) {
+            // The part already out at the top comes in at the bottom.
             SpeciesRenderer.render(
-                species, face, dx = dx - sign(windPush).toInt() * TiltStyle.WRAP_CELLS, frame = frame, timeMs = time, lift = lift,
-                shadow = true, painter = painter, badges = false,
+                species, face, dx = dx, frame = frame, timeMs = time, lift = lift - sign(windPush).toInt() * TiltStyle.WRAP_CELLS,
+                shadow = false, painter = painter, badges = false,
             )
         }
         if (blowDim < 0.995f) for (i in frame.indices) frame[i] = (frame[i] * blowDim).toInt()
