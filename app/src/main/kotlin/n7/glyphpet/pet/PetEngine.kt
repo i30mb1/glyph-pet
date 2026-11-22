@@ -53,8 +53,10 @@ data class Scene(
     val alsoSad: Boolean = false,
     /** Someone blows on the phone (0..1, from the microphone): kinds that feel it ([Blows]) are pushed by the wind. */
     val wind: Float = 0f,
-    /** The pet is a shiny one ([Shiny]): every fifth hatch shimmers when the phone leans. */
+    /** The pet is a shiny one ([Shiny]): a rare hatch that shimmers when the phone leans. */
     val shiny: Boolean = false,
+    /** Someone types by the phone on the desk ([Typing]): the pet plays its little keyboard, a strike for each [PetEngine.key]. */
+    val typing: Boolean = false,
 )
 
 /**
@@ -575,6 +577,23 @@ class PetEngine(
     /** The side a startled pet darts to ([Startles.Move.DART]). */
     private var startleDir = 1
 
+    /**
+     * A key was heard while someone types by the phone ([Scene.typing]): the pet strikes its keyboard ([Typing]). Only a
+     * free pet plays along; the keys go on without it.
+     */
+    fun key() {
+        keyAtMs = time
+        keySide = -keySide
+        struck.addLast(Typing.Struck(random.nextInt(Typing.KEYS.size), time))
+        while (struck.size > 8) struck.removeFirst()
+    }
+
+    /** Typing along: how far the keyboard has come up (0..1), the last key, the side of the strike, the keys struck. */
+    private var typingK = 0f
+    private var keyAtMs = Long.MIN_VALUE / 2
+    private var keySide = 1
+    private val struck = ArrayDeque<Typing.Struck>()
+
     /** The egg just hatched into [baby] (a supporter's egg is [golden]; a [shiny] baby sparkles out): [Moments.hatch] plays. */
     fun hatch(baby: Species, golden: Boolean, shiny: Boolean = false) = startMoment(Hatch(baby, golden, shiny))
 
@@ -738,7 +757,9 @@ class PetEngine(
         val calm = !asleep && !scene.charging && moment == null && action == Action.NONE && habitMs < 0 && signatureMs < 0 &&
             trickMs < 0 && foodY == null && feastMs < 0 && abs(scene.tilt) <= SLIDE_TILT &&
             (scene.mood == Mood.CONTENT || scene.mood == Mood.HAPPY)
-        quietMs = if (calm) quietMs + dtMs else 0L
+        // Typing along counts as something going on: no habit or show of its own starts in the middle of it.
+        quietMs = if (calm && !scene.typing) quietMs + dtMs else 0L
+        typingK += ((if (scene.typing && !asleep && !scene.charging) 1f else 0f) - typingK) * (dtMs / 300f).coerceAtMost(1f)
         // The signature's minute runs while the pet is awake and at ease, habits or not; the habit waits after the quiet.
         if (!asleep && !scene.charging && signatureInMs > 0 && (scene.mood == Mood.CONTENT || scene.mood == Mood.HAPPY)) signatureInMs -= dtMs
         if (quietMs >= QUIET_MS && habitInMs > 0) habitInMs -= dtMs
@@ -867,12 +888,15 @@ class PetEngine(
         // Startled by a clap: each kind its own jolt ([Startles]).
         val startle = if (action == Action.STARTLE && own == null && !asleep) Startles.of(species.kind) else null
         val startleMs = startle?.let { it.durationMs - actionLeftMs } ?: 0L
+        // Typing along, while nothing else goes on ([Typing]).
+        val typeStyle = if (typingK > 0.01f && action == Action.NONE && own == null && !sliding && !blown) Typing.of(species.kind) else null
+        val sinceKey = time - keyAtMs
         val lift = when {
             hopMs >= 0 -> HOP.getOrElse((hopMs / 80).toInt()) { 0 }
             sliding && own == null -> tiltStyle.lift(slideMs)
             blowHopMs >= 0 -> HOP.getOrElse((blowHopMs / 80).toInt()) { 0 }.coerceAtLeast(0)
             else -> 0
-        } + blowLift() + (startle?.let { Startles.lift(it, startleMs) } ?: 0)
+        } + blowLift() + (startle?.let { Startles.lift(it, startleMs) } ?: 0) + (typeStyle?.let { Typing.lift(it, sinceKey) } ?: 0)
         // Stroked: each kind its own way ([Cuddles]); a sleeper only peeks.
         val cuddle = when {
             action == Action.LOVED && !asleep && own == null -> Cuddles.of(species.kind)
@@ -890,7 +914,7 @@ class PetEngine(
         // Holding on in a strong wind: it trembles.
         val holdShake = if (way?.move == Blows.Move.HOLD && blown && scene.wind > 0.45f) (if ((time / 90) % 2 == 0L) -1 else 1) else 0
         val dx = x.roundToInt() + pushed + jitter + holdShake + (cuddle?.let { Cuddles.dx(it, cuddleMs) } ?: 0) +
-            (startle?.let { Startles.dx(it, startleMs, startleDir) } ?: 0)
+            (startle?.let { Startles.dx(it, startleMs, startleDir) } ?: 0) + (typeStyle?.let { Typing.dx(it, sinceKey, keySide) } ?: 0)
         cover.fill(SpeciesRenderer.COVER_NONE)
         // Legendary and mythic pets are drawn in 3D, turning a little with the phone ([Living3D]).
         val painter = if (Living3D.handles(species)) {
@@ -917,6 +941,15 @@ class PetEngine(
             if (k < 0.995f) for (i in frame.indices) frame[i] = (frame[i] * k).toInt()
             Startles.mark(frame, startle, startleMs, left, left + species.width - 1, top, top + species.height - 1, startleDir)
         }
+        val top = species.oy - SpeciesRenderer.jumpOf(face) - lift
+        val left = species.ox + dx
+        if (typeStyle != null) {
+            val angle = Typing.angle(typeStyle, sinceKey, keySide)
+            if (abs(angle) > 0.03f) TiltStyle.rotate(frame, left, left + species.width - 1, top, top + species.height - 1, angle)
+            glowBody(frame, Typing.glow(typeStyle, sinceKey))
+        }
+        Typing.draw(frame, Typing.of(species.kind), if (typeStyle != null) typingK else typingK.coerceAtMost(0.4f), struck, time, keySide,
+            if (typeStyle != null) sinceKey else Long.MAX_VALUE, left, left + species.width - 1, top, top + species.height - 1)
         if (cuddle != null) {
             val top = species.oy - SpeciesRenderer.jumpOf(face) - lift - Cuddles.lift(cuddle, cuddleMs)
             Cuddles.draw(frame, species, cuddle, species.ox + dx, top, cuddleMs)
@@ -1033,7 +1066,8 @@ class PetEngine(
     private fun drawnBlownAndStartled(dtMs: Long, species: Species, scene: Scene, free: Boolean, frame: IntArray) {
         val way = Blows.of(species.kind)
         val startle = if (action == Action.STARTLE) Startles.of(species.kind) else null
-        if (way == null && startle == null) { calmWind(); return }
+        val typeStyle = if (typingK > 0.01f && free && !blown) Typing.of(species.kind) else null
+        if (way == null && startle == null && typeStyle == null && typingK <= 0.01f) { calmWind(); return }
         // Where the hero is in its picture: the box round what is lit.
         var l = 25; var r = -1; var tp = 25; var b = -1
         for (i in frame.indices) if (frame[i] >= BODY / 3) { val cx = i % SIZE; val cy = i / SIZE; l = minOf(l, cx); r = maxOf(r, cx); tp = minOf(tp, cy); b = maxOf(b, cy) }
@@ -1055,6 +1089,13 @@ class PetEngine(
             angle += Startles.angle(startle, startleMs)
             dim *= Startles.dim(startle, startleMs)
         }
+        val sinceKey = time - keyAtMs
+        if (typeStyle != null) {
+            dx += Typing.dx(typeStyle, sinceKey, keySide)
+            dy -= Typing.lift(typeStyle, sinceKey)
+            angle += Typing.angle(typeStyle, sinceKey, keySide)
+            glowBody(frame, Typing.glow(typeStyle, sinceKey))
+        }
         val wraps = way != null && (way.move == Blows.Move.WRAP || way.move == Blows.Move.TUMBLE)
         if (abs(angle) > 0.03f) TiltStyle.rotate(frame, l, r, tp, b, angle)
         if (dx != 0 || dy != 0) {
@@ -1072,6 +1113,15 @@ class PetEngine(
         if (dim < 0.995f) for (i in frame.indices) frame[i] = (frame[i] * dim).toInt()
         if (startle != null) Startles.mark(frame, startle, startleMs, l + dx, r + dx, tp + dy, b + dy, startleDir)
         if (blowBits.isNotEmpty()) Blows.draw(frame, blowBits, windDir, time)
+        Typing.draw(frame, Typing.of(species.kind), if (typeStyle != null) typingK else typingK.coerceAtMost(0.4f), struck, time, keySide,
+            if (typeStyle != null) sinceKey else Long.MAX_VALUE, l + dx, r + dx, tp + dy, b + dy)
+    }
+
+    /** Brightens what is lit by [k] (1: as it is), never past the bright details. */
+    private fun glowBody(frame: IntArray, k: Float) {
+        if (k <= 1.005f) return
+        val cap = (BRIGHT * 0.8f).toInt()
+        for (i in frame.indices) { val v = frame[i]; if (v in 1 until cap) frame[i] = (v * k).toInt().coerceAtMost(cap) }
     }
 
     /**

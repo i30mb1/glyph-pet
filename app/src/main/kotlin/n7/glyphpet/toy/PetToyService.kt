@@ -63,6 +63,9 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         const val TOWARD_FULL = 0.45f
         const val HELD_TAU_S = 4f
 
+        /** This long typing together brings half a dot of joy ([typed]). */
+        const val TYPED_JOY_MS = 30_000L
+
         /** One gust of wind brings joy at most this often ([gusted]). */
         const val GUST_JOY_GAP_MS = 2000L
     }
@@ -436,6 +439,11 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         if (motion.consumeStroke()) stroked()
         if (mic.consumeClap(motion.lastJoltMs)) clapped()
         gusted(now)
+        // Someone types by the phone lying on the desk: the pet plays along, a strike for each key heard.
+        val keysHeard = mic.consumeKeys()
+        val typing = posture == Posture.DESK && mic.typing()
+        if (typing) repeat(minOf(keysHeard, 3)) { engine.key() }
+        typed(dt, typing)
         val n = nursery
         react(
             reactions.frame(
@@ -461,7 +469,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         Shading.light = lightNow
         val frame = try {
             engine.tick(dt, scene(tilt = motion.tilt, tiltY = motion.tiltY, desk = desk, spin = if (desk) motion.spin else 0f, toward = toward,
-                yaw = if (posture == Posture.HAND) motion.yaw else 0f, wind = mic.wind))
+                yaw = if (posture == Posture.HAND) motion.yaw else 0f, wind = mic.wind, typing = typing))
         } finally {
             Shading.light = Shading.DEFAULT_LIGHT
         }
@@ -563,7 +571,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         send(IntArray(PetEngine.SIZE * PetEngine.SIZE))
     }
 
-    private fun scene(tilt: Float = 0f, tiltY: Float = 1f, desk: Boolean = false, spin: Float = 0f, toward: Float = 0f, yaw: Float = 0f, wind: Float = 0f): Scene {
+    private fun scene(tilt: Float = 0f, tiltY: Float = 1f, desk: Boolean = false, spin: Float = 0f, toward: Float = 0f, yaw: Float = 0f, wind: Float = 0f, typing: Boolean = false): Scene {
         val n = nursery ?: return Scene(null, Mood.CONTENT)
         return Scene(
             species = n.activeForm,
@@ -582,6 +590,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             toward = toward,
             yaw = yaw,
             wind = wind,
+            typing = typing,
             shiny = n.activeShiny,
         )
     }
@@ -667,6 +676,25 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             sync(force = true)
         }
         windWas = gust
+    }
+
+    /** Time spent typing together and not yet given as joy ([typed]). */
+    private var typedMs = 0L
+
+    /**
+     * Working side by side is time together: every [TYPED_JOY_MS] of typing with the pet awake on the matrix brings
+     * half a dot of joy, like a stroke.
+     */
+    private fun typed(dtMs: Long, typing: Boolean) {
+        val n = nursery
+        if (!typing || n?.active == null || n.eggOnMatrix != null || mood == Mood.SLEEPING || engine.playingTrick) return
+        typedMs += dtMs
+        if (typedMs >= TYPED_JOY_MS) {
+            typedMs = 0L
+            Log.d(TAG, "event typing -> joy")
+            store.stroke()
+            sync(force = true)
+        }
     }
 
     /** Time of the game played and not yet given as joy. */

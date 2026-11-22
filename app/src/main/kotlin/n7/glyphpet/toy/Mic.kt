@@ -18,7 +18,8 @@ import kotlin.math.sqrt
  *
  * Blowing into a microphone is a loud, steady roar; a clap is a short bang out of quiet. So: a level far above the room's
  * own noise for more than [BLOW_FRAMES] frames in a row is wind ([wind], 0..1, eased), and one that is over within
- * [CLAP_MAX_FRAMES] frames after quiet is a clap ([consumeClap]).
+ * [CLAP_MAX_FRAMES] frames after quiet is a clap ([consumeClap]). Typing by the phone is a run of short clicks, each a
+ * jump in loudness over the moment before ([consumeKeys], [typing]); a click in such a run is never a clap.
  */
 class Mic(private val context: Context) {
 
@@ -45,6 +46,18 @@ class Mic(private val context: Context) {
         const val CLAP_WAIT_MS = 300L
         const val JOLT_NEAR_MS = 350L
 
+        /** A click: this many dB over the moment before it, and over the room's noise; no two closer than [KEY_GAP_MS]. */
+        const val KEY_JUMP_DB = 8f
+        const val KEY_OVER_FLOOR_DB = 12f
+        const val KEY_GAP_MS = 70L
+
+        /** This many clicks within [TYPING_WINDOW_MS] is someone typing. */
+        const val TYPING_KEYS = 4
+        const val TYPING_WINDOW_MS = 1500L
+
+        /** A clap with another click this close before it, or this close after, was a key, not a clap. */
+        const val CLAP_ALONE_BEFORE_MS = 700L
+
         fun allowed(context: Context): Boolean =
             context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
     }
@@ -56,6 +69,23 @@ class Mic(private val context: Context) {
 
     /** When the last clap was heard (wall clock ms), waiting to be checked against a jolt; 0: none. */
     @Volatile private var clapAtMs = 0L
+
+    /** The clicks heard lately (wall clock ms), and how many since [consumeKeys] was last asked. */
+    private val clicks = ArrayDeque<Long>()
+    @Volatile private var keys = 0
+
+    /** Clicks heard since the last call. */
+    fun consumeKeys(): Int { val k = keys; keys = 0; return k }
+
+    /** Someone is typing by the phone: [TYPING_KEYS] clicks within the last [TYPING_WINDOW_MS]. */
+    fun typing(nowMs: Long = System.currentTimeMillis()): Boolean = synchronized(clicks) {
+        clicks.count { nowMs - it < TYPING_WINDOW_MS } >= TYPING_KEYS
+    }
+
+    /** Whether a click other than the one at [at] was heard from [from] to [to] (wall clock ms). */
+    private fun otherClick(at: Long, from: Long, to: Long): Boolean = synchronized(clicks) {
+        clicks.any { it in from..to && kotlin.math.abs(it - at) > 60 }
+    }
 
     /** The loudness of the last frame and the room's noise (dBFS), for the debug log. */
     @Volatile var levelDb = -90f
@@ -77,7 +107,10 @@ class Mic(private val context: Context) {
         claps = 0
         val tap = kotlin.math.abs(lastJoltMs - at) < JOLT_NEAR_MS
         if (tap && n7.glyphpet.BuildConfig.DEBUG) Log.d(TAG, "click with a jolt: a tap, not a clap")
-        return !tap
+        // One click among others is a key being typed.
+        val typed = otherClick(at, at - CLAP_ALONE_BEFORE_MS, at + CLAP_WAIT_MS)
+        if (typed && n7.glyphpet.BuildConfig.DEBUG) Log.d(TAG, "click among clicks: typing, not a clap")
+        return !tap && !typed
     }
 
     @SuppressLint("MissingPermission")
@@ -107,6 +140,8 @@ class Mic(private val context: Context) {
         var quietBefore = true
         var smooth = 0f
         var lastLog = 0L
+        var recent = -90f
+        var lastClick = 0L
         try {
             rec.startRecording()
             while (running) {
@@ -120,10 +155,18 @@ class Mic(private val context: Context) {
                 floorDb = if (db < floorDb) db else (floorDb + 0.02f).coerceAtMost(-40f)
                 floorDb = floorDb.coerceAtLeast(-90f)
                 val threshold = maxOf(floorDb + OVER_FLOOR_DB, MIN_DB)
+                // A click: a sudden jump over the moment before.
+                val wall = System.currentTimeMillis()
+                if (db > recent + KEY_JUMP_DB && db > floorDb + KEY_OVER_FLOOR_DB && wall - lastClick >= KEY_GAP_MS) {
+                    lastClick = wall
+                    keys++
+                    synchronized(clicks) { clicks.addLast(wall); while (clicks.size > 32) clicks.removeFirst() }
+                }
+                recent += (db - recent) * 0.3f
                 if (db > threshold) {
                     loud++
                 } else {
-                    if (loud in 1..CLAP_MAX_FRAMES && quietBefore) { claps++; clapAtMs = System.currentTimeMillis() }
+                    if (loud in 1..CLAP_MAX_FRAMES && quietBefore) { claps++; clapAtMs = wall - loud * 20L }
                     quietBefore = loud == 0 || loud <= CLAP_MAX_FRAMES
                     loud = 0
                 }
