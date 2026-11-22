@@ -168,6 +168,9 @@ private object Hourglass : NewHero(
             "dizzy" -> { posed(c, angle = sin(t / 160f) * 0.45f, py = 12f) { glass(it, st, t, top, true, 1) }; stars(c, 12f, 2f, t) }
             "tilt" -> posed(c, angle = tilt * 0.6f, py = 12f) { glass(it, st, t, top, true, e, slant = -tilt * 0.8f) }
             "charging" -> { val p = seg(t, 0, 3000); glass(c, st, t, top, true, if (p > 0.9f) 2 else 0, b = 0.8f + 0.7f * p); sparkle(c, 12f, 12f, 8f, t) }
+            // Typing: a stream of sand pours with the keys, and the sand runs down as you type (half at 20 s, nearly all at 40 s).
+            "typing" -> { val y = DrawnTyping
+                glass(c, st, t, (1f - y.grown()).coerceAtLeast(0.05f), flow = y.sinceKey < 380 || y.rush, eyes = if (y.rush) 2 else if (y.paused && blink(t)) 1 else 0) }
             "grow" -> {
                 // The glass rises row by row from its foot, then sand pours in from above.
                 if (t < 2600) {
@@ -260,6 +263,10 @@ private object FishJar : NewHero(
             "dizzy" -> { water(c, t, 0f); for (k in 0 until 14) { val aa = t / 200f + k * 0.45f; val r = 2f + k * 0.5f; c.put(12 + cos(aa) * r, 18 + sin(aa) * r * 0.4f, 0.3f) }; fish(c, st, 12 + cos(t / 200f) * 3, 18f, (t / 600) % 2 == 0L, 1) }
             "tilt" -> { water(c, t, tilt * 0.8f, slosh = tilt * 2); fish(c, st, 12 + tilt * 4, 17f, tilt >= 0) }
             "charging" -> { val p = seg(t, 0, 3000); water(c, t, 0f, level = 6f - p * 8f, b = 0.8f + 0.6f * p); fish(c, st, fx, fy, right) }
+            // Typing: a bubble from its mouth on each key; a rush and it dashes round the jar.
+            "typing" -> { val y = DrawnTyping; water(c, t, 0f); val (x, yy, r) = swim(t, if (y.rush) 1800 else 5200)
+                fish(c, st, x, yy, r, if (y.paused && blink(t)) 1 else 0, mouth = y.hit(150) > 0f)
+                for (at in y.keys.takeLast(6)) { val q = (y.now - at) / 1000f; if (q in 0f..1f) c.put(x + (if (r) 3f else -3f) + sin(q * 9f) * 0.6f, yy - 1 - q * 9, 0.6f * (1 - q) + 0.15f) } }
             "grow" -> { water(c, t, 0f); if (t < 2400) { c.disc(12f, 18f, 1.3f, 0.5f); c.cut(12f, 18f) } else if (t < 3000) c.disc(12f, 18f, 1.5f, 0.7f) else fish(c, st, mix(12f, fx, seg(t, 3000, 4400)), 18f, true) }
         }
     }
@@ -311,6 +318,10 @@ private object Dandelion : NewHero(
         }
     }
 
+    private var tKey = -1
+    private var tSeeds = 16f
+    private val tFly = ArrayList<Long>()
+
     override fun draw(c: Cv, col: String, t: Long, st: Int, tilt: Float) {
         val seeds = DrawnWorld.seeds.toInt().coerceIn(0, 16)
         val e = if (blink(t)) 1 else 0
@@ -334,6 +345,15 @@ private object Dandelion : NewHero(
             "dizzy" -> { posed(c, angle = t / 180f, px = 12f, py = 21f - 11f * s(st)) { flower(it, st, t, seeds, 0f, 1) }; stars(c, 12f, 4f, t) }
             "tilt" -> flower(c, st, t, seeds, tilt * 3, e)
             "charging" -> { val p = seg(t, 0, 3000); for (k in 0 until 5) { val a = -PIF / 2 + (k - 2) * 0.4f; c.line(12 + cos(a) * 11, 10 + sin(a) * 11, 12 + cos(a) * (11 - p * 3), 10 + sin(a) * (11 - p * 3), 0.35f) }; flower(c, st, t, 16, 0f, if (p > 0.8f) 2 else 0, b = 0.8f + 0.5f * p) }
+            // Typing: a seed flies off on each key (two in a rush), the head thinning; in a pause it grows back.
+            "typing" -> { val y = DrawnTyping
+                if (y.key != tKey) { if (y.key >= 0) repeat(if (y.rush) 2 else 1) { if (tSeeds >= 1f) { tSeeds -= 1f; tFly += y.now * 16 + (tSeeds.toInt() and 15) } }; tKey = y.key }
+                tSeeds = (tSeeds + y.dt / (if (y.paused) 300f else 1500f)).coerceAtMost(16f)
+                flower(c, st, t, tSeeds.toInt(), sway, if (tSeeds < 1f) 3 else if (y.paused) e else 0)
+                tFly.removeAll { y.now - it / 16 > 1600 }
+                for (f in tFly) { val q = (y.now - f / 16) / 1600f; val a = (f % 16) * 2 * PIF / 16; val k = s(st)
+                    val x = 12 + cos(a) * 4.6f * k + q * 12f; val yy = 21f - 11f * k + sin(a) * 4.6f * k - q * 4 + sin(q * 6 + a) * 1.2f
+                    c.put(x, yy, 0.7f * (1 - q) + 0.1f); c.put(x - 0.7f, yy + 0.7f, 0.25f * (1 - q)) } }
             "grow" -> { val p = seg(t, 0, 4000); if (p < 0.5f) { val h = p * 2 * 11 * s(st); c.line(12f, 21f, 12f, 21f - h, 0.33f); c.put(12f, 21f - h, 0.6f) } else flower(c, st, t, ((p - 0.5f) * 2 * 16).toInt(), 0f, if (p > 0.95f) 2 else 0) }
         }
     }
@@ -371,6 +391,10 @@ private object Bubble : NewHero(
         for (k in 0 until 18) { val a = k * 2 * PIF / 18; val d = r + q * 5; c.put(12 + cos(a) * d, 12 + sin(a) * d, 0.8f * (1 - q)) }
     }
 
+    private var tKey = -1
+    private var tSize = 0f
+    private var tPop = -1L
+
     override fun draw(c: Cv, col: String, t: Long, st: Int, tilt: Float) {
         val k = s(st)
         val size = DrawnWorld.bubble
@@ -394,6 +418,13 @@ private object Bubble : NewHero(
             "dizzy" -> { bubble(c, t * 4, 12f + cos(t / 200f) * 2, 12f + sin(t / 200f) * 2, r * 0.85f, 0.8f, 1); stars(c, 12f, 3f, t) }
             "tilt" -> bubble(c, t, 12 + tilt * 5, 12f, r, 0.3f + abs(tilt) * 0.5f, e, squash = 1f - abs(tilt) * 0.15f)
             "charging" -> { val p = seg(t, 0, 3000); bubble(c, t, 12f, 12f, r, 0.3f, if (p > 0.9f) 2 else 0, b = 0.8f + 0.6f * p); c.disc(12f, 12f, (r - 1.5f) * p, 0.12f) }
+            // Typing: it swells a little on each key and shivers; too big and it pops and starts small; in a pause it shrinks.
+            "typing" -> { val y = DrawnTyping
+                if (y.key != tKey) { if (y.key >= 0 && tPop < 0) tSize += if (y.rush) 0.06f else 0.045f; tKey = y.key }
+                if (y.paused) tSize = (tSize - y.dt / 8000f).coerceAtLeast(0f)
+                if (tSize >= 1f && tPop < 0) tPop = y.now
+                if (tPop >= 0) { val q = (y.now - tPop) / 500f; if (q >= 1f) { tPop = -1; tSize = 0f } else { pop(c, q, 10f * k); return } }
+                bubble(c, t, 12f, 12f + sin(t / 700f), (3.5f + 6.5f * tSize) * k, 0.35f + y.hit(220) * 0.9f, if (y.rush) 2 else if (y.paused) e else 0) }
             "grow" -> { c.line(12f, 24f, 12f, 18f, 0.35f); c.ring(12f, 17f, 1.2f, 0.4f); val p = seg(t, 600, 4400); if (t > 600) bubble(c, t, 12f, 17f - p * 5, 1.5f + p * (r - 1.5f), 0.3f, if (p > 0.95f) 2 else 0) }
         }
     }
@@ -458,6 +489,9 @@ private object Capybara : NewHero(
             "dizzy" -> { capy(c, st, t, 1); for (k in 0..2) { val a = t / 200f + k * 2.1f; c.disc(12 + cos(a) * 4, 6 + sin(a) * 1.5f, 0.8f, 0.7f) } }
             "tilt" -> capy(c, st, t, e, slosh = tilt * 4)
             "charging" -> { val p = seg(t, 0, 3000); capy(c, st, t, if (p > 0.6f) 1 else 0, steam = 2 + (p * 6).toInt(), b = 0.85f + 0.3f * p) }
+            // Typing: the yuzu hops on each key (a rush: juggled high), and the spring steams more the longer you type.
+            "typing" -> { val y = DrawnTyping
+                capy(c, st, t, if (y.rush) 2 else if (y.paused && blink(t, 4200)) 1 else 0, yuzu = if (y.rush) hop(t, 300f, 3f) else y.hit(220) * 1.6f, steam = 2 + (y.grown() * 5).toInt()) }
             "grow" -> { val p = seg(t, 0, 3200); posed(c, dx = mix(-14f, 0f, ease(p))) { capy(it, st, t, if (t > 3200) 2 else 0) } }
         }
     }
@@ -521,6 +555,9 @@ private object Moon : NewHero(
             "dizzy" -> { posed(c, angle = t / 200f, py = 12f) { moon(it, st, t, 0.3f, 1) }; stars(c, 12f, 2f, t) }
             "tilt" -> posed(c, angle = tilt * 0.8f, dx = tilt * 4, py = 12f) { moon(it, st, t, ph, e) }
             "charging" -> moon(c, st, t, 0.5f * seg(t, 0, 3000), if (t > 2800) 2 else 0, b = 0.8f + 0.5f * seg(t, 0, 3000))
+            // Typing: it waxes as you type, a thin sliver to full by 45 s; each key brightens it for a moment.
+            "typing" -> { val y = DrawnTyping; sky(c, t, 4)
+                moon(c, st, t, 0.06f + 0.44f * y.grown(), if (y.rush) 2 else if (y.paused && blink(t)) 1 else 0, b = 1f + 0.35f * y.hit(200)) }
             "grow" -> { val p = seg(t, 0, 4400); moon(c, st, t, 0.5f, if (p > 0.95f) 2 else 1, b = p); c.disc(12f + p * 16, 12f, 7.5f * s(st), 0f); for (y in 0..24) for (x in 0..24) if (hypot(x - (12f + p * 16), y - 12f) < 7f * s(st)) c.set(x, y, 0f) }
         }
     }
@@ -585,6 +622,9 @@ private object Tardigrade : NewHero(
             "dizzy" -> { posed(c, angle = t / 180f, py = 14f) { bear(it, st, t, 0.8f, 1) }; stars(c, 12f, 7f, t) }
             "tilt" -> bear(c, st, t, 0f, e, cx = 12 + tilt * 5, legs = 120)
             "charging" -> { val q = max(0f, 1 - seg(t, 0, 2500)); bear(c, st, t, q, if (q < 0.1f) 2 else 1, legs = if (q < 0.5f) 200 else 0); for (k in 0..5) { val a = k * 2 * PIF / 6 + t / 300f; c.put(12 + cos(a) * 8, 14 + sin(a) * 5, 0.4f * q + 0.1f) } }
+            // Typing: a step of its little legs on each key; a rush and it scurries, waving.
+            "typing" -> { val y = DrawnTyping
+                if (y.rush) bear(c, st, t, 0f, 2, legs = 90) else bear(c, st, y.key.coerceAtLeast(0) * 250L, 0f, if (y.paused && blink(t)) 1 else 0, legs = if (y.paused) 0 else 250) }
             "grow" -> { if (t < 2400) { for (y in 11..19) for (x in 8..16) if ((x - 12f) * (x - 12f) / 9f + (y - 15f) * (y - 15f) / 12.25f <= 1f) c.put(x, y, 0.3f); if (t > 1600) c.line(10f, 13f, 14f, 17f, 0f) } else bear(c, st, t, 0f, if (t > 4000) 2 else 0) }
         }
     }
@@ -652,6 +692,9 @@ private object Cassette : NewHero(
             "dizzy" -> { posed(c, angle = sin(t / 160f) * 0.5f) { tape(it, st, t, t / 50f, 1) }; stars(c, 12f, 3f, t) }
             "tilt" -> posed(c, angle = tilt * 0.4f) { tape(it, st, t, t / 600f, e) }
             "charging" -> { tape(c, st, t, t / 400f, 0, b = 0.9f); for (i in 0..6) { val h = ((sin(t / 150f + i * 1.3f) + 1) * 2).roundToInt() + 1; for (y in 0 until h) c.put(6 + i * 2, 21 - y, 0.5f) } }
+            // Typing: the reels click round a step on each key and the shell bumps; a rush and it plays, notes rising.
+            "typing" -> { val y = DrawnTyping; val spin = y.key.coerceAtLeast(0) * 0.7f + (if (y.rush) t / 120f else 0f)
+                tape(c, st, t, spin, if (y.rush) 2 else if (y.paused && blink(t)) 1 else 0, dy = if (y.hit(120) > 0f) 1 else 0); if (y.rush) notes(c, t) }
             "grow" -> { val p = seg(t, 0, 4000); val rows = (p * 10).toInt(); val tmp = Cv(); tape(tmp, st, t, t / 100f, if (p > 0.95f) 2 else 0); for (y in 0..24) for (x in 0..24) if (y < 7 + rows) c.put(x, y, tmp.get(x, y)) }
         }
     }
@@ -717,6 +760,9 @@ private object Ferro : NewHero(
             "dizzy" -> { drop(c, st, t, t / 150f, 0.9f, 1); stars(c, 12f, 5f, t) }
             "tilt" -> drop(c, st, t, north, 0.3f, e, flat = abs(tilt) * 0.4f, cx = 12 + tilt * 5)
             "charging" -> { val p = seg(t, 0, 3000); drop(c, st, t, north, 0.3f, if (p > 0.9f) 2 else 0, burst = p * 0.7f, b = 0.8f + 0.6f * p) }
+            // Typing: its spikes jolt up on each key; a rush and they stand on end, quivering; a pause and it settles smooth.
+            "typing" -> { val y = DrawnTyping; val burst = if (y.rush) 0.7f + 0.2f * sin(t / 90f) else y.hit(260) * 0.8f
+                drop(c, st, t, north, pull, if (y.rush) 2 else if (y.paused && blink(t)) 1 else 0, burst = burst, flat = if (y.paused) 0.25f else 0f) }
             "grow" -> { val p = seg(t, 0, 2400); if (p < 1f) c.disc(12f, mix(-2f, 13f, p * p), 1.5f, 0.6f) else drop(c, st, t, north, seg(t, 2400, 4800) * 0.35f, if (t > 4800) 2 else 0, flat = 1 - seg(t, 2400, 3600)) }
         }
     }

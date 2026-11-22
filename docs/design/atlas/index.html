@@ -174,11 +174,6 @@ dialog button { background: none; border: 1px solid var(--line); color: var(--in
     </div>
   </section>
 
-  <section class="ideas" id="newPets" aria-labelledby="newPetsTitle" hidden>
-    <div class="bar"><h2 id="newPetsTitle">Новые питомцы · эскизы на выбор</h2><p>Пока только рисунки, в игре их нет. Выбери, кого делаем.</p></div>
-    <div class="newpets" id="newPetsList"></div>
-  </section>
-
   <section class="controls" aria-label="Фильтры">
     <div class="seg" role="group" aria-label="Стадия">
       <button type="button" data-stage="baby">Малыш</button>
@@ -501,7 +496,6 @@ async function setStage(s) {
   let s = "teen";
   try { s = localStorage.getItem("atlas-stage") || "teen"; } catch (e) {}
   await setStage(STAGE[s] ? s : "teen");
-  loadIdeas();
   requestAnimationFrame(loop);
 })();
 </script>

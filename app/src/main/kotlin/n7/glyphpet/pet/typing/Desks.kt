@@ -11,7 +11,7 @@ object Desks {
         "gem" to ::GemDesk, "planet" to ::PlanetDesk, "raccoon" to ::RaccoonDesk, "cloud" to ::CloudDesk,
         "phoenix" to ::PhoenixDesk, "blackhole" to ::BlackholeDesk, "swarm" to ::SwarmDesk, "dragon" to ::DragonDesk, "mimic" to ::MimicDesk,
         "moonrabbit" to ::MoonrabbitDesk, "schrodinger" to ::SchrodingerDesk, "lavalamp" to ::LavalampDesk, "paperboat" to ::PaperboatDesk,
-    )
+    ) + DrawnDesk.KINDS.associateWith { kind -> { DrawnDesk(kind) } }
 
     val kinds: Set<String> get() = makers.keys
 

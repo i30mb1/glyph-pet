@@ -162,6 +162,27 @@ internal fun ease(p: Float) = p.coerceIn(0f, 1f).let { it * it * (3 - 2 * it) }
 internal fun seg(t: Long, from: Long, to: Long) = ((t - from).toFloat() / (to - from)).coerceIn(0f, 1f)
 internal fun mix(a: Float, b: Float, p: Float) = a + (b - a) * p
 
+/**
+ * What a drawn hero's "typing" clip reads: its typing scene ([n7.glyphpet.pet.typing.DrawnDesk]) sets it before each
+ * frame (one scene draws at a time). [now] is ms into the typing, the same clock as the clip's t.
+ */
+object DrawnTyping {
+    var now = 0L
+    var dt = 0L
+    /** The number of the last key (-1: none yet), and when the last few came (ms into the typing, oldest first). */
+    var key = -1
+    var keys: List<Long> = emptyList()
+    var sinceKey = 99_999L
+    var rush = false
+    var paused = true
+    /** Seconds actually typed (pauses not counted). */
+    var typedS = 0f
+    /** 1 just after a key, falling to 0 over [ms]. */
+    fun hit(ms: Long) = if (key >= 0 && sinceKey in 0 until ms) 1f - sinceKey.toFloat() / ms else 0f
+    /** 0 -> 1 over the first [s] seconds typed. */
+    fun grown(s: Float = 45f) = (typedS / s).coerceIn(0f, 1f)
+}
+
 abstract class Anomaly(
     val kind: String,
     val names: List<String>,

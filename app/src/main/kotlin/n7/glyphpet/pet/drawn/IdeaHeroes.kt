@@ -170,6 +170,9 @@ private object Pebble : EggHero(
             "dizzy" -> { val q = (t / 200) % 2 == 0L; rock(c, st, x = 12f + sin(t / 150f) * 3, squash = if (q) 1.25f else 0.8f, eyes = 1) }
             "tilt" -> rock(c, st, x = 12f + tilt * 4f, eyes = peek)
             "charging" -> { val p = seg(t, 0, 2900); for (k in 0 until 5) { val a = -PI_F / 2 + (k - 2) * 0.4f; c.line(12 + cos(a) * 11, 10 + sin(a) * 11, 12 + cos(a) * (11 - p * 5), 10 + sin(a) * (11 - p * 5), 0.4f) }; rock(c, st, b = 0.8f + 0.6f * p, eyes = if (p > 0.9f) 0 else 1) }
+            // Typing: a little hop on each key (a rush: bouncing), and moss creeps over it while you type.
+            "typing" -> { val y = DrawnTyping; val h = if (y.rush) hop(t, 300f, 2f) else y.hit(180) * 1.5f
+                rock(c, st, bottom = 20f - h, squash = 1f - y.hit(120) * 0.12f, eyes = if (y.paused) peek else 0, moss = 2 + (y.grown() * 6).toInt()) }
             "grow" -> { if (t < 2400) { c.oval(12f, 14f, 10f, 7f, 0.25f, 0.4f); if (t > 1400) c.line(10f, 8f, 14f, 20f, 0f) } else { val x = mix(14f, 12f, seg(t, 2400, 3400)); rock(c, if (st == 0 || t > 4600) st else st - 1, x = x, eyes = if (t > 4200) 0 else 1) } }
         }
     }
@@ -219,6 +222,11 @@ private object Sprout : EggHero(
             "dizzy" -> plant(c, st, t, lean = sin(t / 90f) * 3f, eyes = 1)
             "tilt" -> plant(c, st, t, lean = -tilt * 3f, eyes = 0)
             "charging" -> { val p = seg(t, 0, 2900); for (k in 0 until 4) { val ph = ((t + k * 300) % 1200) / 1200f; c.put(6f + k * 4, ph * 9, 0.5f) }; plant(c, st, t, h = H[st] * (0.6f + 0.4f * p), b = 0.7f + 0.5f * p, eyes = if (p > 0.9f) 2 else 0) }
+            // Typing: it grows taller while you type and blooms at the end; its leaves flap on each key, it droops in a pause.
+            "typing" -> { val y = DrawnTyping; val g = y.grown()
+                plant(c, st, t, lean = if (y.rush) sin(t / 160f) * 1.2f else sw * 0.5f, droop = if (y.paused) 1.5f else 0f,
+                    leaf = if (y.hit(150) > 0f) 0.5f else 0f, eyes = if (y.rush) 2 else if (blinkAt(t)) 1 else 0,
+                    h = H[st] * (0.6f + 0.6f * g), bloom = if (g >= 1f) 0.8f else 0f) }
             "grow" -> { val p = seg(t, 600, 5200); plant(c, if (st == 0) 0 else st - (if (p < 0.6f) 1 else 0), t, h = max(0.5f, H[st] * p), eyes = if (p > 0.3f) 0 else 1, bloom = 0f) }
         }
     }
@@ -266,6 +274,11 @@ private object Spider : EggHero(
             "dizzy" -> { val a = t / 120f; c.line(12f, 0f, 12f, 10f, 0.2f); for (k in 0 until 8) { val aa = a + k * PI_F / 4; c.line(12f, 12f, 12 + cos(aa) * 5, 12 + sin(aa) * 4, 0.3f) }; c.oval(12f, 12f, R[st], R[st], 0.38f); c.eyes(11f, 13f, 12f, 1) }
             "tilt" -> { val a = -tilt * 0.6f; val x = 12 + sin(a) * 12; val y = cos(a) * 12; c.line(12f, 0f, x, y - R[st], 0.2f); spider(c, st, t, x, y, 0, thread = false) }
             "charging" -> { val p = seg(t, 0, 2900); val n = (p * 8).toInt(); for (k in 0 until n) { val a = k * PI_F / 4; c.line(12f, 12f, 12 + cos(a) * 10, 12 + sin(a) * 10, 0.35f) }; spider(c, st, t, 12f, 12f, if (p > 0.9f) 2 else 0, thread = false) }
+            // Typing: the web grows ring by ring while you type; on each key it scuttles to another spot on it.
+            "typing" -> { val y = DrawnTyping; val g = y.grown()
+                web(c, 12f, 12f, 7f + g * 4f, 0.11f, rings = 2 + (g * 3).toInt())
+                val a = y.key * 2.4f; val r = if (y.paused || y.key < 0) 0f else (2f + g * 4f) * (0.5f + 0.25f * (y.key % 3))
+                spider(c, st, t, 12f + cos(a) * r, 12f + sin(a) * r, if (y.rush) 2 else if (y.paused && blinkAt(t)) 1 else 0, thread = false, legs = 1f + y.hit(150) * 0.4f) }
             "grow" -> { if (t < 2400) { c.line(12f, 0f, 12f, 8f, 0.2f); c.oval(12f, 10f, 2f, 2.5f, 0.4f, 0.5f); if (t > 1600) c.cut(12, 11) } else spider(c, if (st == 0 || t > 4400) st else st - 1, t, 12f, mix(10f, y0, seg(t, 2400, 3600)), if (t > 3600) 0 else 1) }
         }
     }
@@ -314,6 +327,10 @@ private object Astronaut : EggHero(
             "dizzy" -> { stars(c, t, 50f); suit(c, st, 12f + sin(t / 150f) * 2, fy, flip = (t / 160) % 2 == 0L); for (k in 0..2) { val a = t / 150f + k * 2.1f; c.put(12 + cos(a) * 6, 5 + sin(a) * 2, 0.8f) } }
             "tilt" -> { stars(c, t); suit(c, st, 12f + tilt * 6, fy + abs(tilt)) }
             "charging" -> { val p = seg(t, 0, 2900); stars(c, t, 400f); suit(c, st, 12f, fy, visor = p); for (k in 0 until (p * 5).toInt()) c.put(10f + k, 21f, 0.7f) }
+            // Typing: its visor flashes and its arm taps on each key; a rush and it flies, the stars streaming past, a jet under it.
+            "typing" -> { val y = DrawnTyping; stars(c, t, if (y.rush) 45f else 200f - y.grown() * 120f)
+                suit(c, st, 12f, fy, visor = 0.35f + 0.65f * y.hit(220), arm = if (y.hit(160) > 0f) 1f else 0f)
+                if (y.rush) for (k in 1..3) c.put(12f, fy + 4 * (0.8f + st * 0.2f) + 2 + k, if ((t / 80 + k) % 2 == 0L) 0.9f else 0.4f) }
             "grow" -> { stars(c, t); val o = seg(t, 1200, 2600); c.oval(12f, 12f, 5f, 6f, 0.3f, 0.5f); if (o > 0) for (y in 7..17) for (x in (12 - o * 4).roundToInt()..(12 + o * 4).roundToInt()) c.cut(x, y); if (t > 2600) suit(c, if (st == 0 || t > 4400) st else st - 1, 12f, mix(12f, fy, seg(t, 2600, 4200))) }
         }
     }
@@ -354,6 +371,12 @@ private object Kodama : EggHero(
             "dizzy" -> { trunks(c); all(c, st, t, tiltFor = { i -> if (((t / 80) + i) % 2 == 0L) 1 else -1 }, dy = { i -> sin(t / 100f + i) }) }
             "tilt" -> { trunks(c); val d = if (tilt > 0.3f) 1 else if (tilt < -0.3f) -1 else 0; spots(st).forEach { (x, y) -> one(c, x + tilt * 2, y, d) } }
             "charging" -> { val p = seg(t, 0, 2900); for (x in intArrayOf(3, 21)) for (y in 2..22) c.put(x, y, if (y > 22 - p * 20) 0.45f else 0.08f); all(c, st, t, b = 0.14f + 0.08f * p) }
+            // Typing: one head clicks aside on each key; more spirits come out the longer you type (20 s, 40 s); a rush and all rattle.
+            "typing" -> { val y = DrawnTyping; trunks(c); val pts = spots((y.typedS / 20f).toInt().coerceIn(0, 2))
+                pts.forEachIndexed { i, (x, bottom) ->
+                    val tl = when { y.rush -> if (((t / 120) + i) % 2 == 0L) 1 else -1; y.hit(160) > 0f && y.key % pts.size == i -> if ((y.key / pts.size) % 2 == 0) 1 else -1; else -> 0 }
+                    one(c, x, bottom, tilt = tl, dy = if (y.rush) -hop(t + i * 150, 300f, 2f) else 0f)
+                } }
             "grow" -> { trunks(c); if (t < 2400) { c.put(12f, 20f, 0.5f); if (t > 1200) c.put(12f, 19f, 0.6f) } else { val p = ease(seg(t, 2400, 4400)); one(c, 12f, 20f, 0, 0.18f * p) } }
         }
     }
@@ -397,6 +420,12 @@ private object Kraken : EggHero(
             "dizzy" -> { for (k in 0 until 4) { val a0 = t / 200f + k * PI_F / 2; for (j in 0..10) { val r = j * 0.9f; c.put(12 + cos(a0 + j * 0.3f) * r, 12 + sin(a0 + j * 0.3f) * r, 0.4f) } }; eye(c, 12f, 12f, open = false) }
             "tilt" -> { sea(c, t, slope = tilt * 0.2f); arms(c, st, t, lean = -tilt) }
             "charging" -> { val p = seg(t, 0, 2900); sea(c, t); arms(c, st, t, tip = 0.3f + 0.7f * p); eye(c, 12f, 19f, open = p > 0.5f) }
+            // Typing: on each key one tentacle shoots up and taps, its tip flashing; a rush and they all thrash; a pause, the eye peeks.
+            "typing" -> { val y = DrawnTyping; sea(c, t); val n = 2 + st
+                arms(c, st, t, h = if (y.rush) 9f + hop(t, 300f, 2f) else 9f, speed = if (y.rush) 120f else 300f)
+                val hit = y.hit(220)
+                if (hit > 0f) { val k = y.key % n; val bx = 12f + (k - (n - 1) / 2f) * (16f / n); val top = 9 + (4 * hit).roundToInt(); for (j in 9..top) c.put(bx, 17f - j, if (j == top) 1f else 0.5f) }
+                if (y.paused) eye(c, 12f, 19f) }
             "grow" -> { sea(c, t); val p = seg(t, 1000, 5000); if (p > 0) arms(c, if (st == 0) 0 else st - 1, t, h = 2f + p * 7, n = 2 + (p * st).toInt()); c.oval(12f, 18f, 1.5f + p, 1f + p * 0.5f, 0.5f) }
         }
     }
@@ -451,6 +480,11 @@ private object Glitch : EggHero(
             "dizzy" -> { face(c, st, t, eyes = 1); val sh = ((t / 60) % 25).toInt(); val copy = c.v.copyOf(); for (y in 0..24) for (x in 0..24) c.v[y * 25 + x] = copy[((y + sh) % 25) * 25 + x]; for (y in 0..24) for (x in 0..24) if (!n7.glyph.ui.matrix.GlyphMatrixSpec.isVisible(x, y)) c.v[y * 25 + x] = 0f }
             "tilt" -> { face(c, st, t); val copy = c.v.copyOf(); for (y in 0..24) { val sh = ((y - 12) * tilt * 0.5f).roundToInt(); for (x in 0..24) { val sx = x - sh; c.v[y * 25 + x] = if (sx in 0..24 && n7.glyph.ui.matrix.GlyphMatrixSpec.isVisible(x, y)) copy[y * 25 + sx] else 0f } } }
             "charging" -> { val p = seg(t, 0, 2900); face(c, st, t, mouth = false, b = 0.4f + 0.6f * p); for (x in 7..17) c.put(x, 21, if (x - 7 <= p * 10) 0.9f else 0.15f) }
+            // Typing: a burst of interference on each key (a rush and the screen crawls), and a loading bar fills while you type.
+            "typing" -> { val y = DrawnTyping
+                face(c, st, t, eyes = if (y.rush) 2 else if (y.paused && t % 2600 < 160) 1 else 0, mouth = y.hit(160) > 0f || y.rush)
+                val p = y.grown(); for (x in 7..17) c.put(x, 21, if (x - 7 <= p * 10) 0.8f else 0.15f)
+                if (y.hit(130) > 0f || (y.rush && (t / 80) % 3 == 0L)) glitch(c, t, if (y.rush) 3 else 2) }
             "grow" -> { val p = seg(t, 0, 4400); for (i in 0 until 200) if (rnd(i, (t / 80).toInt()) > p) c.put(rnd(i, 3) * 24, rnd(i, 4) * 24, 0.3f); if (p > 0.5f) face(c, if (st == 0 || t > 5200) st else st - 1, t, b = (p - 0.5f) * 2) }
         }
     }
@@ -509,6 +543,10 @@ private object Shadow : EggHero(
             "dizzy" -> { glow(c, t); for (k in 0 until 3) { val a0 = t / 150f + k * 2.1f; for (j in 0..12) { val r = j * 0.8f; c.cut(12 + cos(a0 + j * 0.35f) * r, 12 + sin(a0 + j * 0.35f) * r) } }; c.set(11, 12, 1f); c.set(13, 12, 1f) }
             "tilt" -> { glow(c, t); figure(c, st, t, lean = -tilt * 0.8f, scaleH = 1f - abs(tilt) * 0.2f) }
             "charging" -> { val p = seg(t, 0, 2900); glow(c, t, 0.6f + 0.8f * p); figure(c, st, t, eyes = if (p > 0.9f) 2 else 0) }
+            // Typing: on each key it stretches up and sinks back; a rush and it grins, reaching higher.
+            "typing" -> { val y = DrawnTyping; glow(c, t); val p = y.hit(320); val up = if (p > 0f) sin((1 - p) * PI_F) else 0f
+                figure(c, st, t, lean = sway, scaleH = 1f + up * (if (y.rush) 0.28f else 0.16f), wide = 1f - up * 0.15f,
+                    eyes = if (y.rush) 2 else if (y.paused && blinkAt(t, 2800, 1600)) 1 else 0, grin = y.rush) }
             "grow" -> { glow(c, t); val p = ease(seg(t, 800, 4800)); if (p < 0.4f) c.hole(12f, 21f, 1f + p * 8f) else figure(c, if (st == 0 || t > 5200) st else st - 1, t, scaleH = p, eyes = if (p > 0.8f) 0 else 3) }
         }
     }
