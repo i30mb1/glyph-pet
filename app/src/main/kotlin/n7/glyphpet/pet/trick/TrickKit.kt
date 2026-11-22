@@ -263,7 +263,6 @@ internal abstract class Trick(@Suppress("UNUSED_PARAMETER") planned: Long) : Sig
     protected val tilt = TrickTilt()
     protected val gate = FeelGate()
     protected val sprites = SpriteCache()
-    private val other = IntArray(Kit.N * Kit.N)
 
     /** When the play ends and the way home starts. */
     protected val playEndMs: Long get() = durationMs - SETTLE_MS - BLEND_MS - RETURN_MS
@@ -307,22 +306,21 @@ internal abstract class Trick(@Suppress("UNUSED_PARAMETER") planned: Long) : Sig
         }
         frame.fill(0)
         scene(frame, input)
+        // Changes go through dark, never one picture over another: two faces mixed read as eyes sliding apart.
         val blendAt = settleAt - BLEND_MS
         if (t > blendAt) {
-            home(other, input, 0)
-            mixInto(frame, other, Kit.smooth((t - blendAt).toFloat() / BLEND_MS))
+            val k = (t - blendAt).toFloat() / BLEND_MS
+            if (k < 0.5f) dim(frame, 1f - k * 2f) else { home(frame, input, 0); dim(frame, k * 2f - 1f) }
         }
         if (t < IN_MS) {
-            other.fill(0)
-            Kit.drawPet(other, input.species, input.face, input.blink, input.dx)
-            mixInto(frame, other, 1f - Kit.smooth(t.toFloat() / IN_MS))
+            val k = t.toFloat() / IN_MS
+            if (k < 0.5f) { frame.fill(0); Kit.drawPet(frame, input.species, input.face, input.blink, input.dx); dim(frame, 1f - k * 2f) }
+            else dim(frame, k * 2f - 1f)
         }
     }
 
-    /** frame = frame * (1 - k) + b * k. */
-    private fun mixInto(frame: IntArray, b: IntArray, k: Float) {
-        for (i in frame.indices) frame[i] = (frame[i] + (b[i] - frame[i]) * k).toInt()
-    }
+    /** Dims [frame] for a cut between two pictures: [k] 1 is full light, 0 the dip at the cut (never dark). */
+    private fun dim(frame: IntArray, k: Float) { val g = 0.75f + 0.25f * k.coerceIn(0f, 1f); for (i in frame.indices) frame[i] = (frame[i] * g).toInt() }
 
     private fun home(out: IntArray, input: SignatureInput, sinceMs: Long) {
         out.fill(0)

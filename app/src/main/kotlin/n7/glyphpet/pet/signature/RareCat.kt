@@ -1,5 +1,7 @@
 package n7.glyphpet.pet.signature
 
+import n7.glyphpet.pet.trick.spriteOf
+
 import n7.glyphpet.pet.Signature
 import n7.glyphpet.pet.SignatureInput
 import n7.glyphpet.pet.SpeciesForms
@@ -29,6 +31,13 @@ internal class CatDepth : Signature {
     }
 
     override val durationMs = DURATION
+
+    /** The far steps: a kitten, a little one, a speck; from behind (no eyes) on the way out. */
+    private val KITTEN = listOf("#.....#", "##...##", "#######", "##x#x##", "#######")
+    private val KITTEN_BACK = listOf("#.....#", "##...##", "#######", "#######", "#######")
+    private val TINY = listOf("#...#", "#####", "#x#x#", "#####")
+    private val TINY_BACK = listOf("#...#", "#####", "#####", "#####")
+    private val SPECK = listOf("#.#", "###")
     private val out = Canvas()
     private val pet = Canvas()
 
@@ -46,49 +55,36 @@ internal class CatDepth : Signature {
         val env = Kit.envelope(input.tMs, DURATION, 500, 500)
 
         out.clear()
-        // A dim horizon and a road running from it to the viewer.
-        var x = -1f
-        while (x <= 25f) {
-            out.splat(x, HORIZON, HORIZON_LIGHT * env)
-            x += 0.5f
-        }
-        var k = 0f
-        while (k <= 1f) {
-            val y = HORIZON + (25f - HORIZON) * k
-            out.splat(Kit.C - 1f - 10f * k, y, ROAD_LIGHT * env)
-            out.splat(Kit.C + 1f + 10f * k, y, ROAD_LIGHT * env)
-            k += 0.04f
+        // A crisp horizon and a road running from it to the viewer, a whole cell at a time.
+        val light = env / Kit.BRIGHT
+        for (xx in 0..24) out.max(xx, HORIZON.toInt(), HORIZON_LIGHT * env)
+        for (yy in HORIZON.toInt() + 1..24) {
+            val k = (yy - HORIZON) / (25f - HORIZON)
+            out.max(Math.round(Kit.C - 1f - 10f * k), yy, ROAD_LIGHT * env)
+            out.max(Math.round(Kit.C + 1f + 10f * k), yy, ROAD_LIGHT * env)
         }
 
+        // Away by steps: each a smaller form at its own size (the pet's forms, then a kitten, then a speck), never one
+        // stretched or two mixed, so every step stays sharp. Seen from behind on the way out, its face on the way back.
+        val back = away && d > 0.03f
+        val steps: List<Sprite> = chain.map { Kit.sprite(it, input.face, input.blink, withFace = !back) } +
+            listOf(spriteOf(if (back) KITTEN_BACK else KITTEN), spriteOf(if (back) TINY_BACK else TINY), spriteOf(SPECK))
+        val i = (d * steps.size).toInt().coerceIn(0, steps.size - 1)
+        val sprite = steps[i]
         val nearFeet = (near.oy + near.height).toFloat()
         val nearX = near.ox + input.dx + near.width / 2f
-        val feet = nearFeet + (FAR_FEET - nearFeet) * d
-        val cx = nearX + (Kit.C + 0.5f - nearX) * d + sin(t * 3f) * 0.35f * d
-        val bob = if (d > 0.02f && d < 0.98f) -abs(sin(t * 7f)) * 0.5f * (1f - 0.5f * d) else 0f
-        val gain = 1f - FADE * d
-
+        val feet = Math.round(nearFeet + (FAR_FEET - nearFeet) * d).toFloat()
+        // A step is a whole cell up, now and then, not a half-cell shimmer.
+        val bob = if (d > 0.02f && d < 0.98f && (input.tMs / 180) % 2 == 0L) 1f else 0f
+        val cx = Math.round(nearX + (Kit.C + 0.5f - nearX) * d).toFloat() + if (sprite.w % 2 == 1) 0.5f else 0f
         pet.clear()
-        val stages = chain.size
-        for (s in 0 until stages) {
-            val sp = chain[s]
-            val lo = s / stages.toFloat()
-            val hi = (s + 1) / stages.toFloat()
-            val loEdge = if (s == 0) -1f else lo
-            val hiEdge = if (s == stages - 1) 2f else hi
-            val weight = ((minOf(d - loEdge, hiEdge - d) + BLEND / 2) / BLEND).coerceIn(0f, 1f)
-            if (weight <= 0f) continue
-            // Each form shrinks inside its stretch to the height of the next one at the hand-over; the last one shrinks on.
-            val end = if (s == stages - 1) FAR_SCALE else chain[s + 1].height.toFloat() / sp.height.toFloat()
-            val frac = ((d - lo) / (hi - lo)).coerceIn(0f, 1f)
-            val rel = 1f + (end - 1f) * frac
-            val sprite = Kit.sprite(sp, input.face, input.blink, withFace = !away || d < 0.03f)
-            pet.spriteScaled(sprite, cx, feet + bob, rel, rel, gain * weight)
-        }
+        pet.spriteScaled(sprite, cx, feet - bob, 1f, 1f, 1f - FADE * (i.toFloat() / (steps.size - 1)))
         // The pet hides the road behind it.
-        for (i in out.v.indices) {
-            val c = pet.cov[i]
-            if (c > 0f) out.v[i] = out.v[i] * (1f - c) + pet.v[i]
+        for (j in out.v.indices) {
+            val c = pet.cov[j]
+            if (c > 0f) out.v[j] = out.v[j] * (1f - c) + pet.v[j]
         }
+        @Suppress("UNUSED_VARIABLE") val unused = light
         out.toFrame(frame)
     }
 }

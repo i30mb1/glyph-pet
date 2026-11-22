@@ -669,7 +669,7 @@ class PetEngine(
         val c = n7.glyphpet.pet.drawn.Cv()
         val d = n7.glyphpet.pet.typing.DeskInput(
             typeMs, dtMs, typeKeys.toList(), typeTempo, typeRate, typeStage, typeMs - typeStageAt, typeSentAt, typeHeat, typeRest,
-            n7.glyphpet.pet.typing.PetPainter(species, time, blinkLeftMs > 0),
+            n7.glyphpet.pet.typing.PetPainter(species, time, blinkLeftMs > 0), typedMs,
         )
         runCatching { desk?.draw(c, d) }
         val v = c.ints()
@@ -800,7 +800,8 @@ class PetEngine(
             val p = fadeMs.toFloat() / FADE_MS
             if (p >= 1f) { fadeMs = -1; fadeFrom = null }
             else {
-                // A cross-dissolve: the old frame fades out while the new one fades in, so one flows into the other.
+                // A cross-dissolve: the old frame fades out while the new one fades in. (A game cuts between the pet and
+                // its play picture itself, so two faces never meet here.)
                 val k = p * p * (3 - 2 * p)
                 for (i in frame.indices) frame[i] = (frame[i] * k + from[i] * (1 - k)).toInt()
             }
@@ -884,8 +885,8 @@ class PetEngine(
             val mine = trickKind == null || trickKind == species.kind
             if (mine && !asleep && action == Action.NONE && trickMs < tr.durationMs) {
                 val face = face(scene.mood, asleep, false)
+                // No missed-call sign in a game: its blinking at the top read as two stray LEDs.
                 tr.draw(frame, input(species, trickMs, dtMs, scene, face))
-                if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
                 shown = Shown(face, dx = x.roundToInt())
                 return frame
             }

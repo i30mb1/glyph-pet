@@ -40,6 +40,13 @@ internal class CatTrick : Trick(DURATION) {
         const val HALO = 700f
     }
 
+    /** The kitten the cat plays as. */
+    private val KITTEN = listOf("#.....#", "##...##", "#######", "##x#x##", "#######")
+    /** Pleased with its catch: its eyes stay where they are (moving them read as eyes sliding apart); it hops. */
+    private val KITTEN_HAPPY = KITTEN
+    private val KITTEN_BLINK = listOf("#.....#", "##...##", "#######", "#######", "#######")
+    private val kittens = HashMap<List<String>, n7.glyphpet.pet.signature.Sprite>()
+
     private enum class State { WATCH, HOP, POUNCE, CAUGHT }
 
     private var state = State.WATCH
@@ -78,7 +85,8 @@ internal class CatTrick : Trick(DURATION) {
             cy = homeY
             started = true
         }
-        val small = minOf(1f, CAT_H / sp.height)
+        // The cat plays as its baby form at its own size: shrinking the big one blurred its face into a blob.
+        val small = minOf(1f, KITTEN.size.toFloat() / sp.height)
         val grow = Kit.smooth(t.toFloat() / GROW_MS)
         var scale = TrickKit.lerp(1f, small, grow)
         val r = returning(t)
@@ -111,7 +119,8 @@ internal class CatTrick : Trick(DURATION) {
             drawX = TrickKit.lerp(endX, homeX, r)
             drawY = TrickKit.lerp(endY, homeY, r)
             lift = 1.5f * kotlin.math.abs(sin(r * PI.toFloat() * 2f))
-            scale = TrickKit.lerp(small, 1f, r)
+            // Home the way it played, a kitten cell for cell; the trick's own fade turns it into the cat at home.
+            scale = small
             face = Face.CONTENT
             showDot = false
         } else {
@@ -120,8 +129,8 @@ internal class CatTrick : Trick(DURATION) {
             when (state) {
                 State.WATCH -> {
                     // Crouched, the bottom wiggling, eyes on the dot.
-                    sy = 0.88f
-                    sx = 1.06f
+                    sy = 1f
+                    sx = 1f
                     if (stateMs >= stateLen && grow >= 1f) {
                         val ddx = dotX - cx
                         val ddy = dotY - cy
@@ -150,8 +159,8 @@ internal class CatTrick : Trick(DURATION) {
                     cx = TrickKit.lerp(fromX, toX, p)
                     cy = TrickKit.lerp(fromY, toY, p)
                     lift = (if (state == State.POUNCE) POUNCE_UP else HOP_UP) * 4f * p * (1f - p)
-                    sy = 1.08f
-                    sx = 0.95f
+                    sy = 1f
+                    sx = 1f
                     if (state == State.POUNCE) face = Face.SCARED
                     if (p >= 1f) {
                         if (state == State.POUNCE && hypot(dotX - cx, dotY - cy) < CATCH_DIST) {
@@ -164,25 +173,27 @@ internal class CatTrick : Trick(DURATION) {
                 }
                 State.CAUGHT -> {
                     face = Face.HAPPY
-                    if (stateMs < 120L) {
-                        sy = 0.85f
-                        sx = 1.1f
-                    }
+                    // Two little hops on its catch, a whole cell each.
+                    if ((stateMs / 150) % 2 == 0L && stateMs < 600) lift = 1f
                     if (stateMs >= stateLen) go(State.WATCH, watchMs() + 200L)
                 }
             }
             drawX = cx
             drawY = cy
-            if (state == State.WATCH) drawX += 0.3f * sin(ts * 28f)
+            // Watching, its bottom wiggles: a whole cell side to side now and then, not a smear between two.
+            if (state == State.WATCH && ((t / 140) % 4 == 0L)) drawX += 1f
             showDot = state != State.CAUGHT
         }
 
         canvas.clear()
         layer.clear()
-        val s = sprites.get(sp, face, input.blink && face == Face.IDLE)
-        layer.spriteAt(s, drawX, drawY - lift, scale * sx, scale * sy)
-        canvas.over(layer)
-        if (state == State.CAUGHT && r <= 0f) sparkles(drawX, drawY - sp.height * scale / 2f - 1.5f, t)
+        // A kitten of 7x5, cell for cell: two dark LEDs for eyes, happy arcs when it has its catch, shut in a blink.
+        val rows = when {
+            face == Face.HAPPY -> KITTEN_HAPPY
+            input.blink && state == State.WATCH -> KITTEN_BLINK
+            else -> KITTEN
+        }
+        // No sparkles over its catch: two blinking LEDs above it read as stray dots. The hops say it.
         if (showDot) {
             canvas.splat(dotX - 1f, dotY, HALO)
             canvas.splat(dotX + 1f, dotY, HALO)
@@ -191,6 +202,13 @@ internal class CatTrick : Trick(DURATION) {
             canvas.splat(dotX, dotY, DOT * (0.85f + 0.15f * sin(ts * 30f)))
         }
         canvas.toFrame(frame)
+        // The kitten straight onto the LEDs, cell for cell: body at body light, its eyes off, nothing resampled.
+        val kx = Math.round(drawX) - rows[0].length / 2
+        val ky = Math.round(drawY - lift) - rows.size / 2
+        rows.forEachIndexed { j, row -> row.forEachIndexed { i, ch ->
+            val x = kx + i; val y = ky + j
+            if (x in 0..24 && y in 0..24 && ch != '.') frame[y * 25 + x] = if (ch == '#') n7.glyphpet.pet.SpeciesRenderer.BODY else 0
+        } }
     }
 
     private fun go(next: State, ms: Long) {

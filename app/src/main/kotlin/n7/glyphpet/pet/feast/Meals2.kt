@@ -312,7 +312,9 @@ internal class ButterMeal : Meal(2600) {
 internal class WashFaceMeal : Meal(2800) {
     private companion object {
         const val FALL_MS = 400L
-        const val EAT_MS = 1300L
+        const val HOP_MS = 220L
+        const val BITE_MS = 300L
+        const val EAT_MS = FALL_MS + HOP_MS + 3 * BITE_MS
     }
 
     override fun draw(frame: IntArray, input: SignatureInput) {
@@ -323,21 +325,37 @@ internal class WashFaceMeal : Meal(2800) {
         val py = p.mouthY
         val face = when {
             t < FALL_MS -> Face.CONTENT
-            t < EAT_MS -> chew(t)
-            else -> if ((t / 400) % 3 == 2L) Face.CONTENT else Face.HAPPY
+            // Chewing keeps the same content eyes: switching faces each bite made the eyes jump about.
+            else -> Face.CONTENT
         }
-        // HAPPY jumps two rows: here it is the content face with shut eyes that matters, so the jump is undone.
-        pet(frame, input, face, dx = input.dx, lift = if (face == Face.HAPPY) -2 else 0)
+        // Washing, it keeps its content face (the happy one left two stray LEDs over its head); its joy is two little
+        // hops of the whole cat as it finishes.
+        val joy = if (t >= EAT_MS + 900 && ((t - EAT_MS - 900) / 160) % 3 == 0L) 1 else 0
+        pet(frame, input, face, dx = input.dx, lift = joy)
+        val mx = p.mouthX
+        val my = p.mouthY
         when {
+            // The piece drops beside it...
             t < FALL_MS -> piece(frame, px.toFloat(), lerp(-2f, py.toFloat(), phase(t, 0, FALL_MS)), 2)
-            t < EAT_MS -> piece(frame, px.toFloat(), py.toFloat(), (2f * (1f - phase(t, FALL_MS, EAT_MS))).roundToInt().coerceAtLeast(1))
-            else -> {
-                // The paw rubbing up and down by its cheek.
-                val k = abs(sin(PI * (t - EAT_MS) / 300.0)).toFloat()
-                val y = py + 1 - (3 * k).roundToInt()
-                CommonKit.put(frame, p.edge, y, Kit.BRIGHT * 0.8f)
-                CommonKit.put(frame, p.edge, y + 1, Kit.BODY)
+            // ...and hops into its mouth.
+            t < FALL_MS + HOP_MS -> {
+                val k = phase(t, FALL_MS, FALL_MS + HOP_MS)
+                // Straight in at mouth height: an arc carried it across its eyes.
+                piece(frame, lerp(px.toFloat(), mx.toFloat(), k), py.toFloat(), 2)
             }
+            t < EAT_MS -> {
+                // Three bites: the mouth opens dark with what is left of the piece in it, then shuts; less each time.
+                val bt = t - FALL_MS - HOP_MS
+                val bite = (bt / BITE_MS).toInt()
+                val open = (bt % BITE_MS) < BITE_MS * 0.55f
+                if (open) {
+                    for (dy in 0..1) for (dx in -1..1) { val x = mx + dx; val y = my + dy; if (x in 0..24 && y in 0..24) frame[y * 25 + x] = 0 }
+                    val left = 2 - bite
+                    if (left >= 2) { CommonKit.put(frame, mx, my, Kit.BRIGHT); CommonKit.put(frame, mx, my + 1, Kit.BRIGHT) }
+                    else if (left == 1) CommonKit.put(frame, mx, my + 1, Kit.BRIGHT)
+                }
+            }
+            else -> Unit
         }
     }
 }

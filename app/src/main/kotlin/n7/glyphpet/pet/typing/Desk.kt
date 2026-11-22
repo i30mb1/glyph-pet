@@ -82,6 +82,8 @@ class DeskInput(
     val heat: Float,
     val rest: Float,
     val pet: PetPainter,
+    /** Ms of typing since the mode began, pauses not counted: what a scene that grows grows with. */
+    val typed: Long = 0L,
 ) {
     val last: Key? get() = keys.lastOrNull()
     /** Ms since the last key (since the mode began, before the first). */

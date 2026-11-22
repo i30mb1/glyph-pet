@@ -38,7 +38,33 @@ class DeskSheet {
         g.color = Color(16, 16, 16); g.fillRect(0, 0, img.width, img.height)
         for ((row, kind) in kinds.withIndex()) {
             val s = SpeciesForms.of(kind, stage)
+            if (System.getenv("DESK_FACES") != null) {
+                val faces = n7.glyphpet.pet.Face.entries.take(shots.size)
+                for ((col, f) in faces.withIndex()) {
+                    val fr = n7.glyphpet.pet.SpeciesRenderer.render(s, f, badges = false)
+                    val ox = pad + col * (25 * cell + pad); val oy = pad + row * (25 * cell + pad)
+                    for (y in 0 until 25) for (x in 0 until 25) { if (!GlyphMatrixSpec.isVisible(x, y)) continue
+                        val c = (30 + 225 * sqrt(fr[y * 25 + x].coerceIn(0, 4095) / 4000f)).toInt().coerceIn(0, 255); g.color = Color(c, c, c); g.fillRect(ox + x * cell, oy + y * cell, cell - 1, cell - 1) }
+                }
+                continue
+            }
             val raw = System.getenv("DESK_RAW") != null
+            if (System.getenv("DESK_GAME") != null) {
+                val e = PetEngine(Random(1), autoHabits = false, autoSignatures = false)
+                e.tick(step, Scene(s, Mood.CONTENT)); when (System.getenv("DESK_GAME")) { "sig" -> e.signatureNow(7L); "eat" -> e.feed(true); else -> e.trick(kind, 7L) }
+                var t = 0L; val got = HashMap<Long, IntArray>()
+                val every = (System.getenv("DESK_EVERY") ?: "600").toLong(); val at = (1..shots.size).map { it * every }
+                val stopAt = System.getenv("DESK_STOP")?.toLong() ?: Long.MAX_VALUE
+                val from = System.getenv("DESK_FROM")?.toLong() ?: 0L
+                while (t <= at.last() + from) { if (t == stopAt) e.stopTrick(); val f = e.tick(step, Scene(s, Mood.CONTENT, tilt = (0.6 * kotlin.math.sin(t / 900.0)).toFloat(), tiltY = 0.3f)); t += step; if (t - from in at) got[t - from] = f.copyOf() }
+                for ((col, tt) in at.withIndex()) {
+                    val f = got.getValue(tt)
+                    val ox = pad + col * (25 * cell + pad); val oy = pad + row * (25 * cell + pad)
+                    for (y in 0 until 25) for (x in 0 until 25) { if (!GlyphMatrixSpec.isVisible(x, y)) continue
+                        val c = (30 + 225 * sqrt(f[y * 25 + x].coerceIn(0, 4095) / 4000f)).toInt().coerceIn(0, 255); g.color = Color(c, c, c); g.fillRect(ox + x * cell, oy + y * cell, cell - 1, cell - 1) }
+                }
+                continue
+            }
             val runs = if (raw) (0..3).map { run -> shots.filter { it.first == run }.associate { (_, t) ->
                 t to n7.glyphpet.pet.drawn.Drawn.frame(kind, listOf("calm", "happy", "asleep", "loved")[run], t, stage) } }
             else (0..3).map { run -> frames(s, run, shots.filter { it.first == run }.map { it.second }) }
