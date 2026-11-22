@@ -8,6 +8,7 @@ import kotlin.math.roundToInt
 import kotlin.math.sign
 import kotlin.random.Random
 import n7.glyphpet.pet.drawn.Drawn
+import n7.glyphpet.pet.drawn.DrawnSleep
 
 /**
  * Everything the matrix needs to know right now. [species] is null before the first egg hatches. [egg] is the egg the
@@ -948,12 +949,21 @@ class PetEngine(
         // Hungry and sad at once: its hungry clip, dimmed by the sadness.
         if (col == "hungry" && scene.alsoSad) for (i in frame.indices) frame[i] = frame[i] * 7 / 10
         Drawn.cameFrom[species.kind] = col
+        if (col == "asleep") {
+            // Asleep reads at once: the picture dims and breathes slowly, and its own sign of sleep rises (no snow: over a
+            // dimmed whole-matrix picture it was louder than the pet). Touched, it peeks: brighter, a "?", back to sleep.
+            val peek = action == Action.PEEK
+            val breath = 0.58f + 0.1f * kotlin.math.sin(time / 2600f * 2 * PI.toFloat())
+            if (!peek) for (i in frame.indices) frame[i] = (frame[i] * breath).toInt()
+            DrawnSleep.sign(species.kind, time, frame)
+            if (peek) DrawnSleep.peek(frame)
+        }
         if (scene.ready && action != Action.SURGE) { val phase = time % READY_EVERY_MS; if (phase < READY_SWEEP_MS) surgeGlow(frame) }
         if (action == Action.SURGE) surgeGlow(frame)
         if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
         val state = PetState.entries.firstOrNull { it.id == (if (col == "habit") "trick" else col) }
         shown = Shown(
-            face = if (col == "habit") null else state?.stage?.face ?: Face.IDLE,
+            face = if (col == "habit") null else if (col == "asleep" && action == Action.PEEK) Face.PEEK else state?.stage?.face ?: Face.IDLE,
             habit = col == "habit", lift = if (col == "happy") 1 else 0, cheer = col == "happy",
         )
         return frame

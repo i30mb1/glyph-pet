@@ -207,3 +207,33 @@ class HungryAndSadTest {
         }
     }
 }
+
+/** A drawn hero asleep reads at once: dimmer than awake, its sign of sleep rising; touched, it peeks with a "?". */
+class DrawnSleepTest {
+    @Test
+    fun `asleep is dimmer than calm, and a touch while asleep shows a peek`() {
+        val bad = mutableListOf<String>()
+        for (h in Drawn.all) {
+            val s = SpeciesForms.of(h.kind, Stage.TEEN)
+            // The hero's own LEDs are dimmed: compared with its sleeping clip as drawn, on the cells the clip lights.
+            run {
+                val e = PetEngine(Random(1), autoHabits = false, autoSignatures = false)
+                var ratio = 0.0; var n = 0
+                for (k in 1..40) {
+                    val f = e.tick(80, Scene(species = s, mood = Mood.SLEEPING))
+                    val raw = Drawn.frame(h.kind, "asleep", k * 80L, Stage.TEEN)
+                    for (i in raw.indices) if (raw[i] > 400) { ratio += f[i].toDouble() / raw[i]; n++ }
+                }
+                if (n > 0 && ratio / n > 0.8) bad += "${h.kind}: asleep not dimmer (${"%.2f".format(ratio / n)})"
+            }
+            val e = PetEngine(Random(1), autoHabits = false, autoSignatures = false)
+            var before = IntArray(625)
+            repeat(20) { before = e.tick(80, Scene(species = s, mood = Mood.SLEEPING)).copyOf() }
+            e.feed(accepted = false)
+            var peeked = false
+            repeat(10) { if (e.shown.face == Face.PEEK || e.tick(80, Scene(species = s, mood = Mood.SLEEPING)).let { false }) peeked = true; e.tick(80, Scene(species = s, mood = Mood.SLEEPING)); if (e.shown.face == Face.PEEK) peeked = true }
+            if (!peeked) bad += "${h.kind}: no peek"
+        }
+        assertTrue(bad.joinToString(), bad.isEmpty())
+    }
+}
