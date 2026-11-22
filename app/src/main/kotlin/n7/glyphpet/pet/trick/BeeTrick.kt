@@ -164,10 +164,6 @@ internal class BeeTrick : Trick(0L) {
                 canvas.splat(homing.x - 1.2f, top, 1800f * g)
                 canvas.splat(homing.x + 1.2f, top, 1800f * g)
             }
-            if (party > 0L && (t / 150L) % 2L == 0L) {
-                canvas.max((homing.x - 3f).toInt(), (top - 1f).toInt(), 3000f)
-                canvas.max((homing.x + 3f).toInt(), (top).toInt(), 3000f)
-            }
         }
         canvas.toFrame(frame)
     }

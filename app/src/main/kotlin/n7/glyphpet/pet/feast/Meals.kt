@@ -168,8 +168,7 @@ internal class PeckMeal : Meal(2800) {
             val y = lerp(-1f - i * 2f, p.ground.toFloat(), phase(t, i * 80L, FALL_MS))
             dot(frame, grainX(i).toFloat(), y, Kit.BRIGHT)
         }
-        // A crumb jumps up from each peck.
-        if (down) dot(frame, grainX(pecking).toFloat() + p.side, p.ground - 2f, Kit.BODY * 0.7f)
+        // No crumb jumping from a peck: one lone LED read as a stray dot.
     }
 }
 

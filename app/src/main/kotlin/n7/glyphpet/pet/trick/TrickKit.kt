@@ -193,7 +193,92 @@ internal fun spriteOf(rows: List<String>, body: Float = Kit.BODY, bright: Float 
 
 /** Draws [s] scaled by [sx], [sy] around its centre ([cx], [cy]); adds to the layer (draw on a cleared one). */
 internal fun Canvas.spriteAt(s: Sprite, cx: Float, cy: Float, sx: Float, sy: Float = sx, gain: Float = 1f) =
-    spriteScaled(s, cx, cy + s.h * sy / 2f, sx, sy, gain)
+    spriteCrisp(s, cx, cy, sx, sy, gain)
+
+/**
+ * Draws [s] on whole LEDs, never blurred: its size is rounded to whole cells and its corner to a whole cell, and every
+ * LED takes the block of the sprite under it. A dark covered cell in the block (an eye, a mouth) wins over the body, so
+ * a smaller pet keeps its eyes as dark LEDs; otherwise the brightest cell. Bilinear shrinking smeared the pet into a
+ * grey blob and mixed its eyes away.
+ */
+internal fun Canvas.spriteCrisp(s: Sprite, cx: Float, cy: Float, sx: Float, sy: Float = sx, gain: Float = 1f) {
+    if (sx <= 0.05f || sy <= 0.05f || cx.isNaN() || cy.isNaN()) return
+    val n = Kit.N
+    val dw = maxOf(1, Math.round(s.w * sx))
+    val dh = maxOf(1, Math.round(s.h * sy))
+    val left = Math.round(cx - dw / 2f)
+    val top = Math.round(cy - dh / 2f)
+    val eye = if (dw < s.w || dh < s.h) eyes(s) else null
+    // Drawn first into its own small grid (-1: not covered), so cells cut off by the shrinking can be dropped.
+    val out = FloatArray(dw * dh) { -1f }
+    for (j in 0 until dh) for (i in 0 until dw) {
+        val u0 = i * s.w / dw
+        val u1 = maxOf(u0 + 1, (i + 1) * s.w / dw)
+        val w0 = j * s.h / dh
+        val w1 = maxOf(w0 + 1, (j + 1) * s.h / dh)
+        var cov = 0f
+        var hi = 0f
+        var dark = false
+        for (w in w0 until w1) for (u in u0 until u1) {
+            val c = s.coverage(u, w)
+            if (c < 0.5f) continue
+            cov = 1f
+            val value = s.value(u, w)
+            if (value > 1f) hi = maxOf(hi, value) else if (eye != null && eye[w * s.w + u]) dark = true
+        }
+        if (cov <= 0f) continue
+        if (eye == null && hi <= 0f) dark = true
+        out[j * dw + i] = if (dark) 0f else hi
+    }
+    for (j in 0 until dh) for (i in 0 until dw) {
+        val value = out[j * dw + i]
+        if (value < 0f) continue
+        // Shrunk, a thin stalk or claw tip can end up a lone lit LED apart from the body: a stray dot, so it goes.
+        if (eye != null && value > 0f) {
+            var touches = false
+            for (oy in -1..1) for (ox in -1..1) {
+                if (ox == 0 && oy == 0) continue
+                val a = i + ox
+                val b = j + oy
+                if (a in 0 until dw && b in 0 until dh && out[b * dw + a] > 0f) touches = true
+            }
+            if (!touches) continue
+        }
+        val x = left + i
+        val y = top + j
+        if (x !in 0 until n || y !in 0 until n) continue
+        val k = y * n + x
+        v[k] += value * gain
+        cov[k] = 1f
+    }
+}
+
+/** The sprite's eyes and mouth: small dark patches (at most 6 cells) inside its solid shape. */
+private fun eyes(s: Sprite): BooleanArray {
+    val m = BooleanArray(s.w * s.h)
+    val seen = BooleanArray(s.w * s.h)
+    for (start in 0 until s.w * s.h) {
+        if (seen[start] || s.cov[start] < 0.5f || s.v[start] > 1f) continue
+        val group = ArrayList<Int>()
+        val stack = ArrayDeque<Int>().apply { add(start) }
+        seen[start] = true
+        while (stack.isNotEmpty()) {
+            val i = stack.removeLast()
+            group += i
+            val x = i % s.w
+            val y = i / s.w
+            for ((dx, dy) in arrayOf(1 to 0, -1 to 0, 0 to 1, 0 to -1)) {
+                val nx = x + dx
+                val ny = y + dy
+                if (nx !in 0 until s.w || ny !in 0 until s.h) continue
+                val j = ny * s.w + nx
+                if (!seen[j] && s.cov[j] >= 0.5f && s.v[j] <= 1f) { seen[j] = true; stack.add(j) }
+            }
+        }
+        if (group.size <= 6) for (i in group) m[i] = true
+    }
+    return m
+}
 
 /** Puts [src] over this layer: where [src] covers, it hides what is below (its dark eye holes too). */
 internal fun Canvas.over(src: Canvas) {
@@ -214,6 +299,9 @@ internal fun Canvas.spriteTurned(s: Sprite, cx: Float, cy: Float, scale: Float, 
     val n = Kit.N
     val c = kotlin.math.cos(angle)
     val sn = kotlin.math.sin(angle)
+    // Upright it is drawn like any sprite, on whole cells (a turn of a few degrees only smeared it).
+    if (kotlin.math.abs(sn) < 0.12f && c > 0f) return spriteCrisp(s, cx, cy, scale, scale, gain)
+    // Turned, each LED takes the one sprite cell under its centre: jagged but sharp, never a grey blend of four.
     val reach = hypot(s.w.toFloat(), s.h.toFloat()) * scale / 2f + 1f
     val x0 = (cx - reach).toInt().coerceAtLeast(0)
     val x1 = (cx + reach).toInt().coerceAtMost(n - 1)
@@ -222,20 +310,12 @@ internal fun Canvas.spriteTurned(s: Sprite, cx: Float, cy: Float, scale: Float, 
     for (y in y0..y1) for (x in x0..x1) {
         val px = x + 0.5f - cx
         val py = y + 0.5f - cy
-        val u = (px * c + py * sn) / scale + s.w / 2f - 0.5f
-        val w = (-px * sn + py * c) / scale + s.h / 2f - 0.5f
-        val iu = kotlin.math.floor(u).toInt()
-        val iw = kotlin.math.floor(w).toInt()
-        val fu = u - iu
-        val fw = w - iw
-        val k = s.coverage(iu, iw) * (1 - fu) * (1 - fw) + s.coverage(iu + 1, iw) * fu * (1 - fw) +
-            s.coverage(iu, iw + 1) * (1 - fu) * fw + s.coverage(iu + 1, iw + 1) * fu * fw
-        if (k <= 0.01f) continue
-        val value = s.value(iu, iw) * (1 - fu) * (1 - fw) + s.value(iu + 1, iw) * fu * (1 - fw) +
-            s.value(iu, iw + 1) * (1 - fu) * fw + s.value(iu + 1, iw + 1) * fu * fw
+        val iu = kotlin.math.floor((px * c + py * sn) / scale + s.w / 2f).toInt()
+        val iw = kotlin.math.floor((-px * sn + py * c) / scale + s.h / 2f).toInt()
+        if (s.coverage(iu, iw) < 0.5f) continue
         val i = y * n + x
-        v[i] += value * gain
-        cov[i] = (cov[i] + k).coerceAtMost(1f)
+        v[i] += s.value(iu, iw) * gain
+        cov[i] = 1f
     }
 }
 

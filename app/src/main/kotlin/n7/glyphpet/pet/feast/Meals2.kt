@@ -91,14 +91,7 @@ internal class DiveMeal : Meal(2800) {
             t < FALL_MS -> piece(frame, fx, lerp(-2f, surface.toFloat(), phase(t, 0, FALL_MS)), 2)
             t < UNDER_MS -> piece(frame, fx, surface + 2f + 2f * phase(t, FALL_MS, UNDER_MS), 2, Kit.BRIGHT * 0.4f)
         }
-        // Splashes: when the piece hits the water and when the pet comes back up.
-        for (at in listOf(FALL_MS, UNDER_MS + 250)) {
-            val k = phase(t, at, at + 400)
-            if (k <= 0f || k >= 1f) continue
-            for (i in -1..1 step 2) for (j in 1..2) {
-                dot(frame, fx + i * (j + 2f * k), surface - 3f * sin(PI * k).toFloat() * j / 2f, Kit.BRIGHT * (1f - k))
-            }
-        }
+        // No splash drops: single LEDs flying off read as stray dots; the water line is the scene.
     }
 }
 
@@ -205,11 +198,7 @@ internal class NectarMeal : Meal(2800) {
             CommonKit.put(frame, fx, fy, Kit.BRIGHT)
         }
         pet(frame, input, if (t in GO_MS until SIP_MS) Face.YAWN else Face.CONTENT, dx = input.dx + p.side * fly.roundToInt(), lift = bob)
-        // Pollen rising off the flower while it sips.
-        if (t in GO_MS until SIP_MS) for (i in 0..1) {
-            val k = (((t - GO_MS) + i * 250) % 500) / 500f
-            dot(frame, fx + (if (i == 0) -1f else 1f) * p.side, fy - 1f - 3f * k, Kit.BRIGHT * (1f - k))
-        }
+        // No pollen specks over the flower: loose dots read as bugs.
     }
 }
 
@@ -273,12 +262,7 @@ internal class GazeMeal : Meal(2400) {
             val b = maxOf(p.edge, px)
             for (x in a..b) if ((x + t / 50) % 2 == 0L) CommonKit.put(frame, x.toInt(), py, RAY)
         }
-        // Sparks rising off it as it burns, and after.
-        if (t >= STARE_MS) for (i in 0 until 3) {
-            val k = (((t - STARE_MS) + i * 200) % 600) / 600f
-            if (t > BURN_MS + 400) break
-            dot(frame, px + (i - 1).toFloat(), py - 1f - 4f * k, Kit.BRIGHT * (1f - k))
-        }
+        // No sparks rising off it: loose dots read as bugs; the ray and the piece going are the scene.
     }
 }
 

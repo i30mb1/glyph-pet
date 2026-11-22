@@ -80,11 +80,12 @@ internal abstract class DrawnGame : Trick(0L) {
         return px to py
     }
 
-    /** Sparkles round the body while a party plays. */
-    protected fun sparkle(t: Long, cx: Float = x, cy: Float = y, r: Float = 4f) {
-        if (party <= 0L) return
-        for (k in 0 until 8) { val a = k * PI.toFloat() / 4 + t / 200f; if (((t / 120) + k) % 2 == 0L) canvas.max((cx + cos(a) * r).toInt(), (cy + sin(a) * r).toInt(), 3800f) }
-    }
+    /**
+     * A party used to throw sparkles round the body; blinking loose LEDs read as bugs on the matrix, so it draws none
+     * now: the haptic says it. Kept so every game's call stays one place to give a party a look of its own later.
+     */
+    @Suppress("UNUSED_PARAMETER")
+    protected fun sparkle(t: Long, cx: Float = x, cy: Float = y, r: Float = 4f) = Unit
 
     protected fun disc(cx: Float, cy: Float, r: Float, v: Float) {
         for (yy in (cy - r).toInt() - 1..(cy + r).toInt() + 1) for (xx in (cx - r).toInt() - 1..(cx + r).toInt() + 1)

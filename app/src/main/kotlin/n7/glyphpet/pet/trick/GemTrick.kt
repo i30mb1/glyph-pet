@@ -125,12 +125,6 @@ internal class GemTrick : Trick(0L) {
                 val bx = MID + cos(burstAt) * STAR_R; val by = MID + sin(burstAt) * STAR_R
                 for (j in 0 until 6) { val a = j * PI.toFloat() / 3; lit(frame, bx + cos(a) * k * 2.5f, by + sin(a) * k * 2.5f, (3800f * (1 - k)).toInt()) }
             }
-            // A party: glints thrown all round from the gem, like a rainbow off a crystal.
-            if (party > 0L) for (j in 0 until 10) {
-                val a = j * 0.628f + t / 400f
-                val d = 5f + (t % 600) / 600f * 5f
-                if (((t / 100) + j) % 2 == 0L) lit(frame, cx + cos(a) * d, TrickKit.homeCy(sp) + sin(a) * d, 3600)
-            }
         }
     }
 

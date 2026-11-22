@@ -152,14 +152,6 @@ internal class HedgehogTrick : Trick(0L) {
             val py = (homing.y + sin(a) * (rad + 0.3f)).toInt()
             if (px in 0 until Kit.N && py in 0 until Kit.N && Kit.VISIBLE[py * Kit.N + px]) frame[py * Kit.N + px] = 4000
         }
-        if (party > 0L && !going && (t / 140L) % 2L == 0L) {
-            for (k in 0 until 4) {
-                val a = k * 1.57f + t / 300f
-                val px = (homing.x + cos(a) * (rad + 2f)).toInt()
-                val py = (homing.y + sin(a) * (rad + 2f)).toInt()
-                if (px in 0 until Kit.N && py in 0 until Kit.N && Kit.VISIBLE[py * Kit.N + px]) frame[py * Kit.N + px] = 3000
-            }
-        }
     }
 
     private fun place(i: Int) {
