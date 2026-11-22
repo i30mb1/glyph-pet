@@ -193,19 +193,19 @@
     <string name="habit_hide_shiny">Прячет блестяшку</string>
     <string name="matrix_title">На матрице</string>
     <string name="matrix_hide_title">Гаснуть, когда никто не видит</string>
-    <string name="matrix_hide_text">Матрица гаснет, пока телефон лежит экраном вверх или в кармане, и загорается, когда берёшь его в руки.</string>
+    <string name="matrix_hide_text">Гаснет экраном вверх и в кармане, загорается в руке.</string>
     <string name="matrix_vibration_title">Вибрация</string>
-    <string name="matrix_vibration_text">Телефон отвечает лёгким толчком, когда кормишь питомца, раскалываешь яйцо, играешь или он растёт. Пока он спит, не вибрирует. Учитывает системную настройку вибрации при касании.</string>
+    <string name="matrix_vibration_text">Лёгкий толчок на еду, яйцо, игры и рост. Во сне молчит.</string>
     <string name="shiny_label">✦ Блестящий: редкая находка, один из двадцати</string>
     <string name="matrix_mic_bg_title">Слышит, когда приложение закрыто</string>
-    <string name="matrix_mic_bg_text">Android даёт приложению слушать, только пока оно открыто. С этим переключателем тихое уведомление в шторке оставляет питомцу слух на дутьё, хлопки и печатание после закрытия. После перезагрузки открой приложение один раз.</string>
+    <string name="matrix_mic_bg_text">Держит слух через тихое уведомление. После перезагрузки открой приложение.</string>
     <string name="mic_keeper_channel">Слышит тебя</string>
     <string name="mic_keeper_title">Питомец тебя слышит</string>
     <string name="mic_keeper_text">Дутьё, хлопки и печатание доходят до питомца на матрице. Ничего не записывается.</string>
     <string name="matrix_mic_title">Слышит тебя</string>
-    <string name="matrix_mic_text">Подуй на питомца — его подхватит ветер; хлопни — вздрогнет; печатай рядом, положив телефон на стол, — он застучит по клавишам вместе с тобой. Только пока он на экране и только громкость звука: ничего не записывается и никуда не уходит.</string>
+    <string name="matrix_mic_text">Дуй, хлопай, печатай рядом — он ответит. Ничего не записывается.</string>
     <string name="matrix_notify_title">Просыпаться на уведомления</string>
-    <string name="matrix_notify_text">Питомец поднимает голову на уведомление и показывает трубку, пока висит пропущенный звонок. Glyph Pet видит только тип уведомления, текст не читает.</string>
+    <string name="matrix_notify_text">Поднимает голову на уведомления и звонки. Текст не читает.</string>
 
     <!-- Compact main screen, forms in the collection -->
     <string name="egg_put_on_matrix_count">Положить яйцо на матрицу · %1$d</string>

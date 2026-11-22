@@ -188,11 +188,30 @@ class AtlasExport {
             scene(s).copy(wind = if (t < 2400) (0.6f + 0.4f * sin(PI * t / 2400.0).toFloat()) else 0f)
         } else null),
         "clap" to custom(s, 2400, start = { it.clap() }) { _, _ -> scene(s) },
-        // Typing by the phone: a key every 240 ms, a little uneven, like real typing.
-        "typing" to custom(s, 4800) { e, t -> if (t % 240 == 0L || t % 720 == 80L) e.key(); scene(s).copy(typing = true) },
+        // Typing by the phone: its scene, keys at an easy pace and a pause at the end; a rush and its "sent"; and the
+        // scene after 20 s and after 40 s of typing.
+        "typing" to typed(s, 0) { t -> t < 3400 && (t % 240 == 0L || t % 720 == 80L) },
+        "type_rush" to typed(s, 0) { t -> if (t < 600) t % 240 == 0L else t < 3000 && t % 120 == 0L },
+        "type_20" to typed(s, 20_500) { t -> (t in 1800..2800 && t % 120 == 0L) || (t < 4000 && t % 240 == 0L) },
+        "type_40" to typed(s, 40_500) { t -> (t in 1800..2800 && t % 120 == 0L) || (t < 4000 && t % 240 == 0L) },
         "ring" to custom(s, 3200) { _, _ -> scene(s).copy(ringing = true) },
         "notice" to custom(s, 2400, start = { it.notice() }) { _, _ -> scene(s) },
     )
+
+    /**
+     * The typing scene, after [preMs] of easy typing (a key every 240 ms), for 4.8 s with a key whenever [keyAt] says
+     * (ms into the clip). The microphone hears typing while keys come, and a little after.
+     */
+    private fun typed(s: Species, preMs: Long, keyAt: (Long) -> Boolean): List<IntArray> {
+        var lastKey = 0L
+        return custom(s, 4800, start = { e ->
+            var t = 0L
+            while (t < preMs) { if (t % 240 == 0L) e.key(); e.tick(step, scene(s).copy(typing = true)); t += step }
+        }) { e, t ->
+            if (keyAt(t)) { e.key(); lastKey = t }
+            scene(s).copy(typing = t == 0L || t - lastKey < 1500)
+        }
+    }
 
     /** The shiny pet, calm, while the light swings from one side to the other and back, as a lean of the phone does. */
     private fun shiny(s: Species): List<IntArray> = try {

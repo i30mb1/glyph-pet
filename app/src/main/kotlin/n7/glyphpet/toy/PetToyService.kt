@@ -470,11 +470,12 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         if (motion.consumeStroke()) stroked()
         if (mic.consumeClap(motion.lastJoltMs)) clapped()
         gusted(now)
-        // Someone types by the phone lying on the desk: the pet plays along, a strike for each key heard.
+        // Someone types by the phone lying on the desk: the pet's typing scene plays, a beat for each key heard (in a
+        // pause too, while the scene is still on).
         val keysHeard = mic.consumeKeys()
         val typing = posture == Posture.DESK && mic.typing()
-        if (typing) repeat(minOf(keysHeard, 3)) { engine.key() }
-        typed(dt, typing)
+        if (typing || (posture == Posture.DESK && engine.typingNow)) repeat(minOf(keysHeard, 3)) { engine.key() }
+        typed(dt, typing || engine.typingNow)
         val n = nursery
         react(
             reactions.frame(

@@ -139,7 +139,7 @@ private fun StatePage(cells: List<Cell>?, name: String, whenLine: String, modifi
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         if (cells != null) {
-            SmoothMatrix(cells = cells, modifier = Modifier.size(PREVIEW_SIZE))
+            PetMatrix(cells = cells, modifier = Modifier.size(PREVIEW_SIZE))
         } else {
             Spacer(Modifier.size(PREVIEW_SIZE))
         }
