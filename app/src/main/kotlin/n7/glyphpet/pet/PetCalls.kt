@@ -11,11 +11,25 @@ import kotlin.math.sin
  * [PetEngine.notice]). Each kind its own way, a move and a mark; no two kinds share both. These come before anything
  * else the pet is doing: a ring even pauses a game.
  */
+/** The cells of the mark being drawn; it is moved onto the round matrix as one piece ([MatrixClip.fit]) and then drawn. */
+private val pending = ThreadLocal.withInitial { ArrayList<Triple<Int, Int, Float>>() }
+
+@Suppress("UNUSED_PARAMETER")
 private fun put(frame: IntArray, x: Int, y: Int, v: Float) {
-    if (!GlyphMatrixSpec.isVisible(x, y)) return
-    val i = y * 25 + x
-    val value = v.toInt().coerceIn(0, SpeciesRenderer.BRIGHT)
-    if (frame[i] == 0) frame[i] = value
+    pending.get() += Triple(x, y, v)
+}
+
+/** Draws the mark collected by [put], all of it on the matrix, on LEDs the pet leaves dark. */
+private fun flushMark(frame: IntArray) {
+    val cells = pending.get()
+    val (sx, sy) = MatrixClip.fit(cells)
+    for ((x, y, v) in cells) {
+        if (!MatrixClip.ok(x + sx, y + sy)) continue
+        val i = (y + sy) * 25 + x + sx
+        val value = v.toInt().coerceIn(0, SpeciesRenderer.BRIGHT)
+        if (frame[i] == 0) frame[i] = value
+    }
+    cells.clear()
 }
 
 private fun glyph(frame: IntArray, rows: List<String>, x: Int, y: Int, v: Float) = rows.forEachIndexed { r, row ->
@@ -82,6 +96,12 @@ object Rings {
     }
 
     fun mark(frame: IntArray, style: Style, t: Long, left: Int, right: Int, top: Int, bottom: Int) {
+        pending.get().clear()
+        markCells(frame, style, t, left, right, top, bottom)
+        flushMark(frame)
+    }
+
+    private fun markCells(frame: IntArray, style: Style, t: Long, left: Int, right: Int, top: Int, bottom: Int) {
         val b = burst(t)
         val bright = SpeciesRenderer.BRIGHT.toFloat()
         val cx = (left + right) / 2
@@ -167,6 +187,12 @@ object Notices {
     }
 
     fun mark(frame: IntArray, style: Style, t: Long, left: Int, right: Int, top: Int, bottom: Int) {
+        pending.get().clear()
+        markCells(frame, style, t, left, right, top, bottom)
+        flushMark(frame)
+    }
+
+    private fun markCells(frame: IntArray, style: Style, t: Long, left: Int, right: Int, top: Int, bottom: Int) {
         val p = (t.toFloat() / DURATION_MS).coerceIn(0f, 1f)
         val fade = if (p > 0.75f) (1 - p) / 0.25f else 1f
         val bright = SpeciesRenderer.BRIGHT * fade

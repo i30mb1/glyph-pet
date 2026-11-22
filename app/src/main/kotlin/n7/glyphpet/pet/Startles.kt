@@ -155,11 +155,9 @@ object Startles {
         val cy = (top + bottom) / 2
         val bright = SpeciesRenderer.BRIGHT
         val fade = if (p > 0.8f) (1f - p) / 0.2f else 1f
-        fun put(x: Int, y: Int, v: Float) {
-            if (!GlyphMatrixSpec.isVisible(x, y)) return
-            val i = y * 25 + x
-            if (frame[i] == 0) frame[i] = (v * fade).toInt().coerceIn(0, bright)
-        }
+        // The mark is moved onto the round matrix as one piece ([MatrixClip.fit]); a ripple spreading out may leave it.
+        val cells = ArrayList<Triple<Int, Int, Float>>()
+        fun put(x: Int, y: Int, v: Float) { cells += Triple(x, y, v * fade) }
         fun glyph(rows: List<String>, x: Int, y: Int, v: Float) = rows.forEachIndexed { r, row ->
             row.forEachIndexed { c, ch -> if (ch == 'o') put(x + c, y + r, v) }
         }
@@ -214,6 +212,12 @@ object Startles {
                 val r = 2f + p * 6f
                 put((cx + r * cos(a)).roundToInt(), (top + 1 + r * 0.6f * sin(a) - p * 3).roundToInt(), bright * 0.5f * (1 - p))
             }
+        }
+        val (sx, sy) = if (style.mark == Mark.RINGS) 0 to 0 else MatrixClip.fit(cells)
+        for ((x, y, v) in cells) {
+            if (!MatrixClip.ok(x + sx, y + sy)) continue
+            val i = (y + sy) * 25 + x + sx
+            if (frame[i] == 0) frame[i] = v.toInt().coerceIn(0, bright)
         }
     }
 

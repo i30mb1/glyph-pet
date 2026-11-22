@@ -513,13 +513,23 @@ object SpeciesForms {
         ),
     )
 
+    /**
+     * Big grown-ups sit this many rows lower than drawn, so what they show above their heads (a cuddle's hearts, a burst
+     * of joy) has room under the round top edge; each still has room below for its feet and shadow.
+     */
+    private val LOWER = mapOf(
+        "cat.adult" to 1, "ghost.adult" to 1, "dino.adult" to 1, "bunny.adult" to 1, "chick.adult" to 1,
+        "shroom.adult" to 1, "fox.adult" to 1, "cactus.adult" to 2, "penguin.adult" to 1, "toast.adult" to 1,
+        "bee.adult" to 1, "gem.adult" to 1, "raccoon.adult" to 1, "eye.adult" to 1, "whale.adult" to 1,
+    )
+
     private fun form(teen: Species, stage: Stage, sprite: Sprite): Species = Species(
         id = id(teen.kind, stage),
         name = teen.name,
         rarity = teen.rarity,
         rows = sprite.rows,
         ox = sprite.ox,
-        oy = sprite.oy,
+        oy = sprite.oy + (LOWER[id(teen.kind, stage)] ?: 0),
         eyes = sprite.eyes,
         mouth = sprite.mouth,
         inverted = teen.inverted,

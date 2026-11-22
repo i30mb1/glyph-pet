@@ -722,7 +722,7 @@ object SpeciesRenderer {
     fun jumpOf(face: Face): Int = LOOKS.getValue(face).jump
 
     fun put(frame: IntArray, x: Int, y: Int, value: Int) {
-        if (GlyphMatrixSpec.isVisible(x, y)) frame[y * SIZE + x] = maxOf(frame[y * SIZE + x], value)
+        if (MatrixClip.ok(x, y)) frame[y * SIZE + x] = maxOf(frame[y * SIZE + x], value)
     }
 
     /** Every matrix cell inside the species' sprite rectangle at its home spot. */

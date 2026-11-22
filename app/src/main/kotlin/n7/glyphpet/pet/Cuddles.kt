@@ -127,6 +127,33 @@ object Cuddles {
             Move.SQUASH -> if ((ms / 220) % 2 == 1L) squash(frame, left - 1, right + 1, top, bottom)
             else -> Unit
         }
+        // What floats round the pet (hearts, sparks, bubbles...) is moved onto the round matrix as one piece, so a big pet
+        // near the top edge still shows all of it: drawn once aside to see what would fall off, then where it fits.
+        if (style.touch in FLOATING) {
+            val scratch = IntArray(SIZE * SIZE)
+            val lost = mutableSetOf<Pair<Int, Int>>()
+            val recording = MatrixClip.lost
+            MatrixClip.lost = lost
+            try { touch(scratch, species, style, left, top, ms) } finally { MatrixClip.lost = recording }
+            var sx = 0
+            var sy = 0
+            if (lost.isNotEmpty()) {
+                val cells = lost.map { (x, y) -> Triple(x, y, 1f) } + scratch.indices.filter { scratch[it] > 0 }.map { Triple(it % SIZE, it / SIZE, 1f) }
+                val (fx, fy) = MatrixClip.fit(cells)
+                sx = fx; sy = fy
+            }
+            touch(frame, species, style, left + sx, top + sy, ms)
+            return
+        }
+        touch(frame, species, style, left, top, ms)
+    }
+
+    /** Touches that float round the pet rather than sit on it. */
+    private val FLOATING = setOf(Touch.WAVES, Touch.HEARTS, Touch.RAIN_HEARTS, Touch.SPOUT, Touch.SPARKS, Touch.ORBIT, Touch.SPORES, Touch.BUBBLES, Touch.FLOWER)
+
+    private fun touch(frame: IntArray, species: Species, style: Style, left: Int, top: Int, ms: Long) {
+        val right = left + species.width - 1
+        val bottom = top + species.height - 1
         val t = ms / 1000f
         val cx = (left + right) / 2
         when (style.touch) {
@@ -153,11 +180,12 @@ object Cuddles {
     private fun at(frame: IntArray, x: Int, y: Int): Int = if (x in 0 until SIZE && y in 0 until SIZE) frame[y * SIZE + x] else 0
 
     private fun put(frame: IntArray, x: Int, y: Int, v: Int) {
-        if (n7.glyph.ui.matrix.GlyphMatrixSpec.isVisible(x, y)) frame[y * SIZE + x] = v.coerceIn(0, BRIGHT)
+        if (MatrixClip.ok(x, y)) frame[y * SIZE + x] = v.coerceIn(0, BRIGHT)
     }
 
     private fun light(frame: IntArray, x: Int, y: Int, v: Int) {
-        if (x in 0 until SIZE && y in 0 until SIZE && frame[y * SIZE + x] < v) put(frame, x, y, v)
+        if (x !in 0 until SIZE || y !in 0 until SIZE) { MatrixClip.ok(x, y); return }
+        if (frame[y * SIZE + x] < v) put(frame, x, y, v)
     }
 
     /** Rows shifted sideways, the top the most, the feet staying: a sway. */
@@ -266,8 +294,14 @@ object Cuddles {
         }
     }
 
-    private fun rainbow(frame: IntArray, cx: Int, baseY: Int, r: Int, ms: Long) {
+    private fun rainbow(frame: IntArray, cx: Int, baseY: Int, r0: Int, ms: Long) {
         val grow = (ms / 600f).coerceAtMost(1f)
+        // As wide as it may be with both its bands on the round matrix: over a big pet near the top it is a smaller arc.
+        fun fits(r: Int) = (0..1).all { band -> (0..24).all { i ->
+            val a = PI * i / 24
+            n7.glyph.ui.matrix.GlyphMatrixSpec.isVisible(cx - ((r + band) * cos(a)).roundToInt(), baseY - ((r + band) * 0.8 * sin(a)).roundToInt())
+        } }
+        val r = (r0 downTo 2).firstOrNull(::fits) ?: 2
         for (band in 0..1) {
             val rr = r + band
             val v = if (band == 0) BRIGHT else BRIGHT / 2

@@ -920,7 +920,9 @@ class PetEngine(
             sliding && own == null -> tiltStyle.lift(slideMs)
             blowHopMs >= 0 -> HOP.getOrElse((blowHopMs / 80).toInt()) { 0 }.coerceAtLeast(0)
             else -> 0
-        } + blowLift() + (startle?.let { Startles.lift(it, startleMs) } ?: 0) + (typeStyle?.let { Typing.lift(it, sinceKey) } ?: 0)
+        }.plus(blowLift() + (startle?.let { Startles.lift(it, startleMs) } ?: 0) + (typeStyle?.let { Typing.lift(it, sinceKey) } ?: 0))
+            // Never up through the round top edge: a big pet jumps only as high as there is room.
+            .coerceAtMost(maxOf(0, species.oy - 4))
         // Stroked: each kind its own way ([Cuddles]); a sleeper only peeks.
         val cuddle = when {
             action == Action.LOVED && !asleep && own == null -> Cuddles.of(species.kind)
@@ -1150,8 +1152,9 @@ class PetEngine(
         } else {
             val painter = if (Living3D.handles(species)) runCatching { living.live(species, dtMs, scene.tilt, scene.tiltY, time, -1f, scene.yaw) }.getOrNull() else null
             val dx = x.roundToInt() + pose.dx
-            SpeciesRenderer.render(species, face, dx = dx, frame = frame, timeMs = time, lift = pose.lift, shadow = true, painter = painter, badges = false)
-            tp = species.oy - SpeciesRenderer.jumpOf(face) - pose.lift
+            val lift = pose.lift.coerceAtMost(maxOf(0, species.oy - 4))
+            SpeciesRenderer.render(species, face, dx = dx, frame = frame, timeMs = time, lift = lift, shadow = true, painter = painter, badges = false)
+            tp = species.oy - SpeciesRenderer.jumpOf(face) - lift
             l = species.ox + dx
             r = l + species.width - 1
             b = tp + species.height - 1
