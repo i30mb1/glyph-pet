@@ -16,18 +16,44 @@ class PetNotificationListener : NotificationListenerService() {
 
     private val main = Handler(Looper.getMainLooper())
 
-    override fun onListenerConnected() = countMissedCalls()
+    override fun onListenerConnected() { countMissedCalls(); checkRinging() }
 
     override fun onListenerDisconnected() {
         PetAlerts.missedCalls = 0
+        setRinging(false)
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification, rankingMap: RankingMap) {
         countMissedCalls()
-        if (alerts(sbn, rankingMap)) main.post { PetAlerts.onNotification?.invoke() }
+        checkRinging()
+        if (!isCall(sbn) && alerts(sbn, rankingMap)) main.post { PetAlerts.onNotification?.invoke() }
     }
 
-    override fun onNotificationRemoved(sbn: StatusBarNotification, rankingMap: RankingMap) = countMissedCalls()
+    override fun onNotificationRemoved(sbn: StatusBarNotification, rankingMap: RankingMap) { countMissedCalls(); checkRinging() }
+
+    private fun isCall(sbn: StatusBarNotification) = sbn.notification.category == Notification.CATEGORY_CALL
+
+    /**
+     * An incoming call that still rings: a call notification of the incoming kind (Android's call style says so), or,
+     * for a dialer that does not, one that would take the whole screen.
+     */
+    private fun isRinging(sbn: StatusBarNotification): Boolean {
+        if (!isCall(sbn)) return false
+        val n = sbn.notification
+        val type = n.extras?.getInt("android.callType", -1) ?: -1
+        return if (type >= 0) type == 1 else n.fullScreenIntent != null
+    }
+
+    private fun checkRinging() {
+        val active = try { activeNotifications } catch (e: Exception) { null } ?: return
+        setRinging(active.any(::isRinging))
+    }
+
+    private fun setRinging(on: Boolean) {
+        if (PetAlerts.ringing == on) return
+        PetAlerts.ringing = on
+        main.post { PetAlerts.onRinging?.invoke(on) }
+    }
 
     /** A new notification the owner would hear or see pop up: not our own, not ongoing, not a silent or muted one. */
     private fun alerts(sbn: StatusBarNotification, rankingMap: RankingMap): Boolean {

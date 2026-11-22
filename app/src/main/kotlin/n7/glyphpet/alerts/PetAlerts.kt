@@ -13,8 +13,15 @@ object PetAlerts {
     @Volatile var missedCalls: Int = 0
         internal set
 
-    /** Called on the main thread for every notification that would alert the owner. */
+    /** Called on the main thread for every notification that would alert the owner (not a ringing call: see [ringing]). */
     @Volatile var onNotification: (() -> Unit)? = null
+
+    /** The phone is ringing now: an incoming call waits to be answered. */
+    @Volatile var ringing: Boolean = false
+        internal set
+
+    /** Called on the main thread when the phone starts or stops ringing. */
+    @Volatile var onRinging: ((Boolean) -> Unit)? = null
 
     /** Whether the owner gave Glyph Pet access to notifications (system settings). */
     fun hasAccess(context: Context): Boolean {

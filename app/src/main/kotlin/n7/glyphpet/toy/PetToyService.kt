@@ -63,6 +63,9 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         const val TOWARD_FULL = 0.45f
         const val HELD_TAU_S = 4f
 
+        /** Ringing in Always-on keeps the pet live at most this long. */
+        const val RING_BURST_MS = 60_000L
+
         /** This long typing together brings half a dot of joy ([typed]). */
         const val TYPED_JOY_MS = 30_000L
 
@@ -164,11 +167,13 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         glyph = GlyphMatrixManager.getInstance(this)
         glyph.init(this)
         PetAlerts.onNotification = ::onNotification
+        PetAlerts.onRinging = ::onRinging
         return Messenger(toyHandler).binder
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
         PetAlerts.onNotification = null
+        PetAlerts.onRinging = null
         main.removeCallbacks(callLoop)
         stopLive()
         store.nursery()
@@ -330,11 +335,34 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
      * frame is back. Live, it is already there.
      */
     private fun onNotification() {
-        if (!connected || running) return
+        if (!connected) return
+        if (running) {
+            // Live: the pet looks up its own way ([n7.glyphpet.pet.Notices]); in a game only a soft buzz, not to spoil it.
+            if (engine.playingTrick) feel(HapticKind.TICKLE, 0.4f) else engine.notice()
+            return
+        }
         sync(force = true)
         burstUntil = SystemClock.uptimeMillis() + BURST_MS
         aodBurst = false
         startLive()
+        engine.notice()
+    }
+
+    /**
+     * The phone starts or stops ringing: the pet answers its own way ([n7.glyphpet.pet.Rings]) for as long as it rings,
+     * Always-on included, over anything it was doing (a game waits).
+     */
+    private fun onRinging(on: Boolean) {
+        if (!connected) return
+        Log.d(TAG, "event ringing=$on")
+        if (on && !running) {
+            sync(force = true)
+            burstUntil = SystemClock.uptimeMillis() + RING_BURST_MS
+            aodBurst = false
+            startLive()
+        } else if (!on && burstUntil > 0) {
+            burstUntil = SystemClock.uptimeMillis() + BURST_MS / 2
+        }
     }
 
     /**
@@ -591,6 +619,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             yaw = yaw,
             wind = wind,
             typing = typing,
+            ringing = PetAlerts.ringing,
             shiny = n.activeShiny,
         )
     }

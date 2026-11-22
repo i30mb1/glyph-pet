@@ -57,6 +57,8 @@ data class Scene(
     val shiny: Boolean = false,
     /** Someone types by the phone on the desk ([Typing]): the pet plays its little keyboard, a strike for each [PetEngine.key]. */
     val typing: Boolean = false,
+    /** The phone is ringing ([Rings]): the pet answers its own way, over anything else, a game included. */
+    val ringing: Boolean = false,
 )
 
 /**
@@ -588,6 +590,23 @@ class PetEngine(
         while (struck.size > 8) struck.removeFirst()
     }
 
+    /**
+     * A notification came ([Notices]): the pet looks up its own way, at once, over a habit or a show (both end); not in
+     * a game, where the toy only gives a soft buzz.
+     */
+    fun notice() {
+        if (trickMs >= 0) return
+        noticeMs = 0
+        habitMs = -1
+        drawnHabitMs = -1
+        announceMs = -1
+        if (signatureMs >= 0) { signatureMs = -1; sinceSignatureMs = 0; signatureInMs = nextSignatureIn() }
+    }
+
+    /** A notice playing, ms in; -1 when none. How long the phone has rung, -1 when it is quiet. */
+    private var noticeMs = -1L
+    private var ringMs = -1L
+
     /** Typing along: how far the keyboard has come up (0..1), the last key, the side of the strike, the keys struck. */
     private var typingK = 0f
     private var keyAtMs = Long.MIN_VALUE / 2
@@ -767,6 +786,11 @@ class PetEngine(
         stir(asleep)
         updateCharge(dtMs, scene, asleep)
         updateBlink(dtMs, asleep)
+        // The phone rings, or a notification just came: the pet answers before anything else (a game only waits).
+        ringMs = if (scene.ringing) ringMs.coerceAtLeast(0) + dtMs else -1L
+        if (noticeMs >= 0) { noticeMs += dtMs; if (noticeMs >= Notices.DURATION_MS || trickMs >= 0) noticeMs = -1 }
+        if (ringMs >= 0 || noticeMs >= 0) return answerPhone(dtMs, species, scene, frame)
+
         // A trick plays on the charger too: the owner asked for it.
         val tr = trick
         if (tr != null && trickMs >= 0) {
@@ -1098,23 +1122,60 @@ class PetEngine(
         }
         val wraps = way != null && (way.move == Blows.Move.WRAP || way.move == Blows.Move.TUMBLE)
         if (abs(angle) > 0.03f) TiltStyle.rotate(frame, l, r, tp, b, angle)
-        if (dx != 0 || dy != 0) {
-            val src = frame.copyOf()
-            frame.fill(0)
-            for (y in 0 until SIZE) for (x0 in 0 until SIZE) {
-                val v = src[y * SIZE + x0]
-                if (v == 0) continue
-                var nx = x0 + dx
-                val ny = y + dy
-                if (wraps) nx = Math.floorMod(nx, SIZE)
-                if (GlyphMatrixSpec.isVisible(nx, ny)) frame[ny * SIZE + nx] = maxOf(frame[ny * SIZE + nx], v)
-            }
-        }
+        shiftWhole(frame, dx, dy, wraps)
         if (dim < 0.995f) for (i in frame.indices) frame[i] = (frame[i] * dim).toInt()
         if (startle != null) Startles.mark(frame, startle, startleMs, l + dx, r + dx, tp + dy, b + dy, startleDir)
         if (blowBits.isNotEmpty()) Blows.draw(frame, blowBits, windDir, time)
         Typing.draw(frame, Typing.of(species.kind), if (typeStyle != null) typingK else typingK.coerceAtMost(0.4f), struck, time, keySide,
             if (typeStyle != null) sinceKey else Long.MAX_VALUE, l + dx, r + dx, tp + dy, b + dy)
+    }
+
+    /**
+     * The pet answering the phone ([Rings] while it rings, else [Notices]): its own move and mark over its calm picture.
+     */
+    private fun answerPhone(dtMs: Long, species: Species, scene: Scene, frame: IntArray): IntArray {
+        val ring = ringMs >= 0
+        val t = if (ring) ringMs else noticeMs
+        val pose = if (ring) Rings.pose(Rings.of(species.kind), t) else Notices.pose(Notices.of(species.kind), t)
+        val face = if (ring) Face.SCARED else Face.HAPPY
+        var l: Int; var r: Int; var tp: Int; var b: Int
+        if (Drawn.handles(species.kind)) {
+            Drawn.frame(species.kind, if (ring) "dizzy" else "happy", time, species.stage, 0f, frame)
+            l = 25; r = -1; tp = 25; b = -1
+            for (i in frame.indices) if (frame[i] >= BODY / 3) { val cx = i % SIZE; val cy = i / SIZE; l = minOf(l, cx); r = maxOf(r, cx); tp = minOf(tp, cy); b = maxOf(b, cy) }
+            if (r < 0) { l = 8; r = 16; tp = 8; b = 16 }
+            if (abs(pose.angle) > 0.03f) TiltStyle.rotate(frame, l, r, tp, b, pose.angle)
+            shiftWhole(frame, pose.dx, -pose.lift, wraps = false)
+            l += pose.dx; r += pose.dx; tp -= pose.lift; b -= pose.lift
+        } else {
+            val painter = if (Living3D.handles(species)) runCatching { living.live(species, dtMs, scene.tilt, scene.tiltY, time, -1f, scene.yaw) }.getOrNull() else null
+            val dx = x.roundToInt() + pose.dx
+            SpeciesRenderer.render(species, face, dx = dx, frame = frame, timeMs = time, lift = pose.lift, shadow = true, painter = painter, badges = false)
+            tp = species.oy - SpeciesRenderer.jumpOf(face) - pose.lift
+            l = species.ox + dx
+            r = l + species.width - 1
+            b = tp + species.height - 1
+            if (abs(pose.angle) > 0.03f) TiltStyle.rotate(frame, l, r, tp, b, pose.angle)
+        }
+        if (pose.glow > 1.005f) glowBody(frame, pose.glow) else if (pose.glow < 0.995f) for (i in frame.indices) frame[i] = (frame[i] * pose.glow).toInt()
+        if (ring) Rings.mark(frame, Rings.of(species.kind), t, l, r, tp, b) else Notices.mark(frame, Notices.of(species.kind), t, l, r, tp, b)
+        shown = Shown(face, dx = x.roundToInt())
+        return frame
+    }
+
+    /** Moves the whole picture [dx] across and [dy] down; with [wraps], what leaves one side comes in on the other. */
+    private fun shiftWhole(frame: IntArray, dx: Int, dy: Int, wraps: Boolean) {
+        if (dx == 0 && dy == 0) return
+        val src = frame.copyOf()
+        frame.fill(0)
+        for (y in 0 until SIZE) for (x0 in 0 until SIZE) {
+            val v = src[y * SIZE + x0]
+            if (v == 0) continue
+            var nx = x0 + dx
+            val ny = y + dy
+            if (wraps) nx = Math.floorMod(nx, SIZE)
+            if (GlyphMatrixSpec.isVisible(nx, ny)) frame[ny * SIZE + nx] = maxOf(frame[ny * SIZE + nx], v)
+        }
     }
 
     /** Brightens what is lit by [k] (1: as it is), never past the bright details. */
