@@ -63,6 +63,9 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         const val TOWARD_FULL = 0.45f
         const val HELD_TAU_S = 4f
 
+        /** A click this close to a jolt of the phone is a tap on it, not a key typed beside it. */
+        const val TAP_NEAR_MS = 150L
+
         /** Ringing in Always-on keeps the pet live at most this long. */
         const val RING_BURST_MS = 60_000L
 
@@ -162,7 +165,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
     override fun onBind(intent: Intent?): IBinder {
         store = PetStore(this)
         motion = MotionSensor(this)
-        mic = Mic(this)
+        mic = Mic(this).apply { tapped = { at -> motion.joltedNear(at, TAP_NEAR_MS) } }
         haptics = Haptics(this)
         glyph = GlyphMatrixManager.getInstance(this)
         glyph.init(this)

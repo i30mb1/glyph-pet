@@ -154,12 +154,22 @@ class MotionSensor(context: Context) : SensorEventListener {
     @Volatile var lastJoltMs = 0L
         private set
 
+    /** The jolts of the last few seconds (wall clock ms): a tap on the phone, not a key on a keyboard beside it. */
+    private val jolts = ArrayDeque<Long>()
+
+    /** Whether the body was jolted within [nearMs] of [atMs] (wall clock ms). */
+    fun joltedNear(atMs: Long, nearMs: Long): Boolean = synchronized(jolts) { jolts.any { kotlin.math.abs(it - atMs) <= nearMs } }
+
     /** Two light taps on the back (a stroke), reported once. */
     fun consumeStroke(): Boolean = synchronized(this) { stroked.also { stroked = false } }
 
     /** A sharp little jolt out of stillness is a tap; two of them close together, a stroke. */
     private fun watchTap(high: Float, wall: Long) {
-        if (high > JOLT) lastJoltMs = wall
+        if (high > JOLT) {
+            // One tap jolts for a few readings: kept once.
+            if (wall - lastJoltMs > 60) synchronized(jolts) { jolts.addLast(wall); while (jolts.size > 12) jolts.removeFirst() }
+            lastJoltMs = wall
+        }
         val tap = high > TAP && lastHigh < TAP / 2 && jitter < TAP_STILL
         lastHigh = high
         if (!tap) return

@@ -74,12 +74,28 @@ class Mic(private val context: Context) {
     private val clicks = ArrayDeque<Long>()
     @Volatile private var keys = 0
 
-    /** Clicks heard since the last call. */
-    fun consumeKeys(): Int { val k = keys; keys = 0; return k }
+    /**
+     * Tells a tap on the phone from a key: whether the phone's body was jolted near a click at that moment (wall clock
+     * ms). A tap clicks in the microphone too, but only a tap shakes the phone; the toy sets it from [MotionSensor].
+     */
+    @Volatile var tapped: (Long) -> Boolean = { false }
 
-    /** Someone is typing by the phone: [TYPING_KEYS] clicks within the last [TYPING_WINDOW_MS]. */
-    fun typing(nowMs: Long = System.currentTimeMillis()): Boolean = synchronized(clicks) {
-        clicks.count { nowMs - it < TYPING_WINDOW_MS } >= TYPING_KEYS
+    /** Clicks heard since the last call that were keys, not taps on the phone. */
+    fun consumeKeys(): Int {
+        val k = keys
+        keys = 0
+        if (k == 0) return 0
+        val now = System.currentTimeMillis()
+        val recent = synchronized(clicks) { clicks.filter { now - it < 400 } }
+        return minOf(k, recent.count { !tapped(it) })
+    }
+
+    /** Someone is typing by the phone: [TYPING_KEYS] clicks within the last [TYPING_WINDOW_MS], taps on the phone not counted. */
+    fun typing(nowMs: Long = System.currentTimeMillis()): Boolean {
+        val recent = synchronized(clicks) { clicks.filter { nowMs - it < TYPING_WINDOW_MS } }
+        // A tap on the phone in this while: someone is stroking the pet, not typing.
+        if (recent.any { tapped(it) }) return false
+        return recent.size >= TYPING_KEYS
     }
 
     /** Whether a click other than the one at [at] was heard from [from] to [to] (wall clock ms). */

@@ -342,7 +342,7 @@ private fun PetScreen(
     val found = remember { HashSet<String>() }
     val glyphPhone = remember { hasGlyphToys(context) }
     // The microphone, on the Play tab as on the matrix: blowing, a clap and typing reach the pet on the screen too.
-    val ears = remember { n7.glyphpet.toy.Mic(context) }
+    val ears = remember { n7.glyphpet.toy.Mic(context).apply { tapped = { at -> motion.joltedNear(at, 150L) } } }
     androidx.compose.runtime.DisposableEffect(engine) {
         PetAlerts.onNotificationApp = { if (!engine.playingTrick) engine.notice() }
         onDispose { PetAlerts.onNotificationApp = null }
