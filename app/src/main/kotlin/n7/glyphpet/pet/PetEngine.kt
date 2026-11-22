@@ -1071,13 +1071,14 @@ class PetEngine(
         Drawn.cameFrom[species.kind] = col
         if (col == "asleep") {
             // Asleep reads at once: the picture dims and breathes slowly, and its own sign of sleep rises (no snow: over a
-            // dimmed whole-matrix picture it was louder than the pet). Touched, it peeks: brighter, a "?", back to sleep.
+            // dimmed whole-matrix picture it was louder than the pet). Touched, it peeks: one eye of its own opens for a moment.
             val peek = action == Action.PEEK
             val breath = 0.58f + 0.1f * kotlin.math.sin(time / 2600f * 2 * PI.toFloat())
-            if (!peek) for (i in frame.indices) frame[i] = (frame[i] * breath).toInt()
+            for (i in frame.indices) frame[i] = (frame[i] * breath).toInt()
             DrawnSleep.sign(species.kind, time, frame)
-            if (peek) DrawnSleep.peek(frame)
+            if (peek) DrawnSleep.peek(species.kind, time, frame)
         }
+        drawnBlownAndStartled(dtMs, species, scene, !asleep && action == Action.NONE && !sliding && drawnHabitMs < 0, frame)
         if (scene.ready && action != Action.SURGE) { val phase = time % READY_EVERY_MS; if (phase < READY_SWEEP_MS) surgeGlow(frame) }
         if (action == Action.SURGE) surgeGlow(frame)
         if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)

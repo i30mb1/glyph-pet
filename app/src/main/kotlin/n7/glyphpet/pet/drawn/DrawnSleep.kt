@@ -67,11 +67,42 @@ object DrawnSleep {
         return y in Z.indices && x in 0..2 && Z[y][x] == 'o'
     }
 
-    /** A sleeper touched: a "?" pops up over it for a moment. */
-    fun peek(frame: IntArray) {
-        val c = Cv()
-        c.rows(listOf(".oo.", "o..o", "..o.", ".o..", "....", ".o.."), 17, 3, 0.8f)
-        val v = c.ints()
-        for (i in v.indices) if (v[i] > frame[i]) frame[i] = v[i]
+    /**
+     * A sleeper touched opens "one eye", each its own way: one of its own points wakes up bright for a moment where its
+     * eye would be (a firefly in the swarm's line, an ember of the phoenix, the black hole's core...), while the rest
+     * of it sleeps on, dim.
+     */
+    fun peek(kind: String, t: Long, frame: IntArray) {
+        when (kind) {
+            // The core flashes: its ring lights up all round.
+            "blackhole" -> for (i in frame.indices) { val d = kotlin.math.hypot(i % 25 - 12f, i / 25 - 12f); if (d in 2.6f..4.2f && frame[i] > 0) frame[i] = 4000 }
+            // The screen blinks on for a moment: its awake face shows faintly.
+            "glitch" -> { val f = Drawn.frame("glitch", "calm", 400, n7.glyphpet.pet.Stage.TEEN); for (i in f.indices) if (f[i] / 2 > frame[i]) frame[i] = f[i] / 2 }
+            // Two eyes open in the dark.
+            "shadow" -> { light(frame, 10, 14); light(frame, 14, 14) }
+            else -> {
+                val (x, y) = EYE[kind] ?: (12 to 14)
+                nearest(frame, x, y)?.let { frame[it] = 4000 }
+                PAIR[kind]?.let { (x2, y2) -> nearest(frame, x2, y2)?.let { frame[it] = 4000 } }
+            }
+        }
     }
+
+    /** Where each hero's "eye" is about, asleep: the lit point nearest it is the one that wakes. */
+    private val EYE = mapOf(
+        "swarm" to (12 to 17), "phoenix" to (12 to 17), "dragon" to (14 to 19), "mimic" to (12 to 16),
+        "moonrabbit" to (8 to 17), "schrodinger" to (11 to 15), "lavalamp" to (11 to 16), "paperboat" to (10 to 16),
+        "pebble" to (10 to 16), "sprout" to (10 to 18), "spider" to (11 to 12), "astronaut" to (13 to 8),
+        "kodama" to (11 to 15), "kraken" to (12 to 18),
+    )
+    /** The heroes with two eyes: the second one wakes too. */
+    private val PAIR = mapOf("sprout" to (14 to 18), "pebble" to (14 to 16), "kodama" to (13 to 15), "lavalamp" to (13 to 16))
+
+    private fun nearest(frame: IntArray, x: Int, y: Int): Int? {
+        var best = -1; var bd = 99f
+        for (i in frame.indices) if (frame[i] > 0) { val d = kotlin.math.hypot((i % 25 - x).toFloat(), (i / 25 - y).toFloat()); if (d < bd) { bd = d; best = i } }
+        return best.takeIf { it >= 0 && bd < 5f }
+    }
+
+    private fun light(frame: IntArray, x: Int, y: Int) { if (n7.glyph.ui.matrix.GlyphMatrixSpec.isVisible(x, y)) frame[y * 25 + x] = 4000 }
 }
