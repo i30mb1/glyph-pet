@@ -15,6 +15,11 @@ import kotlin.math.sin
  * bigger the bunny's hops get.
  */
 internal class BunnyTrick : Trick(0L) {
+    /** The little bunny it plays as: ears, eyes (x: off), a bright nose; munching, its mouth opens dark. */
+    private val BUNNY = listOf(".#...#.", ".#...#.", ".##.##.", "#######", "#x###x#", "###o###", "#######", ".#####.")
+    private val BUNNY_MUNCH = listOf(".#...#.", ".#...#.", ".##.##.", "#######", "#x###x#", "###o###", "##xxx##", ".#####.")
+    private val BUNNY_BLINK = listOf(".#...#.", ".#...#.", ".##.##.", "#######", "#######", "###o###", "#######", ".#####.")
+
     companion object {
         const val BUNNY_H = 6.5f
         const val GROW_MS = 450L
@@ -64,9 +69,10 @@ internal class BunnyTrick : Trick(0L) {
         val dt = seconds(input)
         val hx = TrickKit.homeCx(sp, input.dx)
         val hy = TrickKit.homeCy(sp)
-        val small = TrickKit.small(sp, BUNNY_H)
+        // It plays as a little bunny of its own, its size from the start: shrinking the big one blurred it.
+        val small = BUNNY.size.toFloat() / sp.height
         val grow = Kit.smooth(t.toFloat() / GROW_MS)
-        val scale = TrickKit.lerp(1f, small, grow)
+        val scale = small
         val r = returning(t)
         if (!started) {
             x = hx
@@ -129,7 +135,7 @@ internal class BunnyTrick : Trick(0L) {
             }
         }
 
-        val going = homing.apply(r, TrickKit.lerp(hx, x, grow), TrickKit.lerp(hy, y, grow), scale, hx, hy)
+        val going = homing.apply(r, x, y, scale, hx, hy)
         val face = when {
             going -> Face.CONTENT
             munch > 0L -> Face.EAT
@@ -143,15 +149,24 @@ internal class BunnyTrick : Trick(0L) {
             val wob = 0.3f * sin(t / 90f)
             canvas.sprite(carrot, (cx - 1f + wob).toInt(), (cy - 3f).toInt(), 1f)
         }
-        val s = sprites.get(sp, face, input.blink && face == Face.IDLE, flipX = cx < x)
-        layer.spriteAt(s, homing.x, homing.y - lift, homing.s, homing.s)
-        canvas.over(layer)
-        if (munch > 0L && !going && (t / 120L) % 2L == 0L) {
-            val top = homing.y - sp.height * homing.s / 2f
-            canvas.max((homing.x + 2.5f).toInt(), (top - 1f).toInt(), 2400f)
-            canvas.max((homing.x - 2.5f).toInt(), top.toInt(), 2400f)
-        }
         canvas.toFrame(frame)
+        // The bunny straight onto the LEDs, cell for cell: eyes two dark LEDs, the same face all the time (faces that
+        // changed on every hop read as eyes jumping about); munching, its mouth opens and shuts. No sparkles over it.
+        val rows = when {
+            munch > 0L && !going && (t / 140L) % 2L == 0L -> BUNNY_MUNCH
+            input.blink && hop < 0L -> BUNNY_BLINK
+            else -> BUNNY
+        }
+        val bx = Math.round(homing.x) - rows[0].length / 2
+        val by = Math.round(homing.y - lift) - rows.size / 2
+        rows.forEachIndexed { j, row -> row.forEachIndexed { i, ch ->
+            val px = bx + i; val py = by + j
+            if (px in 0..24 && py in 0..24 && ch != '.') frame[py * 25 + px] = when (ch) {
+                '#' -> n7.glyphpet.pet.SpeciesRenderer.BODY
+                'o' -> n7.glyphpet.pet.SpeciesRenderer.BRIGHT
+                else -> 0
+            }
+        } }
     }
 
     private fun newCarrot() {

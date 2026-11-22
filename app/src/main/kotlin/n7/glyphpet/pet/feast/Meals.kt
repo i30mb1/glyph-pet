@@ -293,8 +293,8 @@ internal class BeamMeal : Meal(2600) {
 }
 
 /**
- * Bunny, hedgehog and dino, "Хрум": a big piece lands by its mouth and it eats it in four bites, leaning in for each,
- * crumbs dropping to the ground.
+ * Bunny, hedgehog and dino, "Хрум": a big piece lands right by its mouth and it eats it in four bites, leaning in for
+ * each with its mouth open. Its eyes stay as they are (a face changed each bite read as eyes jumping), no crumbs.
  */
 internal class CrunchMeal : Meal(2400) {
     private companion object {
@@ -314,23 +314,24 @@ internal class CrunchMeal : Meal(2400) {
         val bite = ((t - FALL_MS) / BITE_MS).toInt().coerceIn(-1, BITES)
         val within = (t - FALL_MS) % BITE_MS
         val biting = t >= FALL_MS && bite < BITES && within < 140
-        pet(frame, input, if (biting) Face.YAWN else Face.CONTENT, dx = input.dx + if (biting) p.side else 0)
-        val px = p.edge + p.side
+        val lean = if (biting) p.side else 0
+        pet(frame, input, Face.CONTENT, dx = input.dx + lean)
+        if (biting) for (dy in 0..1) for (dx in -1..1) {
+            val x = p.mouthX + lean + dx; val y = p.mouthY + dy
+            if (x in 0..24 && y in 0..24) frame[y * 25 + x] = 0
+        }
+        // The piece touches its side: no gap between them.
+        val px = p.edge
         val py = p.mouthY - 1
         if (t < FALL_MS) {
             piece(frame, px + p.side.toFloat(), lerp(-3f, py + 1f, phase(t, 0, FALL_MS)), 3)
         } else {
             val gone = 9 - LEFT[(bite + if (within >= 140 || bite >= BITES) 1 else 0).coerceIn(0, BITES)]
+            // What is left is pushed up against its mouth, so it never hangs apart.
+            val near = (gone until 9).minOfOrNull { ORDER[it] % 3 } ?: 0
             for (n in gone until 9) {
                 val c = ORDER[n]
-                CommonKit.put(frame, px + p.side * (c % 3), py + c / 3, Kit.BRIGHT)
-            }
-            // Crumbs from the last bite, falling to the ground and fading.
-            if (bite in 0 until BITES) {
-                val k = phase(within, 0, BITE_MS)
-                for (i in 0..1) {
-                    dot(frame, px + p.side * i.toFloat(), lerp(py + 2f, p.ground.toFloat(), k), Kit.BODY * (1f - k))
-                }
+                CommonKit.put(frame, px + p.side * (c % 3 - near), py + c / 3, Kit.BRIGHT)
             }
         }
     }

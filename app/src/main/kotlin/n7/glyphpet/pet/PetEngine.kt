@@ -824,10 +824,15 @@ class PetEngine(
         // [Scene.alsoSad] is in it because it brings the rain without changing the face: without it the sky would
         // change with nothing dissolving at all.
         val look = listOf(shown.face, shown.habit && habitRedraws, shown.charging, trickMs >= 0, signatureMs >= 0, feastMs >= 0, moment != null, scene.egg != null, scene.species?.id,
-            typeOn, if (typeOn) typeStage else -1, scene.alsoSad)
+            // The typing scene moves on by its own steps (no mix of two pictures when its stage changes).
+            typeOn, scene.alsoSad)
         val prev = lastOut
         // A change in the middle of a fade starts from what was on the matrix then, so nothing jumps.
-        if (lastLook != null && look != lastLook && prev != null) { fadeFrom = prev; fadeMs = 0 }
+        // A game going on or off makes its own change (it cuts between the pet and its play picture, never mixing two);
+        // mixing here too put two pets on the matrix at once.
+        val gameEdge = lastLook != null && lastLook!![3] != look[3]
+        if (lastLook != null && look != lastLook && prev != null && !gameEdge) { fadeFrom = prev; fadeMs = 0 }
+        if (gameEdge) { fadeMs = -1; fadeFrom = null }
         lastLook = look
         val from = fadeFrom
         if (fadeMs >= 0 && from != null) {

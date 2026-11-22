@@ -198,45 +198,77 @@ internal class FoxDesk : Desk() {
 }
 
 /**
- * Bunny: digs a burrow, a clod of earth flying from the hole with every key, a fountain of them in a rush. After a while
- * it is half down the hole; later only its ears stick out, twitching to the keys, and in a pause it peeks out.
+ * Bunny: it digs by its burrow, a dark oval opening with a lit rim. With each key it dives its nose in and reaches in
+ * with a paw, and a clod of earth flies out of the hole in an arc onto the pile beside it, which grows; in a rush two
+ * clods fly. In a pause it sits and blinks. From 20 s of typing it is half down the hole, from 40 s only its ears stick
+ * out over the rim, and in a pause it peeks out to its eyes. A sent message is a ring of light.
  */
 internal class BunnyDesk : Desk() {
+    private companion object {
+        const val GROUND = 18
+        const val HOLE = 13
+        const val PILE = 4
+        const val FLY_MS = 450L
+        const val B = 0.34f
+        const val HI = 0.95f
+        /** The bunny it digs as: ears, eyes off, a bright nose. */
+        val BUN = listOf(".#...#.", ".#...#.", ".##.##.", "#######", "#x###x#", "###o###", "#######", ".#####.")
+    }
+
+    /** Clods in the air (when they left the hole, ms into the mode), and how big the pile has got. */
+    private val clods = ArrayList<Long>()
+    private var lastN = -1
+    private var pile = 0f
+
     override fun draw(c: Cv, d: DeskInput) {
-        val p = d.pet
-        val sc = p.fit(9f)
-        val ground = 19
-        c.under(ground + 1, 0.06f)
-        c.floor(ground, 0.2f)
-        val hx = 14
-        for (x in hx - 1..hx + 1) c.cut(x, ground)
-        val clods = 1100L
-        val from = if (d.stage == 0) hx.toFloat() else hx.toFloat()
-        d.recent(clods) { k, a ->
-            for (j in 0..1) {
-                val dir = if (h(k.n, 9) > 0.5f) 1f else -1f
-                val (x, y) = arc(from + dir, ground - 1f, dir * (4f + h(k.n, j) * 6f), -11f - h(k.n, j + 2) * 4f, 26f, a)
-                if (y < ground) c.put(x, y, 0.55f * (1f - a / clods.toFloat()))
-            }
+        val k = d.last
+        if (k != null && k.n != lastN) {
+            lastN = k.n
+            clods += k.at
+            if (d.rush) clods += k.at + 60
         }
-        when (d.stage) {
-            0 -> {
-                val dig = d.hit(180)
-                val shake = if (d.heat > 0.3f) (if ((d.t / 60) % 2 == 0L) -0.5f else 0.5f) else 0f
-                p.draw(c, 9f + shake, p.onFeet(ground.toFloat(), sc, sc * (1f - 0.12f * dig)) - d.jump(4f), sc, d.mood(), sy = sc * (1f - 0.12f * dig))
-            }
-            1 -> {
-                val out = d.rest
-                val feet = ground + p.h * sc * mix(0.32f, 0.05f, out)
-                p.draw(c, hx.toFloat(), p.onFeet(feet, sc) - d.jump(2f), sc, d.mood(Look.FOCUS), below = ground - 0.5f)
-            }
-            else -> {
-                val out = d.rest
-                val feet = ground + p.h * sc * mix(0.6f, 0.3f, out)
-                val twitch = if (d.hit(200) > 0f) (if (d.n % 2 == 0) -1f else 1f) else 0f
-                p.draw(c, hx + twitch, p.onFeet(feet, sc) - d.jump(2f), sc, if (out > 0.5f) Look.HAPPY else Look.CALM, below = ground - 0.5f)
-            }
+        val s = d.typed / 1000f
+        // The ground and the earth under it.
+        for (x in 0..24) { c.set(x, GROUND, 0.22f); for (y in GROUND + 1..24) c.set(x, y, 0.07f) }
+        // The burrow: a dark oval opening with a lit rim, seen a little from above.
+        for (y in GROUND - 1..GROUND + 2) for (x in HOLE - 4..HOLE + 4) {
+            val dx = (x - HOLE) / 4.2f; val dy = (y - (GROUND + 0.5f)) / 1.6f
+            val dd = dx * dx + dy * dy
+            if (dd <= 1f) c.set(x, y, if (dd > 0.55f) 0.42f else 0f)
         }
+        // The pile of earth on the left, joined to the ground.
+        val ph = minOf(5, pile.toInt())
+        for (j in 0 until ph) for (x in PILE - j..PILE + j + 1) c.set(x, GROUND - ph + j, 0.3f)
+        // Clods: 2x2, out of the hole in an arc onto the pile, where they join it.
+        val it = clods.iterator()
+        while (it.hasNext()) {
+            val a = d.t - it.next()
+            if (a < 0) continue
+            if (a >= FLY_MS) { it.remove(); pile = minOf(5.9f, pile + 0.18f); continue }
+            val q = a.toFloat() / FLY_MS
+            val x = Math.round(HOLE + (PILE + 1 - HOLE) * q)
+            val y = Math.round(GROUND - 2 - sin(q * PIF) * 8f)
+            for (dy in 0..1) for (dx in 0..1) c.set(x + dx, y + dy, 0.85f)
+        }
+        // How deep it is: beside the hole first, half in from 20 s, only its ears from 40 s; a pause brings it up.
+        val depth = when { s < 20f -> 0; s < 40f -> 4; else -> 6 }
+        val peek = if (d.paused) minOf(depth, 4) else 0
+        val dig = d.sinceKey < 200 && k != null
+        val bx = if (depth == 0) HOLE + 5 else HOLE
+        val feet = GROUND - 1 + depth - peek + if (dig && depth < 6) 1 else 0
+        val blink = d.paused && (d.t % 2600) < 160
+        BUN.forEachIndexed { j, row -> row.forEachIndexed { i, ch ->
+            val x = bx - 3 + i; val y = feet - 7 + j
+            if (depth > 0 && y >= GROUND) return@forEachIndexed
+            when (ch) {
+                '#' -> c.set(x, y, B)
+                'o' -> c.set(x, y, HI)
+                'x' -> c.set(x, y, if (blink) B else 0f)
+            }
+        } }
+        // Beside the hole it digs with a front paw: the paw reaches into the hole with each key.
+        if (depth == 0) { val py = if (dig) GROUND else GROUND - 2; c.set(bx - 4, py, B); c.set(bx - 5, py, B) }
+        if (d.sending) c.ring(12f, 12f, 3f + d.sentP * 10f, 1f - d.sentP)
     }
 }
 
