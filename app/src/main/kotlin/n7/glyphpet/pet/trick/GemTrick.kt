@@ -6,52 +6,54 @@ import n7.glyphpet.pet.Living3D
 import n7.glyphpet.pet.SignatureInput
 import n7.glyphpet.pet.SpeciesRenderer
 import n7.glyphpet.pet.signature.Kit
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.atan2
 import kotlin.math.cos
-import kotlin.math.floor
+import kotlin.math.hypot
 import kotlin.math.sin
 
 /**
- * A mythic body (the ray-cast gem or planet, [n7.glyphpet.pet.Mythic3D]) spun like a top by the sideways lean: the lean
- * pushes, friction slows it. Each full turn ticks. A gauge along the top rim fills with the speed, a bright mark on it
- * shows how fast is fast: keep it past the mark for [DAZZLE_MS] and it dazzles with a ring of sparkles, a stronger
- * tick, six of those a little party ([Score]). [extra] adds what the kind does on top.
+ * Gem, "Отрази луч": a beam of light falls on the gem from the top, and the gem throws it back like a little mirror. The
+ * lean turns the gem, and the bright reflected beam sweeps round the matrix. A star blinks on the rim: hold the beam on
+ * it a moment and it bursts (a tick), and a new star lights somewhere else; every few, the gem scatters a rainbow of
+ * glints. The gem itself is the ray-cast stone ([n7.glyphpet.pet.Mythic3D]), turning with the lean.
  */
-internal abstract class MythicSpinTrick : Trick(0L) {
+internal class GemTrick : Trick(0L) {
     companion object {
-        const val PUSH = 9f
-        const val FRICTION = 0.7f
-        const val MAX_SPIN = 14f
-        const val FAST = 8f
-        const val DAZZLE_MS = 1200L
-        /** The speed gauge: cells along the top rim, between these angles (radians, screen y down: -π/2 is the top). */
-        const val GAUGE = 9
-        const val GAUGE_FROM = -2.5f
-        const val GAUGE_TO = -0.64f
-        const val GAUGE_R = 11.2f
-        const val FLASH_MS = 700L
-        const val TWO_PI = (2 * Math.PI).toFloat()
+        /** How far the lean turns the gem's facet, radians; the beam turns twice as far. */
+        const val TURN = 1.15f
+        const val HOLD_MS = 420L
+        const val PARTY_EVERY = 5
+        const val PARTY_MS = 1300L
+        const val STAR_R = 10.6f
+        const val REACH = 1.6f
     }
 
-    protected val view = Living3D()
-    protected var spin = 0f
-    protected var omega = 0f
-    private var fastMs = 0L
-    protected var flash = 0L
-    private val score = Score()
+    private val view = Living3D()
+    private var facet = 0f
+    private var star = 0f
+    private var hold = 0L
+    private var got = 0
+    private var party = 0L
+    private var burst = 0L
+    private var burstAt = 0f
+    private var seed = 0
 
     override fun reset() {
-        spin = 0f
-        omega = 0f
-        fastMs = 0L
-        flash = 0L
-        view.spin = 0f
-        view.moonTurn = 0f
-        score.reset()
+        facet = 0f; hold = 0L; got = 0; party = 0L; burst = 0L
+        seed = freshSeed()
+        newStar()
     }
 
-    /** Called every playing frame after the spin moved by [turned] radians. */
-    protected open fun extra(input: SignatureInput, turned: Float, dt: Float) {}
+    /** A star somewhere the beam can reach: anywhere round the top and the sides. */
+    private fun newStar() {
+        seed++
+        val side = if (TrickKit.hash01(seed) < 0.5f) -1f else 1f
+        var a = -PI.toFloat() / 2 + side * (0.4f + TrickKit.hash01(seed * 5 + 1) * 1.8f)
+        if (abs(a - star) < 0.5f) a = -PI.toFloat() / 2 - (a + PI.toFloat() / 2)
+        star = a
+    }
 
     override fun scene(frame: IntArray, input: SignatureInput) {
         val sp = input.species
@@ -59,77 +61,83 @@ internal abstract class MythicSpinTrick : Trick(0L) {
         val ms = input.dtMs.coerceIn(0L, 100L)
         val dt = seconds(input)
         val r = returning(t)
-        if (r <= 0f) {
-            omega += (tilt.x * PUSH - omega * FRICTION) * dt
-        } else {
-            omega -= omega * (dt * 4f).coerceAtMost(1f)
-        }
-        omega = omega.coerceIn(-MAX_SPIN, MAX_SPIN)
-        val before = spin
-        spin += omega * dt
-        if (floor(spin / TWO_PI) != floor(before / TWO_PI) && r <= 0f) {
-            gate.feel(input, HapticKind.PLAY, (abs(omega) / MAX_SPIN).coerceIn(0.15f, 0.5f))
-        }
-        if (r <= 0f) {
-            if (abs(omega) > FAST) fastMs += ms else fastMs = (fastMs - ms * 2).coerceAtLeast(0L)
-            if (fastMs >= DAZZLE_MS) {
-                fastMs = 0L
-                flash = FLASH_MS
-                gate.feel(input, HapticKind.BALL_HIT, 1f)
-                if (score.win()) { flash = Score.PARTY_MS; gate.feel(input, HapticKind.STOMP, 0.8f) }
-            }
-            score.tick(ms)
-            extra(input, spin - before, dt)
-        }
-        if (flash > 0L) flash -= ms
-        view.spin = spin
+        // The lean turns the gem; it answers quickly but not at once, like a stone with some weight.
+        val want = if (r > 0f) 0f else (tilt.x * TURN).coerceIn(-TURN, TURN)
+        facet += (want - facet) * (dt * 6f).coerceAtMost(1f)
+        view.spin = facet * 2f
+        if (party > 0L) party -= ms
+        if (burst > 0L) burst -= ms
 
         val face = when {
             r > 0f -> Face.CONTENT
-            flash > 0L -> Face.HAPPY
-            abs(omega) > FAST -> Face.DIZZY
+            party > 0L -> Face.HAPPY
+            hold > 0L -> Face.LOVE
             else -> Face.IDLE
         }
-        val painter = view.live(sp, input.dtMs, input.gx.takeIf { it.isFinite() } ?: 0f, input.gy.takeIf { it.isFinite() } ?: 0f, t, -1f, input.yaw)
+        val painter = view.live(sp, input.dtMs, 0f, 0f, t, -1f, input.yaw)
         val grid = SpeciesRenderer.carve(sp, face, input.blink && face == Face.IDLE)
-        val drawn = try {
+        val painted = try {
             painter.paint(frame, sp, face, sp.rows, grid, sp.ox + input.dx, sp.oy, SpeciesRenderer.BODY, SpeciesRenderer.BRIGHT)
         } catch (_: Exception) {
             false
         }
-        if (!drawn) Kit.drawPet(frame, sp, face, input.blink, input.dx)
+        if (!painted) Kit.drawPet(frame, sp, face, input.blink, input.dx)
 
-        // Speed streaks round it, and the dazzle's sparkle ring.
         val cx = TrickKit.homeCx(sp, input.dx)
-        val cy = TrickKit.homeCy(sp)
-        val rad = maxOf(sp.width, sp.height) / 2f + 1.5f
-        val speed = abs(omega) / MAX_SPIN
-        val cx0 = 12f
-        val cy0 = 12f
-        if (speed > 0.35f && r <= 0f) {
-            for (k in 0 until 3) {
-                val a = spin * 0.5f + k * TWO_PI / 3f
-                lit(frame, cx + cos(a) * rad, cy + sin(a) * rad * 0.6f, (1200f + 2000f * speed).toInt())
+        val top = TrickKit.homeCy(sp) - sp.height / 2f
+        if (r < 1f) {
+            val g = 1f - r
+            // The beam coming down onto the gem, shimmering.
+            var y = 0f
+            while (y < top) { lit(frame, cx, y, ((1600f + 500f * sin(t / 70f + y)) * g).toInt()); y += 1f }
+            // The beam thrown back: the incoming one mirrored on the facet.
+            val dx = sin(2 * facet); val dy = -cos(2 * facet)
+            var s = 1f
+            while (s < 30f) {
+                val bx = cx + dx * s; val by = top + dy * s
+                if (hypot(bx - MID, by - MID) > RIM) break
+                lit(frame, bx, by, (3800f * g).toInt())
+                s += 0.7f
             }
-        }
-        // (No speed gauge on the rim: a game draws no meter; the speed shows in the spin and the streaks.)
-        if (flash > 0L) {
-            val k = (1f - flash.toFloat() / FLASH_MS).coerceIn(0f, 1f)
-            for (j in 0 until 8) {
-                val a = j * TWO_PI / 8f + k
-                lit(frame, cx + cos(a) * (rad + 2f * k), cy + sin(a) * (rad + 2f * k), (3800f * (1f - k * 0.7f)).toInt())
+            // The star on the rim, blinking; brighter and steadier while the beam is on it.
+            val sx = MID + cos(star) * STAR_R; val sy = MID + sin(star) * STAR_R
+            val toStar = atan2(sy - top, sx - cx)
+            val toBeam = atan2(dy, dx)
+            var miss = abs(toStar - toBeam); if (miss > PI) miss = (2 * PI).toFloat() - miss
+            val onIt = r <= 0f && miss * hypot(sx - cx, sy - top) < REACH
+            if (onIt) {
+                hold += ms
+                if (hold >= HOLD_MS) {
+                    hold = 0L; got++
+                    burst = 500L; burstAt = star
+                    if (got % PARTY_EVERY == 0) { party = PARTY_MS; gate.feel(input, HapticKind.BALL_HIT, 1f) }
+                    else gate.feel(input, HapticKind.BALL_HIT, 0.6f)
+                    newStar()
+                }
+            } else hold = (hold - ms).coerceAtLeast(0L)
+            val pulse = if (onIt) 1f else 0.45f + 0.55f * (0.5f + 0.5f * sin(t / 160f))
+            val v = (4000f * pulse * g).toInt()
+            lit(frame, sx, sy, v)
+            for ((ox, oy) in listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1)) lit(frame, sx + ox, sy + oy, v / 3)
+            // A caught star bursts where it was.
+            if (burst > 0L) {
+                val k = 1f - burst / 500f
+                val bx = MID + cos(burstAt) * STAR_R; val by = MID + sin(burstAt) * STAR_R
+                for (j in 0 until 6) { val a = j * PI.toFloat() / 3; lit(frame, bx + cos(a) * k * 2.5f, by + sin(a) * k * 2.5f, (3800f * (1 - k)).toInt()) }
+            }
+            // A party: glints thrown all round from the gem, like a rainbow off a crystal.
+            if (party > 0L) for (j in 0 until 10) {
+                val a = j * 0.628f + t / 400f
+                val d = 5f + (t % 600) / 600f * 5f
+                if (((t / 100) + j) % 2 == 0L) lit(frame, cx + cos(a) * d, TrickKit.homeCy(sp) + sin(a) * d, 3600)
             }
         }
     }
 
-    protected fun lit(frame: IntArray, x: Float, y: Float, v: Int) {
-        val px = x.toInt()
-        val py = y.toInt()
+    private fun lit(frame: IntArray, x: Float, y: Float, v: Int) {
+        val px = (x + 0.5f).toInt(); val py = (y + 0.5f).toInt()
         if (px !in 0 until Kit.N || py !in 0 until Kit.N) return
         val i = py * Kit.N + px
         if (Kit.VISIBLE[i] && v > frame[i]) frame[i] = v.coerceIn(0, 4000)
     }
 }
-
-/** Gem: spin the faceted stone like a top with the sideways lean; its facets flash as they turn to the light. */
-internal class GemTrick : MythicSpinTrick()
