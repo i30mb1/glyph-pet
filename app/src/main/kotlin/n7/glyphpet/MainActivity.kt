@@ -560,9 +560,8 @@ private fun PetScreen(
                     // the shake are read off the phone, as on the matrix.
                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                         // A little smaller than the screen and without the halo: the pixel art reads crisper.
-                        GlyphMatrix(
+                        SmoothMatrix(
                             cells = frame,
-                            glow = false,
                             modifier = Modifier
                                 .fillMaxWidth(0.76f)
                                 .aspectRatio(1f)
@@ -1039,7 +1038,7 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
                     ) {
                         // A hero not met yet shows nothing of itself: a question mark until it hatches.
                         val picture = if (egg) eggPicture(EggView(EggRules.stage(presses), nursery.supporter)) else unknown
-                        GlyphMatrix(cells = picture, glow = false, modifier = Modifier.size(TILE_MATRIX))
+                        SmoothMatrix(cells = picture, modifier = Modifier.size(TILE_MATRIX))
                         // Nothing under a hero not met yet: its question mark says it all, its status is the group's.
                         if (egg) Text(label.uppercase(), style = N7Type.Caption, color = N7Colors.Ink, textAlign = TextAlign.Center, maxLines = 1)
                         else if (s.rarity == Rarity.ANOMALY) Text(stringResource(R.string.anomaly_hint_tap), style = N7Type.Caption, color = N7Colors.InkMuted, textAlign = TextAlign.Center, maxLines = 1)
@@ -1133,7 +1132,7 @@ private fun HeroTile(
             val form = forms[page]
             val open = form.stage <= growth.reached
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                GlyphMatrix(cells = (if (open) cells else shadows).getValue(form.id), glow = false, modifier = Modifier.size(TILE_MATRIX))
+                SmoothMatrix(cells = (if (open) cells else shadows).getValue(form.id), modifier = Modifier.size(TILE_MATRIX))
                 if (!open) Lock(Modifier.size(18.dp))
             }
         }
