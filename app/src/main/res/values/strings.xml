@@ -191,6 +191,11 @@
     <string name="matrix_vibration_title">Vibration</string>
     <string name="matrix_vibration_text">The phone answers with a soft tap when you feed the pet, crack an egg, play or watch it grow. Never while it sleeps. Follows the system touch feedback setting.</string>
     <string name="shiny_label">✦ Shiny: a rare find, one hatch in twenty</string>
+    <string name="matrix_mic_bg_title">Hears you with the app closed</string>
+    <string name="matrix_mic_bg_text">Android lets an app hear only while it is open. With this on, a silent notification keeps the pet hearing blowing, claps and typing after you close the app. After a restart, open the app once.</string>
+    <string name="mic_keeper_channel">Hears you</string>
+    <string name="mic_keeper_title">Your pet hears you</string>
+    <string name="mic_keeper_text">Blowing, claps and typing reach the pet on the matrix. Nothing is recorded.</string>
     <string name="matrix_mic_title">Hears you</string>
     <string name="matrix_mic_text">Blow on the pet and the wind carries it; clap and it starts. Only while it is live on the matrix, and only how loud it is: nothing is recorded or sent.</string>
     <string name="matrix_notify_title">Wakes for notifications</string>

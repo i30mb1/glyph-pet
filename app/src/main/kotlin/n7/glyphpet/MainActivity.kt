@@ -175,6 +175,8 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         billing.connect()
+        // The app is on screen: the only moment Android lets the pet keep hearing after it is closed (MicKeeper).
+        if (store.mic && store.micInBackground) n7.glyphpet.toy.MicKeeper.start(this)
     }
 
     override fun onDestroy() {
@@ -302,10 +304,14 @@ private fun PetScreen(
     var vibration by remember { mutableStateOf(store.vibration) }
     var notifications by remember { mutableStateOf(PetAlerts.hasAccess(context)) }
     var mic by remember { mutableStateOf(store.mic && n7.glyphpet.toy.Mic.allowed(context)) }
+    var micBackground by remember { mutableStateOf(store.micInBackground) }
     val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         store.mic = granted
         mic = granted
+        if (granted && store.micInBackground) n7.glyphpet.toy.MicKeeper.start(context)
     }
+    // The silent notification that keeps the pet hearing needs leave to be shown; the pet hears either way.
+    val askNotify = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     fun refresh() {
         nursery = store.nursery()
@@ -581,6 +587,20 @@ private fun PetScreen(
                         onMic = { on ->
                             if (on && !n7.glyphpet.toy.Mic.allowed(context)) askMic.launch(android.Manifest.permission.RECORD_AUDIO)
                             else { store.mic = on; mic = on }
+                            if (!on) n7.glyphpet.toy.MicKeeper.stop(context) else if (store.micInBackground) n7.glyphpet.toy.MicKeeper.start(context)
+                        },
+                        micBackground = micBackground,
+                        onMicBackground = { on ->
+                            store.micInBackground = on
+                            micBackground = on
+                            if (on && mic) {
+                                if (context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                                    askNotify.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                                }
+                                n7.glyphpet.toy.MicKeeper.start(context)
+                            } else {
+                                n7.glyphpet.toy.MicKeeper.stop(context)
+                            }
                         },
                     )
 
@@ -1182,6 +1202,8 @@ private fun SettingsCard(
     onNotifications: () -> Unit,
     mic: Boolean,
     onMic: (Boolean) -> Unit,
+    micBackground: Boolean,
+    onMicBackground: (Boolean) -> Unit,
 ) {
     var open by rememberSaveable { mutableStateOf(true) }
     N7Card(Modifier.fillMaxWidth()) {
@@ -1220,6 +1242,15 @@ private fun SettingsCard(
                         checked = mic,
                         onChange = onMic,
                     )
+                    if (mic) {
+                        N7Divider()
+                        ToggleRow(
+                            title = stringResource(R.string.matrix_mic_bg_title),
+                            text = stringResource(R.string.matrix_mic_bg_text),
+                            checked = micBackground,
+                            onChange = onMicBackground,
+                        )
+                    }
                 }
             }
         }

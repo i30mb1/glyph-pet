@@ -195,6 +195,11 @@
     <string name="matrix_vibration_title">Вибрация</string>
     <string name="matrix_vibration_text">Телефон отвечает лёгким толчком, когда кормишь питомца, раскалываешь яйцо, играешь или он растёт. Пока он спит, не вибрирует. Учитывает системную настройку вибрации при касании.</string>
     <string name="shiny_label">✦ Блестящий: редкая находка, один из двадцати</string>
+    <string name="matrix_mic_bg_title">Слышит, когда приложение закрыто</string>
+    <string name="matrix_mic_bg_text">Android даёт приложению слушать, только пока оно открыто. С этим переключателем тихое уведомление в шторке оставляет питомцу слух на дутьё, хлопки и печатание после закрытия. После перезагрузки открой приложение один раз.</string>
+    <string name="mic_keeper_channel">Слышит тебя</string>
+    <string name="mic_keeper_title">Питомец тебя слышит</string>
+    <string name="mic_keeper_text">Дутьё, хлопки и печатание доходят до питомца на матрице. Ничего не записывается.</string>
     <string name="matrix_mic_title">Слышит тебя</string>
     <string name="matrix_mic_text">Подуй на питомца, и его подхватит ветер; хлопни, и он вздрогнет. Только пока он живой на матрице и только громкость звука: ничего не записывается и никуда не уходит.</string>
     <string name="matrix_notify_title">Просыпаться на уведомления</string>

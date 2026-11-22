@@ -334,6 +334,14 @@ class PetStore(context: Context) {
         get() = prefs.getBoolean(KEY_MIC, true)
         set(value) = prefs.edit().putBoolean(KEY_MIC, value).apply()
 
+    /**
+     * Setting: the pet keeps hearing while the app is closed ([n7.glyphpet.toy.MicKeeper], a silent notification). Off by
+     * default: it is the owner's choice to have it.
+     */
+    var micInBackground: Boolean
+        get() = prefs.getBoolean(KEY_MIC_BACKGROUND, false)
+        set(value) = prefs.edit().putBoolean(KEY_MIC_BACKGROUND, value).apply()
+
     /** Debug builds: the active pet becomes shiny, or plain again. */
     @Synchronized
     fun debugShiny(nowMs: Long = GameClock.now()) {
@@ -505,6 +513,7 @@ class PetStore(context: Context) {
         const val KEY_HIDE_UNSEEN = "hide_unseen"
         const val KEY_VIBRATION = "vibration"
         const val KEY_MIC = "mic"
+        const val KEY_MIC_BACKGROUND = "mic_background"
         const val KEY_SHINY = "shiny"
         const val KEY_GROWTH = "growth"
         const val KEY_XP_AT = "xp_at"
