@@ -112,22 +112,7 @@ internal abstract class MythicSpinTrick : Trick(0L) {
                 lit(frame, cx + cos(a) * rad, cy + sin(a) * rad * 0.6f, (1200f + 2000f * speed).toInt())
             }
         }
-        if (r <= 0f) {
-            // The gauge: lit up to the speed; the mark where "fast" starts pulses; past it, the lit part is brighter.
-            val mark = ((FAST / MAX_SPIN) * (GAUGE - 1)).toInt()
-            val upTo = (speed * (GAUGE - 1) + 0.5f).toInt()
-            for (j in 0 until GAUGE) {
-                val a = GAUGE_FROM + (GAUGE_TO - GAUGE_FROM) * j / (GAUGE - 1)
-                val gx = cx0 + GAUGE_R * cos(a)
-                val gy = cy0 + GAUGE_R * sin(a)
-                val v = when {
-                    j == mark -> if (j <= upTo) 3800 else (1400 + 900 * sin(t / 120f)).toInt()
-                    j <= upTo -> if (upTo >= mark) 3000 else 1500
-                    else -> 300
-                }
-                lit(frame, gx + 0.5f, gy + 0.5f, v)
-            }
-        }
+        // (No speed gauge on the rim: a game draws no meter; the speed shows in the spin and the streaks.)
         if (flash > 0L) {
             val k = (1f - flash.toFloat() / FLASH_MS).coerceIn(0f, 1f)
             for (j in 0 until 8) {
