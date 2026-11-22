@@ -28,6 +28,7 @@ import n7.glyphpet.pet.PetStore
 import n7.glyphpet.pet.Power
 import n7.glyphpet.pet.PressResult
 import n7.glyphpet.pet.Scene
+import n7.glyphpet.pet.Shading
 import n7.glyphpet.pet.XpRules
 import n7.glyphpet.pet.XpSource
 
@@ -48,6 +49,8 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
     private companion object {
         const val TAG = "PetToy"
         const val FRAME_MS = 80L
+        /** How quickly the light on the pet follows the phone's lean (see [Shading]). */
+        const val LIGHT_EASE_MS = 400L
         const val SYNC_MS = 2000L
 
         /** A notification in Always-on wakes the pet for this long, then the calm frame comes back. */
@@ -442,8 +445,16 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         val desk = posture == Posture.DESK
         deskMs = if (desk) deskMs + dt else 0L
         updateToward(dt)
-        val frame = engine.tick(dt, scene(tilt = motion.tilt, tiltY = motion.tiltY, desk = desk, spin = if (desk) motion.spin else 0f, toward = toward,
-            yaw = if (posture == Posture.HAND) motion.yaw else 0f))
+        // The light on the pet follows the phone's lean in the hand, eased, so the shading and the catchlight never jump.
+        val lightTo = if (posture == Posture.HAND) Shading.lightFor(motion.tilt, motion.tiltY) else Shading.DEFAULT_LIGHT
+        lightNow += (lightTo - lightNow) * (dt / LIGHT_EASE_MS.toFloat()).coerceAtMost(1f)
+        Shading.light = lightNow
+        val frame = try {
+            engine.tick(dt, scene(tilt = motion.tilt, tiltY = motion.tiltY, desk = desk, spin = if (desk) motion.spin else 0f, toward = toward,
+                yaw = if (posture == Posture.HAND) motion.yaw else 0f))
+        } finally {
+            Shading.light = Shading.DEFAULT_LIGHT
+        }
         discover(n?.activeForm?.id)
         // DEMO inertia: the whole picture thrown about by the phone's moves.
         val inertia = motion.inertia
@@ -564,6 +575,9 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
 
     /** How long the phone has lain screen down, matrix up, without a break. */
     private var deskMs = 0L
+
+    /** Where the light on the pet comes from now ([Shading.light]), eased toward the phone's lean. */
+    private var lightNow = Shading.DEFAULT_LIGHT
 
     private fun sync(force: Boolean) {
         val now = SystemClock.uptimeMillis()

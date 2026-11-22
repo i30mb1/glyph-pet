@@ -10,27 +10,27 @@ object SpeciesRenderer {
     const val BRIGHT = 4000
     const val BODY = 1200
 
-    /** [PEEK]: the first eye open, the others shut. */
-    private enum class Eyes { OPEN, CLOSED, HAPPY, SAD, ANGRY, DIZZY, LOVE, SCARED, PEEK }
+    /** [PEEK]: the first eye open, the others shut. [SLEEPY]: shut, a long line where the face has room. */
+    private enum class Eyes { OPEN, CLOSED, HAPPY, SAD, ANGRY, DIZZY, LOVE, SCARED, PEEK, SLEEPY }
     private enum class Mouth { NEUTRAL, SMILE, GRIN, FROWN, OPEN, SMALL, TEETH, WAVY }
 
     private class Look(val eyes: Eyes, val mouth: Mouth, val body: Float = 1f, val jump: Int = 0)
 
     private val LOOKS = mapOf(
         Face.IDLE to Look(Eyes.OPEN, Mouth.NEUTRAL),
-        Face.CONTENT to Look(Eyes.OPEN, Mouth.SMILE),
+        Face.CONTENT to Look(Eyes.HAPPY, Mouth.SMILE),
         Face.HAPPY to Look(Eyes.HAPPY, Mouth.GRIN, jump = 2),
         Face.LOVE to Look(Eyes.LOVE, Mouth.SMILE),
         Face.EAT to Look(Eyes.HAPPY, Mouth.OPEN),
         Face.SLEEP to Look(Eyes.CLOSED, Mouth.SMALL, body = 0.5f),
-        Face.YAWN to Look(Eyes.CLOSED, Mouth.OPEN),
+        Face.YAWN to Look(Eyes.SLEEPY, Mouth.OPEN),
         Face.HUNGRY to Look(Eyes.OPEN, Mouth.OPEN),
         Face.ANGRY to Look(Eyes.ANGRY, Mouth.TEETH),
         Face.SCARED to Look(Eyes.SCARED, Mouth.OPEN, jump = 1),
         Face.DIZZY to Look(Eyes.DIZZY, Mouth.WAVY),
         Face.SAD to Look(Eyes.SAD, Mouth.FROWN),
         Face.PEEK to Look(Eyes.PEEK, Mouth.SMALL, body = 0.5f),
-        Face.TIRED to Look(Eyes.CLOSED, Mouth.NEUTRAL, body = 0.75f),
+        Face.TIRED to Look(Eyes.SLEEPY, Mouth.NEUTRAL, body = 0.75f),
     )
 
     /**
@@ -50,11 +50,57 @@ object SpeciesRenderer {
     private val EYES: Map<Eyes, List<Pair<Int, Int>>> = mapOf(
         Eyes.OPEN to listOf(0 to 0, 1 to 0, 0 to 1, 1 to 1),
         Eyes.CLOSED to listOf(0 to 1, 1 to 1),
+        Eyes.SLEEPY to listOf(0 to 1, 1 to 1),
         Eyes.HAPPY to listOf(0 to 0, 1 to 0),
         Eyes.SAD to listOf(1 to 0, 0 to 1, 1 to 1),
         Eyes.ANGRY to listOf(0 to 0, 0 to 1, 1 to 1),
         Eyes.DIZZY to listOf(0 to 0, 1 to 1),
     )
+
+    /**
+     * The moods' wide eyes, three cells across, as cells of a box from the eye's top row: ^ for joy and love, × for a
+     * dizzy pet, a long line for a tired one. Drawn only where the whole box is body and no carved cell touches the
+     * outline (see [wideBoxes]); elsewhere the eye keeps its 2x2 pattern from [EYES].
+     */
+    private val WIDE: Map<Eyes, List<Pair<Int, Int>>> = mapOf(
+        Eyes.HAPPY to listOf(1 to 0, 0 to 1, 2 to 1),
+        Eyes.LOVE to listOf(1 to 0, 0 to 1, 2 to 1),
+        Eyes.DIZZY to listOf(0 to 0, 2 to 0, 1 to 1, 0 to 2, 2 to 2),
+        Eyes.SLEEPY to listOf(0 to 1, 1 to 1, 2 to 1),
+    )
+
+    /**
+     * The left column of each eye's wide box for [cells], or null where wide eyes do not fit. The box grows toward the
+     * middle of the face, or outward when the eyes sit close; never so the two eyes touch. Every cell of the box must be
+     * body ('#', clear of the mouth slot) and every carved cell off the outline, so the silhouette stays whole.
+     */
+    private fun wideBoxes(species: Species, rows: List<String>, cells: List<Pair<Int, Int>>, eyeDx: Int): List<Int>? {
+        if (species.inverted || species.eyes.size != 2) return null
+        val (l, r) = species.eyes
+        if (l.second != r.second || r.first <= l.first) return null
+        val lx = l.first + eyeDx
+        val rx = r.first + eyeDx
+        val gap = rx - (lx + 2)
+        val inward = listOf(lx, rx - 1)
+        val outward = listOf(lx - 1, rx)
+        // Grown inward the two boxes keep gap - 2 cells between them: at least two, or the eyes run into one line.
+        val tries = when {
+            gap >= 5 -> listOf(inward, outward)
+            gap == 4 -> listOf(outward, inward)
+            else -> listOf(outward)
+        }
+        val h = cells.maxOf { it.second } + 1
+        val mouth = species.mouth
+        fun at(x: Int, y: Int) = rows.getOrNull(y)?.getOrNull(x) ?: '.'
+        fun inMouth(x: Int, y: Int) = mouth != null && x - mouth.first in 0..2 && y - mouth.second in 0..1
+        fun edge(x: Int, y: Int) = at(x + 1, y) == '.' || at(x - 1, y) == '.' || at(x, y + 1) == '.' || at(x, y - 1) == '.'
+        return tries.firstOrNull { lefts ->
+            lefts.all { left ->
+                val box = (0..2).all { a -> (0 until h).all { b -> at(left + a, l.second + b) == '#' && !inMouth(left + a, l.second + b) } }
+                box && cells.none { (a, b) -> edge(left + a, l.second + b) }
+            }
+        }
+    }
 
     private val MOUTHS: Map<Mouth, List<Pair<Int, Int>>> = mapOf(
         Mouth.NEUTRAL to listOf(0 to 0, 1 to 0, 2 to 0),
@@ -93,6 +139,16 @@ object SpeciesRenderer {
     const val TEAR_STEP_MS = 220L
     private const val TEAR_STEPS = 5
 
+    /** The eyes [face] shows on [species]: a content pet without a mouth smiles with its eyes; a blink shuts open eyes. */
+    private fun eyesOf(species: Species, face: Face, blink: Boolean): Eyes {
+        val look = LOOKS.getValue(face)
+        return when {
+            face == Face.CONTENT && !showsMouth(species) -> Eyes.HAPPY
+            blink && look.eyes == Eyes.OPEN -> Eyes.CLOSED
+            else -> look.eyes
+        }
+    }
+
     /**
      * The silhouette of [species] with [face] carved in: '#' body, 'o' bright, '.' empty.
      * @param blink close the eyes for this frame (idle blinking).
@@ -109,21 +165,32 @@ object SpeciesRenderer {
         rows: List<String> = species.rows,
     ): List<CharArray> {
         val look = LOOKS.getValue(face)
-        val eyes = when {
-            // Without a mouth that shows there is no smile: a content pet smiles with its eyes.
-            face == Face.CONTENT && !showsMouth(species) -> Eyes.HAPPY
-            blink && look.eyes == Eyes.OPEN -> Eyes.CLOSED
-            else -> look.eyes
-        }
+        val eyes = eyesOf(species, face, blink)
         val grid = rows.map { it.toCharArray() }
         fun cell(x: Int, y: Int, c: Char) {
             if (y in grid.indices && x in grid[y].indices) grid[y][x] = c
         }
         val hole = if (species.inverted) 'o' else '.'
+        val wideCells = WIDE[eyes]
+        val wide = wideCells?.let { wideBoxes(species, rows, it, eyeDx) }
 
         species.eyes.forEachIndexed { i, (homeX, ey) ->
             val ex = homeX + eyeDx
             val mirror = i == 1
+            if (wideCells != null && wide != null) {
+                for ((a, b) in wideCells) cell(wide[i] + a, ey + b, hole)
+                // Love blushes: two lit cells on each cheek, under the outer side of the eye, where there is body.
+                if (eyes == Eyes.LOVE) for (a in if (mirror) 1..2 else -1..0) {
+                    val x = ex + a
+                    val y = ey + 2
+                    val m = species.mouth
+                    val onMouth = m != null && x - m.first in 0..2 && y - m.second in 0..1
+                    // Off the outline, or the blush only thickens the edge.
+                    val inner = listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1).all { (a2, b2) -> (rows.getOrNull(y + b2)?.getOrNull(x + a2) ?: '.') != '.' }
+                    if (rows.getOrNull(y)?.getOrNull(x) == '#' && inner && !onMouth && grid[y][x] == '#') grid[y][x] = 'o'
+                }
+                return@forEachIndexed
+            }
             when (eyes) {
                 Eyes.LOVE -> for (d in EYES.getValue(Eyes.OPEN)) cell(ex + d.first, ey + d.second, 'o')
                 Eyes.SCARED -> {
@@ -158,6 +225,7 @@ object SpeciesRenderer {
      *   where a spark over its jumping head read as its eyes slipping off.
      * @param spout plays the whale's spout, waves of light through its drops (only the pet at rest: not in a habit, a lean,
      *   a meal or a game, where the drawing stays as it is).
+     * @param breathe the pet is at rest, so the heroes that breathe do ([Breaths]); by default whenever the spout plays.
      * @param cover if given, gets [COVER_BODY] for every visible cell of the silhouette (the carved eye and mouth holes
      *   included) and [COVER_FACE] for the eye and mouth slots with a cell of margin around them.
      */
@@ -177,6 +245,7 @@ object SpeciesRenderer {
         painter: BodyPainter? = null,
         badges: Boolean = true,
         spout: Boolean = false,
+        breathe: Boolean = spout,
     ): IntArray {
         val look = LOOKS.getValue(face)
         val eyesDx = habit?.eyeDx?.takeIf { it != 0 } ?: safeEyeDx(species, habit?.rows ?: species.rows, eyeDx)
@@ -198,23 +267,46 @@ object SpeciesRenderer {
         val body = ((if (soft) SOFT_BODY else BODY) * look.body * (habit?.body ?: 1f)).toInt()
         val sockets = if (soft) sockets(species, eyesDx) else null
         val bright = if (face in ASLEEP) BRIGHT / 2 else BRIGHT
+        val flat = painter == null && !species.inverted
+        // A catchlight in each open eye, on the side the light comes from ([Shading]); it glides across as the phone
+        // tilts, shared by both columns near the top. Drawn after the body.
+        val glints = mutableListOf<Triple<Int, Int, Int>>()
+        if (flat && eyesOf(species, face, blink || habit?.blink == true) == Eyes.OPEN) {
+            val (left, right) = Shading.glintShares()
+            for ((ex, ey) in species.eyes) for ((col, share) in listOf(0 to left, 1 to right)) {
+                if (share <= 0f) continue
+                val x = ex + eyesDx + col
+                // Not beside a bright ring (the owl's, the chameleon's): there it would only thicken the ring.
+                val ringed = listOf(1 to 0, -1 to 0, 0 to -1).any { (a, b) -> grid.getOrNull(ey + b)?.getOrNull(x + a) == 'o' }
+                if (grid.getOrNull(ey)?.getOrNull(x) == '.' && !ringed) glints += Triple(x, ey, (BRIGHT * share).toInt())
+            }
+        }
         // The top tiers' 3D body ([Living3D]); anything going wrong there draws the flat body for this frame.
         val painted = painter != null && try {
             painter.paint(frame, species, face, rows, grid, ox, oy, body, bright)
         } catch (e: Exception) {
             false
         }
+        // A flat body in light and shade, with soft corners ([Shading]).
+        val lights = if (flat && !painted) Shading.shade(grid, body, sockets(species, eyesDx)) else null
         grid.forEachIndexed { y, row ->
             row.forEachIndexed { x, c ->
                 if (c != '.' && clipped != null && !GlyphMatrixSpec.isVisible(ox + x, oy + y)) clipped += ox + x to oy + y
                 if (!painted) when (c) {
-                    '#' -> put(frame, ox + x, oy + y, if (sockets != null && (x to y) in sockets) (body * SOCKET).toInt() else body)
+                    '#' -> {
+                        // A body flashed bright by a habit (a storm cloud's lightning) never goes past the bright details.
+                        val lit = (lights?.get(y)?.getOrNull(x) ?: body).coerceAtMost(maxOf(body, BRIGHT))
+                        put(frame, ox + x, oy + y, if (sockets != null && (x to y) in sockets) (lit * SOCKET).toInt() else lit)
+                    }
                     'o' -> put(frame, ox + x, oy + y, bright)
+                    '.' -> lights?.get(y)?.getOrNull(x)?.let { if (it > 0) put(frame, ox + x, oy + y, it) }
                 }
             }
         }
 
+        for ((x, y, v) in glints) put(frame, ox + x, oy + y, v)
         spoutAt?.cells(timeMs, face in ASLEEP)?.forEach { (x, y, v) -> put(frame, ox + spoutAt.base + x, oy + y, v) }
+        if (breathe && habit == null) Breaths.draw(frame, species, grid, ox, oy, body, timeMs, face in ASLEEP)
 
         // A sleeper's opened eye is the one thing at full brightness on its dimmed body, so the peek reads at a glance.
         if (face == Face.PEEK && !painted) species.eyes.firstOrNull()?.let { (ex, ey) ->
