@@ -87,7 +87,7 @@ class DeskSheet {
         val e = PetEngine(Random(1), autoHabits = false, autoSignatures = false)
         val scene = Scene(s, Mood.CONTENT)
         e.tick(step, scene)
-        val pre = when (run) { 2 -> 20_500L; 3 -> 40_500L; else -> 0L }
+        val pre = when (run) { 2 -> 10_300L; 3 -> 20_300L; else -> 0L }
         var t = 0L
         while (t < pre) { if (t % 240 == 0L) e.key(); e.tick(step, scene.copy(typing = true)); t += step }
         val out = HashMap<Long, IntArray>()

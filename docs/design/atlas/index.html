@@ -229,8 +229,8 @@ const COLS = [
   ["notice", "Уведомление", "Пришло уведомление: короткий свой жест", "Новое"],
   ["typing", "Печатает", "Телефон на столе у клавиатуры, ты печатаешь: своя сцена, пауза в конце", "Печать"],
   ["type_rush", "Разгон", "Быстро печатаешь, потом пауза: «отправил»", "Печать"],
-  ["type_20", "Через 20 с", "Печатаешь 20 секунд: сцена меняется", "Печать"],
-  ["type_40", "Через 40 с", "Ещё 20 секунд: последняя смена", "Печать"],
+  ["type_20", "Через 10 с", "Печатаешь 10 секунд: сцена меняется", "Печать"],
+  ["type_40", "Через 20 с", "Ещё 10 секунд: финал", "Печать"],
 ];
 const RAR = { COMMON: "Обычный", RARE: "Редкий", LEGENDARY: "Легендарный", MYTHIC: "Мифический", ANOMALY: "Аномалия" };
 const IDEA_GROUPS = [["ANOMALY", "Аномалии · полный концепт, все анимации в таблице ниже"], ["IDEA_COMMON", "Обычные · ожившие вещи"], ["IDEA_RARE", "Редкие · звери с фишкой"], ["IDEA_LEGEND", "Легендарные · мифы и фольклор"], ["IDEA_GENRE", "Жанры · фантастика и приключения"], ["IDEA_ODD", "Странные · ломают правила"]];
@@ -272,7 +272,7 @@ const TILT_RU = { TURN: "поворачивается головой вверх"
 // How much each column of a hero is its own, the shared one, a repeat, or missing.
 function tagOf(pet, col, form) {
   if (col === "shiny") return ["std", "фольга"];
-  if (["wind", "clap", "typing", "type_rush", "type_20", "type_40", "ring", "notice"].includes(col)) return ["own", { wind: "свой ветер", clap: "свой испуг", typing: "своя сцена", type_rush: "свой разгон", type_20: "20 с", type_40: "40 с", ring: "свой звонок", notice: "свой жест" }[col]];
+  if (["wind", "clap", "typing", "type_rush", "type_20", "type_40", "ring", "notice"].includes(col)) return ["own", { wind: "свой ветер", clap: "свой испуг", typing: "своя сцена", type_rush: "свой разгон", type_20: "10 с", type_40: "20 с", ring: "свой звонок", notice: "свой жест" }[col]];
   if (pet.concept) return ["own", (pet.tags && pet.tags[col]) || "своя"];
   const stageForm = pet.forms[STAGE[stage]];
   switch (col) {

@@ -642,7 +642,7 @@ class PetEngine(
         typeMs += dtMs
         val since = typeMs - (typeKeys.lastOrNull()?.at ?: 0L)
         if (since < T.PAUSE_MS) typedMs += dtMs
-        val stage = (typedMs / T.STAGE_MS).toInt().coerceAtMost(2)
+        val stage = (typedMs * T.PACE / T.STAGE_MS).toInt().coerceAtMost(2)
         if (stage != typeStage) { typeStage = stage; typeStageAt = typeMs }
         typeRate = typeKeys.count { typeMs - it.at < T.RATE_MS } * 1000f / T.RATE_MS
         val was = typeTempo
@@ -669,7 +669,7 @@ class PetEngine(
         val c = n7.glyphpet.pet.drawn.Cv()
         val d = n7.glyphpet.pet.typing.DeskInput(
             typeMs, dtMs, typeKeys.toList(), typeTempo, typeRate, typeStage, typeMs - typeStageAt, typeSentAt, typeHeat, typeRest,
-            n7.glyphpet.pet.typing.PetPainter(species, time, blinkLeftMs > 0), typedMs,
+            n7.glyphpet.pet.typing.PetPainter(species, time, blinkLeftMs > 0), typedMs * n7.glyphpet.pet.typing.Typing.PACE,
         )
         runCatching { desk?.draw(c, d) }
         val v = c.ints()

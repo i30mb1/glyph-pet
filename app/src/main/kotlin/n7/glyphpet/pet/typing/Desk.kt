@@ -27,6 +27,11 @@ import kotlin.math.sin
 object Typing {
     /** Typing this long (pauses not counted) changes the scene; as long again, it changes once more. */
     const val STAGE_MS = 20_000L
+    /**
+     * How much faster than the clock a scene's story runs: its acts are written for 20 s and 40 s of typing, and at
+     * 2x they come after 10 s and 20 s, which is about as long as anyone types without stopping.
+     */
+    const val PACE = 2L
 
     /** No key this long is a pause; this long (and the microphone no longer hears typing) ends the mode. */
     const val PAUSE_MS = 1200L

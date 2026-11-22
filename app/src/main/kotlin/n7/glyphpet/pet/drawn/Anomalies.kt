@@ -180,7 +180,13 @@ object DrawnTyping {
     /** 1 just after a key, falling to 0 over [ms]. */
     fun hit(ms: Long) = if (key >= 0 && sinceKey in 0 until ms) 1f - sinceKey.toFloat() / ms else 0f
     /** 0 -> 1 over the first [s] seconds typed. */
-    fun grown(s: Float = 45f) = (typedS / s).coerceIn(0f, 1f)
+    fun grown(s: Float = 40f) = (typedS / s).coerceIn(0f, 1f)
+    /** The story's act: 0 the first 20 s typed, 1 up to 40 s, 2 after (the payoff). */
+    val stage get() = when { typedS < 20f -> 0; typedS < 40f -> 1; else -> 2 }
+    /** Ms typed since the act began. */
+    val stageMs get() = ((typedS - stage * 20f) * 1000f).toLong()
+    /** How far into the act, 0 -> 1. */
+    val inAct get() = ((typedS - stage * 20f) / 20f).coerceIn(0f, 1f)
 }
 
 abstract class Anomaly(
