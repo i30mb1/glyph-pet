@@ -139,10 +139,14 @@ object SpeciesRenderer {
     const val TEAR_STEP_MS = 220L
     private const val TEAR_STEPS = 5
 
-    /** The eyes [face] shows on [species]: a content pet without a mouth smiles with its eyes; a blink shuts open eyes. */
-    private fun eyesOf(species: Species, face: Face, blink: Boolean): Eyes {
+    /**
+     * The eyes [face] shows on [species]: a content pet without a mouth smiles with its eyes; a blink shuts open eyes;
+     * [shut] shuts any eyes (the pet changes its face through a blink, see [PetEngine]).
+     */
+    private fun eyesOf(species: Species, face: Face, blink: Boolean, shut: Boolean = false): Eyes {
         val look = LOOKS.getValue(face)
         return when {
+            shut && look.eyes != Eyes.PEEK -> Eyes.CLOSED
             face == Face.CONTENT && !showsMouth(species) -> Eyes.HAPPY
             blink && look.eyes == Eyes.OPEN -> Eyes.CLOSED
             else -> look.eyes
@@ -155,6 +159,7 @@ object SpeciesRenderer {
      * @param eyeDx shifts the eyes sideways (a darting pupil).
      * @param mouth false leaves the mouth slot untouched.
      * @param rows the silhouette to carve, normally the species' own (a habit frame can redraw it).
+     * @param shut shuts the eyes whatever the face (the blink a pet changes its face through).
      */
     fun carve(
         species: Species,
@@ -163,9 +168,10 @@ object SpeciesRenderer {
         eyeDx: Int = 0,
         mouth: Boolean = true,
         rows: List<String> = species.rows,
+        shut: Boolean = false,
     ): List<CharArray> {
         val look = LOOKS.getValue(face)
-        val eyes = eyesOf(species, face, blink)
+        val eyes = eyesOf(species, face, blink, shut)
         val grid = rows.map { it.toCharArray() }
         fun cell(x: Int, y: Int, c: Char) {
             if (y in grid.indices && x in grid[y].indices) grid[y][x] = c
@@ -225,6 +231,7 @@ object SpeciesRenderer {
      *   where a spark over its jumping head read as its eyes slipping off.
      * @param spout plays the whale's spout, waves of light through its drops (only the pet at rest: not in a habit, a lean,
      *   a meal or a game, where the drawing stays as it is).
+     * @param eyesShut shuts the eyes whatever the face: the pet changes its face through a blink.
      * @param breathe the pet is at rest, so the heroes that breathe do ([Breaths]); by default whenever the spout plays.
      * @param cover if given, gets [COVER_BODY] for every visible cell of the silhouette (the carved eye and mouth holes
      *   included) and [COVER_FACE] for the eye and mouth slots with a cell of margin around them.
@@ -246,6 +253,7 @@ object SpeciesRenderer {
         badges: Boolean = true,
         spout: Boolean = false,
         breathe: Boolean = spout,
+        eyesShut: Boolean = false,
     ): IntArray {
         val look = LOOKS.getValue(face)
         val eyesDx = habit?.eyeDx?.takeIf { it != 0 } ?: safeEyeDx(species, habit?.rows ?: species.rows, eyeDx)
@@ -255,6 +263,7 @@ object SpeciesRenderer {
             blink = blink || habit?.blink == true,
             eyeDx = eyesDx,
             rows = rows,
+            shut = eyesShut,
         )
 
         // The whale's spout: its still drops are wiped and drawn playing instead, below.
@@ -271,7 +280,7 @@ object SpeciesRenderer {
         // A catchlight in each open eye, on the side the light comes from ([Shading]); it glides across as the phone
         // tilts, shared by both columns near the top. Drawn after the body.
         val glints = mutableListOf<Triple<Int, Int, Int>>()
-        if (flat && eyesOf(species, face, blink || habit?.blink == true) == Eyes.OPEN) {
+        if (flat && eyesOf(species, face, blink || habit?.blink == true, eyesShut) == Eyes.OPEN) {
             val (left, right) = Shading.glintShares()
             for ((ex, ey) in species.eyes) for ((col, share) in listOf(0 to left, 1 to right)) {
                 if (share <= 0f) continue

@@ -144,6 +144,8 @@ class ReviewRulesTest {
             var tilt = 0f
             var peekMs = 0L
             var wasWaiting = false
+            // How long the pet has been asleep with nothing in the way: it dozes (TIRED) for PetEngine.DOZE_MS first.
+            var sleptMs = 0L
             repeat(3000) { step ->
                 val roll = r.nextInt(60)
                 if (roll <= 4) peekMs = 0 // a new poke may start the peek again
@@ -165,6 +167,7 @@ class ReviewRulesTest {
                 assertValid(what, f)
                 assertTrue("$what nothing lit", f.count { it > 0 } > 15)
                 val sh = engine.shown
+                sleptMs = if (mood == Mood.SLEEPING && egg == null) sleptMs + dt else 0L
                 if (charging) {
                     // An egg on the matrix sends the pet away, and a trick plays on the charger too: the owner asked
                     // for it (see PetEngine.tick).
@@ -174,7 +177,8 @@ class ReviewRulesTest {
                     if (sh.habit) assertTrue("$what habit in $mood", mood == Mood.CONTENT || mood == Mood.HAPPY)
                     // A hop is joy, or the way its kind goes down a slope (TiltStyle).
                     if (sh.lift > 0 && abs(tilt) <= PetEngine.SLIDE_TILT) assertEquals("$what hop", Mood.HAPPY, mood)
-                    if (mood == Mood.SLEEPING && egg == null) assertTrue("$what ${sh.face}", sh.face == Face.SLEEP || sh.face == Face.PEEK)
+                    val dozing = sh.face == Face.TIRED && sleptMs <= PetEngine.DOZE_MS + 250
+                    if (mood == Mood.SLEEPING && egg == null) assertTrue("$what ${sh.face}", sh.face == Face.SLEEP || sh.face == Face.PEEK || dozing)
                     // A reaction that waited in the queue pokes the sleeper again when it finally runs, so the eye
                     // stays open; only an eye open with nothing left waiting is held to its second (plus one 250 ms step).
                     val waiting = !engine.debug(s).contains("pending=0")

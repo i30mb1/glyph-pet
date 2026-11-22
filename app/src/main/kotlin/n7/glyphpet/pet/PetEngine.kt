@@ -68,6 +68,8 @@ data class Shown(
     val dx: Int = 0,
     /** A happy pet's own burst of joy is playing ([Cuddles.joyOf]). */
     val cheer: Boolean = false,
+    /** The eyes are shut for the blink the pet changes its face through ([PetEngine.FACE_BLINK_MS]). */
+    val shut: Boolean = false,
 )
 
 /**
@@ -93,9 +95,22 @@ class PetEngine(
         /** A sleeper that is touched, shaken or fed opens one eye this long, then sleeps on. */
         const val PEEK_MS = 1000L
 
-        /** Rows a happy pet is off the ground, frame by frame (80 ms each). */
-        private val HOP = intArrayOf(1, 2, 2, 1)
-        const val HOP_MS = 320L
+        /** Rows a happy pet is off the ground, frame by frame (80 ms each): a crouch first, then up and down. */
+        private val HOP = intArrayOf(-1, 1, 2, 2, 1)
+        const val HOP_MS = 400L
+
+        /** A pet changes its face through a blink this long (under the cross-dissolve), so the new eyes open fresh. */
+        const val FACE_BLINK_MS = 140L
+
+        /** Falling asleep it is drowsy this long first (sleepy eyes, a dimmer body); waking up, this long again. */
+        const val DOZE_MS = 700L
+        const val WAKE_MS = 500L
+
+        /** How quickly the pet dims as it shrinks back, or brightens as it comes back ([BACK_DIM]). */
+        const val BACK_EASE_MS = 250L
+
+        /** Faces with the eyes already shut, or half: no blink on the way into them. */
+        private val SHUT_FACES = setOf(Face.SLEEP, Face.PEEK, Face.TIRED, Face.YAWN)
 
         /** How long the old frame dissolves under the new one when the pet's state changes. */
         const val FADE_MS = 450L
@@ -249,6 +264,17 @@ class PetEngine(
     private var stepMs = 0L
     private var blinkInMs = 3000L
     private var blinkLeftMs = 0L
+
+    /** The face last drawn and how much of the blink into a new face is left ([FACE_BLINK_MS]). */
+    private var lastFace: Face? = null
+    private var faceBlinkMs = 0L
+
+    /** Asleep at the last frame (null before the first) and how long ago it fell asleep or woke ([DOZE_MS], [WAKE_MS]). */
+    private var wasAsleep: Boolean? = null
+    private var sleepEdgeMs = Long.MAX_VALUE / 2
+
+    /** How bright the pet is drawn while it shrinks back from the viewer, eased ([BACK_DIM]). */
+    private var backK = 1f
     private var action = Action.NONE
     private var actionLeftMs = 0L
     private var foodY: Float? = null
@@ -669,6 +695,10 @@ class PetEngine(
         }
 
         val asleep = scene.mood == Mood.SLEEPING
+        // Falling asleep or waking is a moment of drowsiness, not a cut ([DOZE_MS], [WAKE_MS]).
+        sleepEdgeMs = if (wasAsleep != null && wasAsleep != asleep) 0L else (sleepEdgeMs + dtMs).coerceAtMost(Long.MAX_VALUE / 2)
+        wasAsleep = asleep
+        if (faceBlinkMs > 0) faceBlinkMs -= dtMs
         val calm = !asleep && !scene.charging && moment == null && action == Action.NONE && habitMs < 0 && signatureMs < 0 &&
             trickMs < 0 && foodY == null && feastMs < 0 && abs(scene.tilt) <= SLIDE_TILT &&
             (scene.mood == Mood.CONTENT || scene.mood == Mood.HAPPY)
@@ -792,6 +822,10 @@ class PetEngine(
         // eyes alone ([look]): shifting the top of its body sideways read as a glitch of the sprite, not as a lean.
         val own = if (habitMs >= 0) species.habit.frameAt(habitMs) else null
         val face = own?.face ?: face(scene.mood, asleep, sliding)
+        // A new face comes through a blink: the old eyes shut, the new ones open (the cross-dissolve runs over it).
+        val was = lastFace
+        if (was != null && face != was && own == null && face !in SHUT_FACES && was !in SHUT_FACES) faceBlinkMs = FACE_BLINK_MS
+        lastFace = face
         val tiltStyle = TiltStyle.of(species.kind)
         val lift = when {
             hopMs >= 0 -> HOP.getOrElse((hopMs / 80).toInt()) { 0 }
@@ -820,6 +854,7 @@ class PetEngine(
         }
         SpeciesRenderer.render(
             species, face, blink = blinkLeftMs > 0, dx = dx, frame = frame, timeMs = time, lift = lift + (cuddle?.let { Cuddles.lift(it, cuddleMs) } ?: 0),
+            eyesShut = faceBlinkMs > 0,
             habit = if (painter != null) living.habitFor(species, own) else own,
             eyeDx = look(centerX, scene, asleep), shadow = true, cover = cover, painter = painter,
             badges = (!(sliding && own == null) || tiltStyle == TiltStyle.STICK) && cuddle == null,
@@ -838,7 +873,7 @@ class PetEngine(
             // On its way through the edge: the part already out comes in from the other side.
             if (tiltStyle.wraps && dx != 0) {
                 SpeciesRenderer.render(
-                    species, face, blink = blinkLeftMs > 0, dx = dx - sign(dx.toFloat()).toInt() * TiltStyle.WRAP_CELLS,
+                    species, face, blink = blinkLeftMs > 0, eyesShut = faceBlinkMs > 0, dx = dx - sign(dx.toFloat()).toInt() * TiltStyle.WRAP_CELLS,
                     frame = frame, timeMs = time, lift = lift, eyeDx = look(centerX, scene, asleep), shadow = true,
                     painter = painter, badges = false,
                 )
@@ -850,7 +885,9 @@ class PetEngine(
             tiltStyle.draw(frame, left, left + species.width - 1, top, top + species.height - 1, scene.tilt, slideMs, rolled, slideMoved, jumpedMs, faceRows, solid = painter != null)
         }
         // Tipped away from the viewer: the pet shrinks back, a little dimmer.
-        if (!asleep && scene.toward < -TOWARD) for (i in frame.indices) frame[i] = (frame[i] * BACK_DIM).toInt()
+        val backTo = if (!asleep && scene.toward < -TOWARD) BACK_DIM else 1f
+        backK += (backTo - backK) * (dtMs / BACK_EASE_MS.toFloat()).coerceAtMost(1f)
+        if (backK < 0.995f) for (i in frame.indices) frame[i] = (frame[i] * backK).toInt()
         foodY?.let { fy -> SpeciesRenderer.glyph(frame, listOf("oo", "oo"), species.ox + dx + species.width / 2 - 1, fy.toInt()) }
         if (action == Action.SURGE) surgeGlow(frame)
         if (scene.ready && action != Action.SURGE && announceMs < 0) {
@@ -871,7 +908,7 @@ class PetEngine(
         }
         weather.draw(frame, dtMs, sky, scene.tilt, scene.tiltY, cover)
         if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
-        shown = Shown(face, habit = own != null, lift = lift, step = own, dx = dx, cheer = joyMs >= 0 && cuddle != null)
+        shown = Shown(face, habit = own != null, lift = lift, step = own, dx = dx, cheer = joyMs >= 0 && cuddle != null, shut = faceBlinkMs > 0)
         return frame
     }
 
@@ -1250,7 +1287,10 @@ class PetEngine(
     private fun wobble(): Int = if (wobbleLeftMs > 0) (if ((time / 100) % 2 == 0L) -1 else 1) else 0
 
     private fun face(mood: Mood, asleep: Boolean, sliding: Boolean): Face = when {
+        // Drifting off, and still waking: drowsy for a moment between awake and asleep.
+        asleep && action == Action.NONE && sleepEdgeMs < DOZE_MS -> Face.TIRED
         asleep -> if (action == Action.PEEK) Face.PEEK else Face.SLEEP
+        !asleep && action == Action.NONE && sleepEdgeMs < WAKE_MS -> Face.TIRED
         action != Action.NONE -> reaction() ?: Face.IDLE
         // Each kind takes a slope its own way ([TiltStyle]).
         sliding -> TiltStyle.of(kindNow).face
