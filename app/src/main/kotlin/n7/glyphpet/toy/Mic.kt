@@ -65,6 +65,10 @@ class Mic(private val context: Context) {
     @Volatile var wind = 0f
         private set
 
+    /** How loud the room is over its own quiet, 0..1, smoothed: music playing nearby. */
+    @Volatile var loud = 0f
+        private set
+
     @Volatile private var claps = 0
 
     /** When the last clap was heard (wall clock ms), waiting to be checked against a jolt; 0: none. */
@@ -179,6 +183,7 @@ class Mic(private val context: Context) {
                     synchronized(clicks) { clicks.addLast(wall); while (clicks.size > 32) clicks.removeFirst() }
                 }
                 recent += (db - recent) * 0.3f
+                this.loud += (((db - floorDb - 8f) / 30f).coerceIn(0f, 1f) - this.loud) * 0.05f
                 if (db > threshold) {
                     loud++
                 } else {

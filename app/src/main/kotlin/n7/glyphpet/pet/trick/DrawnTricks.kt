@@ -29,7 +29,7 @@ internal object DrawnTricks {
         "schrodinger" to { BoxGame() }, "kraken" to { KrakenGame() },
         "phoenix" to { FlameToy() }, "dragon" to { DragonToy() }, "pebble" to { MossToy() },
         "sprout" to { SunToy() }, "astronaut" to { DriftToy() },
-    )
+    ) + NewHeroGames.all
     const val PARTY_EVERY = 5
     const val PARTY_MS = 1200L
 }

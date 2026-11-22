@@ -40,11 +40,14 @@ class BlowsTest {
             if (changed < 10) problems += "${s.id}: the wind hardly showed ($changed frames)"
             if (kind in sprites && e.shown.face != Blows.of(kind)!!.face) problems += "${s.id}: face ${e.shown.face} in the wind"
             // Left alone for long enough, it is itself again: at home, whole and as bright as ever.
-            var last = IntArray(0)
-            repeat(120) { last = e.tick(80, Scene(s, Mood.CONTENT)) }
-            val ref = calm.tick(80, Scene(s, Mood.CONTENT))
+            // The light of the last frames on either side, added up, so a blink or a flicker at the moment of looking
+            // is not "faded".
+            repeat(100) { e.tick(80, Scene(s, Mood.CONTENT)) }
+            var lastLight = 0L
+            var refLight = 0L
+            repeat(20) { lastLight += e.tick(80, Scene(s, Mood.CONTENT)).sum(); refLight += calm.tick(80, Scene(s, Mood.CONTENT)).sum() }
             if (kotlin.math.abs(e.shown.dx) > PetEngine.walkRange(s).last) problems += "${s.id}: not home (dx ${e.shown.dx})"
-            if (last.sum() < ref.sum() * 0.8f) problems += "${s.id}: still faded after the wind"
+            if (lastLight < refLight * 0.8f) problems += "${s.id}: still faded after the wind"
             if (kind in sprites && e.shown.face == Blows.of(kind)!!.face && Blows.of(kind)!!.face != Face.IDLE) problems += "${s.id}: still makes its wind face"
         }
         assertTrue(problems.take(30).joinToString("\n"), problems.isEmpty())

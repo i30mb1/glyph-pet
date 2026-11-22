@@ -86,6 +86,15 @@ object Startles {
         "kraken" to Style(Move.DART, Face.IDLE, Mark.RINGS, 1400L),
         "glitch" to Style(Move.JOLT, Face.IDLE, Mark.QUESTION),
         "shadow" to Style(Move.SHRINK, Face.IDLE, Mark.SPIKES, 1400L),
+        "hourglass" to Style(Move.TOPPLE, Face.IDLE, Mark.DUST, 1600L),
+        "fishjar" to Style(Move.JUMP, Face.IDLE, Mark.RINGS),
+        "dandelion" to Style(Move.SHRINK, Face.IDLE, Mark.PUFF, 1300L),
+        "bubble" to Style(Move.JOLT, Face.IDLE, Mark.RINGS),
+        "capybara" to Style(Move.FREEZE, Face.IDLE, Mark.SWEAT, 1400L),
+        "moon" to Style(Move.SPIN, Face.IDLE, Mark.STARS, 1400L),
+        "tardigrade" to Style(Move.DUCK, Face.IDLE, Mark.SWEAT, 1300L),
+        "cassette" to Style(Move.JOLT, Face.IDLE, Mark.NOTE),
+        "ferro" to Style(Move.JUMP, Face.IDLE, Mark.SPIKES),
     )
 
     private val FALLBACK = Style(Move.JUMP, Face.SCARED, Mark.BANG)

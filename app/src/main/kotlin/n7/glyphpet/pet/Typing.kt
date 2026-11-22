@@ -27,6 +27,10 @@ object Typing {
         TAIL,
         /** Tips its head from side to side. */
         TILT,
+        /** Shakes on the spot, a quick little shiver each key. */
+        SHAKE,
+        /** Bobs down and up, softly. */
+        BOB,
     }
 
     enum class Hit {
@@ -42,6 +46,10 @@ object Typing {
         INK,
         /** A note rises from the key. */
         NOTE,
+        /** The light of the key drops away below. */
+        DROP,
+        /** A ring spreads from the key. */
+        RING,
     }
 
     class Style(val move: Move, val hit: Hit)
@@ -93,6 +101,15 @@ object Typing {
         "kraken" to Style(Move.TAIL, Hit.INK),
         "glitch" to Style(Move.BLINK, Hit.CLICK),
         "shadow" to Style(Move.TILT, Hit.CLICK),
+        "hourglass" to Style(Move.SHAKE, Hit.DROP),
+        "fishjar" to Style(Move.BOB, Hit.RING),
+        "dandelion" to Style(Move.SHAKE, Hit.RING),
+        "bubble" to Style(Move.BOB, Hit.DROP),
+        "capybara" to Style(Move.BOB, Hit.CLICK),
+        "moon" to Style(Move.GLOW, Hit.DROP),
+        "tardigrade" to Style(Move.PAWS, Hit.DROP),
+        "cassette" to Style(Move.SHAKE, Hit.NOTE),
+        "ferro" to Style(Move.SHAKE, Hit.SPARK),
     )
 
     private val FALLBACK = Style(Move.PAWS, Hit.CLICK)
@@ -108,13 +125,18 @@ object Typing {
     const val STRIKE_MS = 170L
 
     /** Sideways (cells) [t] ms after the last key; [side] alternates with each key. */
-    fun dx(style: Style, t: Long, side: Int): Int = if (style.move == Move.SWAY) side else 0
+    fun dx(style: Style, t: Long, side: Int): Int = when {
+        style.move == Move.SWAY -> side
+        style.move == Move.SHAKE && t < STRIKE_MS -> if ((t / 40) % 2 == 0L) -1 else 1
+        else -> 0
+    }
 
     /** Rows up (negative: down) [t] ms after the last key. */
     fun lift(style: Style, t: Long): Int = when {
         t >= STRIKE_MS -> 0
         style.move == Move.NOD -> -1
         style.move == Move.HOP -> 1
+        style.move == Move.BOB -> if (t < STRIKE_MS / 2) -1 else 0
         else -> 0
     }
 
@@ -170,6 +192,11 @@ object Typing {
                 Hit.NOTE -> {
                     val y0 = ROW - 3 - (q * 6).roundToInt()
                     for ((dx, dy) in listOf(1 to 0, 1 to 1, 0 to 2, 1 to 2)) put(x + dx, y0 + dy, bright * 0.7f * (1 - q))
+                }
+                Hit.DROP -> put(x, ROW + 1 + (q * 3).roundToInt(), bright * 0.8f * (1 - q))
+                Hit.RING -> {
+                    val r = 1 + (q * 3).roundToInt()
+                    for ((dx, dy) in listOf(r to 0, -r to 0, 0 to -r, r - 1 to -1, 1 - r to -1)) put(x + dx, ROW + dy, bright * 0.5f * (1 - q))
                 }
             }
         }

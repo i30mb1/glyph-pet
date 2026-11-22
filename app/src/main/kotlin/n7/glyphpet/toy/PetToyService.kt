@@ -623,6 +623,9 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             wind = wind,
             typing = typing,
             ringing = PetAlerts.ringing,
+            loud = mic.loud,
+            magnet = motion.magnet,
+            magnetAngle = motion.magnetAngle,
             shiny = n.activeShiny,
         )
     }

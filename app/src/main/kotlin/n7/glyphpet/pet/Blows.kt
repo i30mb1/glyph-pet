@@ -102,6 +102,15 @@ object Blows {
         "kraken" to Way(Move.PUSH, Face.IDLE, Debris.FOAM, push = 2f, speed = 3f),
         "glitch" to Way(Move.TUMBLE, Face.IDLE, Debris.STATIC, speed = 9f),
         "shadow" to Way(Move.DIM, Face.IDLE, Debris.WISPS, push = 0f),
+        "hourglass" to Way(Move.ROLL, Face.IDLE, Debris.SAND, push = 3f, speed = 5f),
+        "fishjar" to Way(Move.LOOK, Face.IDLE, Debris.BUBBLES, push = 1f, speed = 3f),
+        "dandelion" to Way(Move.PUSH, Face.IDLE, Debris.FLUFF, push = 1f, speed = 3f),
+        "bubble" to Way(Move.LIFT, Face.IDLE, Debris.BUBBLES, push = 3f, speed = 5f),
+        "capybara" to Way(Move.HOLD, Face.IDLE, Debris.SPRAY),
+        "moon" to Way(Move.WRAP, Face.IDLE, Debris.SPARKLE, speed = 5f),
+        "tardigrade" to Way(Move.ROLL, Face.IDLE, Debris.DUST, push = 3f, speed = 4f),
+        "cassette" to Way(Move.TUMBLE, Face.IDLE, Debris.LITTER, speed = 8f),
+        "ferro" to Way(Move.HOLD, Face.IDLE, Debris.STARDUST),
     )
 
     fun of(kind: String?): Way? = WAYS[kind]

@@ -59,6 +59,11 @@ data class Scene(
     val typing: Boolean = false,
     /** The phone is ringing ([Rings]): the pet answers its own way, over anything else, a game included. */
     val ringing: Boolean = false,
+    /** How loud it is round the phone (0..1, from the microphone): the cassette spins to the music in the room. */
+    val loud: Float = 0f,
+    /** A magnet near the phone (0..1) and where the field points on the matrix (radians): the ferrofluid follows it. */
+    val magnet: Float = 0f,
+    val magnetAngle: Float = (-Math.PI / 2).toFloat(),
 )
 
 /**
@@ -733,6 +738,8 @@ class PetEngine(
 
     private fun tickRaw(dtMs: Long, scene: Scene): IntArray {
         time += dtMs
+        // What the phone feels, for the drawn heroes whose drawing follows it ([n7.glyphpet.pet.drawn.NewHeroes]).
+        n7.glyphpet.pet.drawn.DrawnWorld.step(dtMs, time, scene.tilt, scene.tiltY, scene.wind, scene.loud, scene.battery, scene.charging, scene.magnet, scene.magnetAngle)
         val frame = IntArray(SIZE * SIZE)
         moment?.let { m ->
             val before = momentMs

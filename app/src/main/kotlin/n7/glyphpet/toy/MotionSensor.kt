@@ -46,6 +46,16 @@ class MotionSensor(context: Context) : SensorEventListener {
     private val sensors = context.getSystemService(SensorManager::class.java)
     private val accelerometer = sensors?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
     private val gyroscope = sensors?.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
+    private val magnetometer = sensors?.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
+
+    /**
+     * A magnet near the phone, 0..1 (0: only the Earth's field, about 50 µT; 1: a strong magnet, a magnetic charger), and
+     * where the field points on the matrix as seen from the back (radians, 0 to the right, pi/2 down): north, or the magnet.
+     */
+    @Volatile var magnet = 0f
+        private set
+    @Volatile var magnetAngle = (-Math.PI / 2).toFloat()
+        private set
     private val proximity = sensors?.getDefaultSensor(Sensor.TYPE_PROXIMITY)
     private val light = sensors?.getDefaultSensor(Sensor.TYPE_LIGHT)
     private val main = Handler(Looper.getMainLooper())
@@ -113,6 +123,7 @@ class MotionSensor(context: Context) : SensorEventListener {
         spin = 0f
         yaw = 0f
         gyroscope?.let { sensors?.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
+        magnetometer?.let { sensors?.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
         accelerometer?.let { sensors?.registerListener(this, it, ACCEL_PERIOD_US) }
         proximity?.let { sensors?.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
         light?.let { sensors?.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
@@ -193,6 +204,14 @@ class MotionSensor(context: Context) : SensorEventListener {
             }
             Sensor.TYPE_LIGHT -> {
                 lux = event.values[0]
+                return
+            }
+            Sensor.TYPE_MAGNETIC_FIELD -> {
+                val (bx, by, bz) = event.values
+                val strength = sqrt(bx * bx + by * by + bz * bz)
+                magnet += (((strength - 60f) / 140f).coerceIn(0f, 1f) - magnet) * 0.2f
+                // Seen from the back the device's +x edge is on the left, and +y is the top of the matrix.
+                if (bx * bx + by * by > 4f) magnetAngle = kotlin.math.atan2(-by, -bx)
                 return
             }
             Sensor.TYPE_GYROSCOPE -> {

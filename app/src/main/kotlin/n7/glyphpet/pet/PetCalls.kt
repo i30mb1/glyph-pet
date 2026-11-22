@@ -42,7 +42,7 @@ class Pose(val dx: Int = 0, val lift: Int = 0, val angle: Float = 0f, val glow: 
 object Rings {
 
     enum class Move { BUZZ, BOUNCE, SWAY, JUMP, PULSE, FLASH, SPIN, LEAN }
-    enum class Mark { RINGS, HANDSET, BELL, NOTES, LINES, BARS }
+    enum class Mark { RINGS, HANDSET, BELL, NOTES, LINES, BARS, PHONE, ORBIT }
 
     class Style(val move: Move, val mark: Mark)
 
@@ -63,6 +63,9 @@ object Rings {
         "pebble" to Style(Move.BUZZ, Mark.BELL), "sprout" to Style(Move.SWAY, Mark.LINES), "spider" to Style(Move.LEAN, Mark.BELL),
         "astronaut" to Style(Move.LEAN, Mark.NOTES), "kodama" to Style(Move.SWAY, Mark.HANDSET), "kraken" to Style(Move.SWAY, Mark.BARS),
         "glitch" to Style(Move.BUZZ, Mark.BARS), "shadow" to Style(Move.JUMP, Mark.LINES),
+        "hourglass" to Style(Move.SPIN, Mark.ORBIT), "fishjar" to Style(Move.BOUNCE, Mark.PHONE), "dandelion" to Style(Move.SWAY, Mark.ORBIT),
+        "bubble" to Style(Move.BOUNCE, Mark.BARS), "capybara" to Style(Move.PULSE, Mark.PHONE), "moon" to Style(Move.PULSE, Mark.ORBIT),
+        "tardigrade" to Style(Move.BUZZ, Mark.PHONE), "cassette" to Style(Move.JUMP, Mark.BARS), "ferro" to Style(Move.BUZZ, Mark.ORBIT),
     )
 
     fun of(kind: String?): Style = STYLES[kind] ?: Style(Move.BUZZ, Mark.HANDSET)
@@ -136,6 +139,15 @@ object Rings {
                 val n = ((t % PERIOD_MS) / (PERIOD_MS / 5)).toInt().coerceAtMost(4)
                 for (k in 0 until n) for (h in 0..k) put(frame, right + 1 + k, top + 2 - h, bright * 0.8f)
             }
+            Mark.PHONE -> {
+                // A little phone that shakes on every ring.
+                val wob = if (b > 0.05f) (if ((t / 50) % 2 == 0L) -1 else 1) else 0
+                glyph(frame, listOf("ooo", "o+o", "o+o", "ooo"), right + 1 + wob, above, bright * (0.5f + 0.5f * b))
+            }
+            Mark.ORBIT -> for (k in 0..3) {
+                val a = t / 180.0 + k * PI / 2
+                put(frame, (cx + (right - left + 4) / 2.0 * cos(a)).roundToInt(), (cy + (bottom - top + 4) / 2.0 * sin(a)).roundToInt(), bright * (0.4f + 0.6f * b))
+            }
         }
     }
 }
@@ -143,7 +155,7 @@ object Rings {
 object Notices {
 
     enum class Move { PERK, TURN, HOP, WIGGLE, GLOW, NOD, BLINK, RISE }
-    enum class Mark { DOT, ENVELOPE, BUBBLE, PING, SPARKLE, ARROW }
+    enum class Mark { DOT, ENVELOPE, BUBBLE, PING, SPARKLE, ARROW, STAR, CHAT }
 
     class Style(val move: Move, val mark: Mark)
 
@@ -167,6 +179,9 @@ object Notices {
         "pebble" to Style(Move.NOD, Mark.BUBBLE), "sprout" to Style(Move.PERK, Mark.BUBBLE), "spider" to Style(Move.RISE, Mark.ARROW),
         "astronaut" to Style(Move.TURN, Mark.ARROW), "kodama" to Style(Move.PERK, Mark.ARROW), "kraken" to Style(Move.WIGGLE, Mark.ARROW),
         "glitch" to Style(Move.BLINK, Mark.ARROW), "shadow" to Style(Move.NOD, Mark.ARROW),
+        "hourglass" to Style(Move.TURN, Mark.STAR), "fishjar" to Style(Move.HOP, Mark.ARROW), "dandelion" to Style(Move.RISE, Mark.STAR),
+        "bubble" to Style(Move.GLOW, Mark.ARROW), "capybara" to Style(Move.NOD, Mark.STAR), "moon" to Style(Move.GLOW, Mark.STAR),
+        "tardigrade" to Style(Move.PERK, Mark.STAR), "cassette" to Style(Move.BLINK, Mark.STAR), "ferro" to Style(Move.WIGGLE, Mark.CHAT),
     )
 
     fun of(kind: String?): Style = STYLES[kind] ?: Style(Move.PERK, Mark.DOT)
@@ -211,6 +226,8 @@ object Notices {
                 val bob = ((t / 200) % 2).toInt()
                 glyph(frame, listOf(".o.", "ooo", ".o.", ".o."), x - 1, y - 1 - bob, bright * 0.8f)
             }
+            Mark.STAR -> glyph(frame, if ((t / 160) % 2 == 0L) listOf("o.o", ".o.", "o.o") else listOf(".o.", "ooo", ".o."), x - 1, y - 1, bright * 0.9f)
+            Mark.CHAT -> glyph(frame, listOf("ooooo", "o+o+o", "ooooo", ".o..."), x - 2, y - 2, bright * 0.75f)
         }
     }
 }
