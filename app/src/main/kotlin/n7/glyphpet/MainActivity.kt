@@ -9,6 +9,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Canvas
@@ -299,6 +301,11 @@ private fun PetScreen(
     var hideUnseen by remember { mutableStateOf(store.hideWhenUnseen) }
     var vibration by remember { mutableStateOf(store.vibration) }
     var notifications by remember { mutableStateOf(PetAlerts.hasAccess(context)) }
+    var mic by remember { mutableStateOf(store.mic && n7.glyphpet.toy.Mic.allowed(context)) }
+    val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        store.mic = granted
+        mic = granted
+    }
 
     fun refresh() {
         nursery = store.nursery()
@@ -308,7 +315,7 @@ private fun PetScreen(
         notifications = PetAlerts.hasAccess(context)
         // The preview plays the big moments too: the hatch and the evolution.
         val hatched = nursery.justHatched
-        if (hatched != null && hatched.id != celebratedId) engine.hatchOf(hatched, golden = nursery.supporter)
+        if (hatched != null && hatched.id != celebratedId) engine.hatchOf(hatched, golden = nursery.supporter, shiny = hatched.id in nursery.shiny)
         celebratedId = hatched?.id
         val evolved = nursery.justEvolved
         if (evolved != null && evolved.id != celebratedForm) engine.evolveInto(evolved)
@@ -385,6 +392,7 @@ private fun PetScreen(
                         battery = power.level,
                         missedCall = notifications && PetAlerts.missedCalls > 0,
                         ready = nursery.ready,
+                        shiny = nursery.activeShiny,
                     )
                     frame = PetEngine.toCells(engine.tick(FRAME_MS, scene))
                     // A game's joy comes while it is played, a second's worth at a time.
@@ -504,6 +512,16 @@ private fun PetScreen(
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
+                    // A shiny one says so under its name (a rare hatch, NurseryRules.SHINY_CHANCE).
+                    if (nursery.eggOnMatrix == null && nursery.activeShiny) {
+                        Text(
+                            stringResource(R.string.shiny_label),
+                            style = N7Type.Caption,
+                            color = N7Colors.InkMuted,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                     // The circle is the Glyph button, held as on the back of the phone, and nothing more: the lean and
                     // the shake are read off the phone, as on the matrix.
                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -559,6 +577,11 @@ private fun PetScreen(
                         onVibration = { store.vibration = it; vibration = it },
                         notifications = notifications,
                         onNotifications = { context.startActivity(PetAlerts.settingsIntent(context)) },
+                        mic = mic,
+                        onMic = { on ->
+                            if (on && !n7.glyphpet.toy.Mic.allowed(context)) askMic.launch(android.Manifest.permission.RECORD_AUDIO)
+                            else { store.mic = on; mic = on }
+                        },
                     )
 
                     if (glyphPhone) {
@@ -590,6 +613,8 @@ private fun PetScreen(
                         }
                         // Debug builds only: the active pet gets experience at once, to try growing.
                         N7Button("XP +100", { store.debugXp(100); refresh() }, Modifier.fillMaxWidth(), N7ButtonVariant.Secondary)
+                        // Debug builds only: the active pet shiny or plain, to see the shimmer without hatching five.
+                        N7Button("Shiny on/off", { store.debugShiny(); refresh() }, Modifier.fillMaxWidth(), N7ButtonVariant.Secondary)
                     }
 
                     MoreFromN7(Modifier.fillMaxWidth())
@@ -1155,6 +1180,8 @@ private fun SettingsCard(
     onVibration: (Boolean) -> Unit,
     notifications: Boolean,
     onNotifications: () -> Unit,
+    mic: Boolean,
+    onMic: (Boolean) -> Unit,
 ) {
     var open by rememberSaveable { mutableStateOf(true) }
     N7Card(Modifier.fillMaxWidth()) {
@@ -1185,6 +1212,15 @@ private fun SettingsCard(
                     checked = notifications,
                     onChange = { onNotifications() },
                 )
+                if (glyphPhone) {
+                    N7Divider()
+                    ToggleRow(
+                        title = stringResource(R.string.matrix_mic_title),
+                        text = stringResource(R.string.matrix_mic_text),
+                        checked = mic,
+                        onChange = onMic,
+                    )
+                }
             }
         }
     }

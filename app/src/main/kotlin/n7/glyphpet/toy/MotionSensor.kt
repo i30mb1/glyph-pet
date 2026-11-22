@@ -29,6 +29,9 @@ class MotionSensor(context: Context) : SensorEventListener {
         const val TAP_GAP_MIN = 90L
         const val TAP_GAP_MAX = 550L
 
+        /** A jolt of the body this strong (m/s², high-passed) is a touch on the phone, not a sound in the air ([lastJoltMs]). */
+        const val JOLT = 1.0f
+
         /** The accelerometer runs at 100 Hz, fast enough for the pet's inertia to follow a quick move. */
         const val ACCEL_PERIOD_US = 10_000
 
@@ -144,11 +147,19 @@ class MotionSensor(context: Context) : SensorEventListener {
     @Synchronized
     fun consumeShake(): Boolean = shaken.also { shaken = false }
 
+    /**
+     * When the body was last jolted (wall clock ms): a tap or a knock on the phone. The microphone hears a tap as a
+     * click, and this tells it from a clap in the air ([Mic.consumeClap]).
+     */
+    @Volatile var lastJoltMs = 0L
+        private set
+
     /** Two light taps on the back (a stroke), reported once. */
     fun consumeStroke(): Boolean = synchronized(this) { stroked.also { stroked = false } }
 
     /** A sharp little jolt out of stillness is a tap; two of them close together, a stroke. */
     private fun watchTap(high: Float, wall: Long) {
+        if (high > JOLT) lastJoltMs = wall
         val tap = high > TAP && lastHigh < TAP / 2 && jitter < TAP_STILL
         lastHigh = high
         if (!tap) return

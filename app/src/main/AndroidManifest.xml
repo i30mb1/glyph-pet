@@ -3,6 +3,8 @@
 
     <uses-permission android:name="com.nothing.ketchum.permission.ENABLE" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Blowing on the pet and a clap: only a loudness level, while the pet is live on the matrix; nothing is recorded. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <uses-feature android:name="com.nothing.feature" android:required="true" />
 

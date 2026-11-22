@@ -62,12 +62,16 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         /** Tipping the phone this far (radians, about 25 degrees) from how it is held is [Scene.toward] 1. */
         const val TOWARD_FULL = 0.45f
         const val HELD_TAU_S = 4f
+
+        /** One gust of wind brings joy at most this often ([gusted]). */
+        const val GUST_JOY_GAP_MS = 2000L
     }
 
     private val main = Handler(Looper.getMainLooper())
     private lateinit var glyph: GlyphMatrixManager
     private lateinit var store: PetStore
     private lateinit var motion: MotionSensor
+    private lateinit var mic: Mic
     private lateinit var haptics: Haptics
     private val engine = PetEngine().apply { haptics = mutableListOf(); events = mutableListOf() }
 
@@ -152,6 +156,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
     override fun onBind(intent: Intent?): IBinder {
         store = PetStore(this)
         motion = MotionSensor(this)
+        mic = Mic(this)
         haptics = Haptics(this)
         glyph = GlyphMatrixManager.getInstance(this)
         glyph.init(this)
@@ -387,6 +392,8 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         hideGate.reset()
         reactions.reset()
         motion.start()
+        // Always-on's minute is silent and nobody is there to blow: the microphone only listens when the pet is live.
+        if (store.mic && !aodBurst && burstUntil == 0L) mic.start()
         lastFrameAt = SystemClock.uptimeMillis()
         main.post(frameLoop)
     }
@@ -396,6 +403,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         running = false
         main.removeCallbacks(frameLoop)
         if (::motion.isInitialized) motion.stop()
+        if (::mic.isInitialized) mic.stop()
     }
 
     private fun renderLive() {
@@ -426,6 +434,8 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         dark = false
         val gestures = Gestures(shake = motion.consumeShake())
         if (motion.consumeStroke()) stroked()
+        if (mic.consumeClap(motion.lastJoltMs)) clapped()
+        gusted(now)
         val n = nursery
         react(
             reactions.frame(
@@ -451,7 +461,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         Shading.light = lightNow
         val frame = try {
             engine.tick(dt, scene(tilt = motion.tilt, tiltY = motion.tiltY, desk = desk, spin = if (desk) motion.spin else 0f, toward = toward,
-                yaw = if (posture == Posture.HAND) motion.yaw else 0f))
+                yaw = if (posture == Posture.HAND) motion.yaw else 0f, wind = mic.wind))
         } finally {
             Shading.light = Shading.DEFAULT_LIGHT
         }
@@ -553,7 +563,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         send(IntArray(PetEngine.SIZE * PetEngine.SIZE))
     }
 
-    private fun scene(tilt: Float = 0f, tiltY: Float = 1f, desk: Boolean = false, spin: Float = 0f, toward: Float = 0f, yaw: Float = 0f): Scene {
+    private fun scene(tilt: Float = 0f, tiltY: Float = 1f, desk: Boolean = false, spin: Float = 0f, toward: Float = 0f, yaw: Float = 0f, wind: Float = 0f): Scene {
         val n = nursery ?: return Scene(null, Mood.CONTENT)
         return Scene(
             species = n.activeForm,
@@ -571,6 +581,8 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             spin = spin,
             toward = toward,
             yaw = yaw,
+            wind = wind,
+            shiny = n.activeShiny,
         )
     }
 
@@ -600,7 +612,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         val hatched = n.justHatched
         if (hatched != null && hatched.id != celebratedId) {
             celebratedId = hatched.id
-            engine.hatchOf(hatched, golden = n.supporter)
+            engine.hatchOf(hatched, golden = n.supporter, shiny = hatched.id in n.shiny)
         }
         val evolved = n.justEvolved
         if (evolved != null && evolved.id != celebratedForm) {
@@ -621,6 +633,40 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         engine.pet()
         feel(HapticKind.TICKLE)
         sync(force = true)
+    }
+
+    /** A clap near the phone startles the pet ([PetEngine.clap]); not during a game, nor while an egg is on the matrix. */
+    private fun clapped() {
+        val n = nursery ?: return
+        if (n.active == null || n.eggOnMatrix != null || engine.playingTrick) return
+        Log.d(TAG, "event clap")
+        // Like a stroke: half a dot of joy (a sleeper only peeks, and gets none).
+        if (mood != Mood.SLEEPING) store.stroke()
+        engine.clap()
+        feel(HapticKind.TICKLE, 0.5f)
+        sync(force = true)
+    }
+
+    /** The wind was blowing in the last frame, and when the last gust brought joy (uptime). */
+    private var windWas = false
+    private var gustJoyAt = Long.MIN_VALUE / 2
+
+    /**
+     * Each gust of wind on a pet that feels it ([n7.glyphpet.pet.Blows]) is play: half a dot of joy, like a stroke, at
+     * most once in [GUST_JOY_GAP_MS] so that one long blow with a breath in it is not two.
+     */
+    private fun gusted(now: Long) {
+        val gust = mic.wind >= n7.glyphpet.pet.Blows.FELT
+        val n = nursery
+        val feels = n?.active != null && n.eggOnMatrix == null && !engine.playingTrick && mood != Mood.SLEEPING &&
+            n7.glyphpet.pet.Blows.handles(n.activeForm?.kind)
+        if (gust && !windWas && feels && now - gustJoyAt >= GUST_JOY_GAP_MS) {
+            gustJoyAt = now
+            Log.d(TAG, "event gust -> joy")
+            store.stroke()
+            sync(force = true)
+        }
+        windWas = gust
     }
 
     /** Time of the game played and not yet given as joy. */

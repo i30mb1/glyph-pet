@@ -30,6 +30,8 @@ data class NurseryState(
     val evolvedId: String? = null,
     /** Minutes spent with an adult toward the next egg ([GrowthRules.together], [XpRules.EGG_MINUTES]). */
     val eggMinutes: Int = 0,
+    /** The heroes that hatched shiny ([NurseryRules.SHINY_CHANCE]): they shimmer like a foil card ([Shiny]). */
+    val shiny: Set<String> = emptySet(),
 )
 
 /** What a press on an egg did. */
@@ -49,6 +51,13 @@ enum class PressResult { NONE, CRACKED, HATCHED }
 object NurseryRules {
 
     const val JUST_HATCHED_MS = 8000L
+
+    /** A hero that can be shiny ([Shiny.suits]) hatches shiny this rarely: a real find. */
+    const val SHINY_CHANCE = 0.05f
+
+    /** Whether hero [id] hatching at [nowMs] comes out shiny: a roll of [SHINY_CHANCE], seeded so a replay agrees. */
+    fun hatchesShiny(id: String, nowMs: Long): Boolean =
+        Shiny.suits(id) && Random(nowMs * 31 + id.hashCode()).nextFloat() < SHINY_CHANCE
 
     private fun has(s: NurseryState, id: String) = (s.seen[id] ?: 0) > 0
 
@@ -112,6 +121,7 @@ object NurseryRules {
             onMatrix = null,
             active = egg,
             seen = s.seen + (egg to (s.seen[egg] ?: 0) + 1),
+            shiny = if (hatchesShiny(egg, nowMs)) s.shiny + egg else s.shiny,
             hatchedAtMs = nowMs,
             hatchedId = egg,
             // The first hero of all: nothing collected before it, so it hatches with a head start toward growing.

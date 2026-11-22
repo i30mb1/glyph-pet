@@ -51,6 +51,10 @@ data class Scene(
     val yaw: Float = 0f,
     /** Hungry and sad at once ([PetRules.alsoSad]): hunger shows, in the rain of the sadness. */
     val alsoSad: Boolean = false,
+    /** Someone blows on the phone (0..1, from the microphone): kinds that feel it ([Blows]) are pushed by the wind. */
+    val wind: Float = 0f,
+    /** The pet is a shiny one ([Shiny]): every fifth hatch shimmers when the phone leans. */
+    val shiny: Boolean = false,
 )
 
 /**
@@ -123,6 +127,9 @@ class PetEngine(
         const val JOY_FIRST_MS = 2000L
 
         const val ALERT_MS = 1400L
+
+        /** How long a clap startles the pet ([clap]). */
+        const val STARTLE_MS = 900L
 
         /** How long the egg wobbles after a press. */
         const val CRACK_WOBBLE_MS = 600L
@@ -251,11 +258,11 @@ class PetEngine(
         }
     }
 
-    private enum class Action { NONE, EATING, REFUSING, LOVED, DIZZY, PEEK, ALERT, SURGE }
+    private enum class Action { NONE, EATING, REFUSING, LOVED, DIZZY, PEEK, ALERT, SURGE, STARTLE }
 
     /** A big moment that takes over the whole matrix for a few seconds. */
     private sealed class Moment(val durationMs: Long)
-    private class Hatch(val baby: Species, val golden: Boolean) : Moment(Moments.hatchMs(baby.rarity))
+    private class Hatch(val baby: Species, val golden: Boolean, val shiny: Boolean = false) : Moment(Moments.hatchMs(baby.rarity))
     private class Evolve(val from: Species, val to: Species) : Moment(Moments.EVOLVE_MS)
 
     private var time = 0L
@@ -276,6 +283,12 @@ class PetEngine(
 
     /** How bright the pet is drawn while it shrinks back from the viewer, eased ([BACK_DIM]). */
     private var backK = 1f
+
+    /** How far the wind has pushed the pet (cells, [Blows]), which way it blows, and what it tore off and blows along. */
+    private var windPush = 0f
+    private var windDir = 1
+    private var blown = false
+    private val blowBits = mutableListOf<Blows.Bit>()
     private var action = Action.NONE
     private var actionLeftMs = 0L
     private var foodY: Float? = null
@@ -546,14 +559,17 @@ class PetEngine(
     /** Dizzy stars; a sleeper only opens one eye. */
     fun shake() = react { start(Action.DIZZY, 2500) }
 
-    /** The egg just hatched into [baby] (a supporter's egg is [golden]): [Moments.hatch] plays. */
-    fun hatch(baby: Species, golden: Boolean) = startMoment(Hatch(baby, golden))
+    /** A clap or a bang near the phone: the pet starts, wide-eyed, with a jump. A sleeper only opens one eye. */
+    fun clap() = react { start(Action.STARTLE, STARTLE_MS); hopsLeft = 1 }
+
+    /** The egg just hatched into [baby] (a supporter's egg is [golden]; a [shiny] baby sparkles out): [Moments.hatch] plays. */
+    fun hatch(baby: Species, golden: Boolean, shiny: Boolean = false) = startMoment(Hatch(baby, golden, shiny))
 
     /** The pet just grew from [from] into [to]: [Moments.evolve] plays. */
     fun evolve(from: Species, to: Species) = startMoment(Evolve(from, to))
 
     /** The egg of [hero] (any form of it) just hatched: its baby pops out. */
-    fun hatchOf(hero: Species, golden: Boolean) = hatch(SpeciesForms.of(hero.kind, Stage.BABY), golden)
+    fun hatchOf(hero: Species, golden: Boolean, shiny: Boolean = false) = hatch(SpeciesForms.of(hero.kind, Stage.BABY), golden, shiny)
 
     /** A pet just grew into [grown]: the evolution from the stage before. Nothing for a baby, which grew from nothing. */
     fun evolveInto(grown: Species) {
@@ -636,6 +652,10 @@ class PetEngine(
      */
     fun tick(dtMs: Long, scene: Scene): IntArray {
         val frame = tickRaw(dtMs, scene)
+        // A shiny pet shimmers whenever it is itself on the matrix: not in a game, a show, a meal, on the charger or as an egg.
+        if (scene.shiny && scene.egg == null && moment == null && trickMs < 0 && signatureMs < 0 && feastMs < 0 && !shown.charging) {
+            Shiny.draw(frame, time, Shading.light)
+        }
         val look = listOf(shown.face, shown.habit, shown.charging, trickMs >= 0, signatureMs >= 0, feastMs >= 0, moment != null, scene.egg != null, scene.species?.id)
         val prev = lastOut
         // A change in the middle of a fade starts from what was on the matrix then, so nothing jumps.
@@ -675,6 +695,8 @@ class PetEngine(
                     is Hatch -> Moments.hatch(frame, momentMs, m.baby, m.golden)
                     is Evolve -> Moments.evolve(frame, momentMs, m.from, m.to)
                 }
+                // A shiny baby comes out shimmering, in a shower of sparks.
+                if (m is Hatch && m.shiny && momentMs >= Moments.POP_AT) Shiny.draw(frame, time, Shading.light, burst = true)
                 shown = Shown(null)
                 return frame
             }
@@ -844,7 +866,10 @@ class PetEngine(
         // A refusal sways slowly, "no, thanks"; a surge trembles.
         val jitterMs = if (action == Action.REFUSING) 300L else 120L
         val jitter = if (shudder) (if ((time / jitterMs) % 2 == 0L) -1 else 1) else 0
-        val dx = x.roundToInt() + jitter + (cuddle?.let { Cuddles.dx(it, cuddleMs) } ?: 0)
+        updateWind(dtMs, species, scene, asleep, sliding, own)
+        val slide = slideRange(species)
+        val pushed = (x + windPush).roundToInt().coerceIn(slide.first, slide.last) - x.roundToInt()
+        val dx = x.roundToInt() + pushed + jitter + (cuddle?.let { Cuddles.dx(it, cuddleMs) } ?: 0)
         cover.fill(SpeciesRenderer.COVER_NONE)
         // Legendary and mythic pets are drawn in 3D, turning a little with the phone ([Living3D]).
         val painter = if (Living3D.handles(species)) {
@@ -908,6 +933,7 @@ class PetEngine(
             }
         }
         weather.draw(frame, dtMs, sky, scene.tilt, scene.tiltY, cover)
+        if (blowBits.isNotEmpty()) Blows.draw(frame, blowBits, windDir)
         if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
         shown = Shown(face, habit = own != null, lift = lift, step = own, dx = dx, cheer = joyMs >= 0 && cuddle != null, shut = faceBlinkMs > 0)
         return frame
@@ -1161,6 +1187,7 @@ class PetEngine(
         Action.PEEK -> Face.PEEK
         Action.ALERT -> Face.SCARED
         Action.SURGE -> Face.IDLE
+        Action.STARTLE -> Face.SCARED
     }
 
     private fun start(next: Action, durationMs: Long) {
@@ -1265,6 +1292,30 @@ class PetEngine(
         }
     }
 
+    /**
+     * The wind ([Scene.wind]) on a kind that feels it ([Blows]): only while the pet is free, so it never cuts a habit,
+     * a reaction or a nap; it blows the way the phone leans (to the right when it stands straight). Whatever it tore off
+     * flies on after it stops, and the pet drifts home.
+     */
+    private fun updateWind(dtMs: Long, species: Species, scene: Scene, asleep: Boolean, sliding: Boolean, own: HabitFrame?) {
+        val free = !asleep && action == Action.NONE && own == null && habitMs < 0 && signatureMs < 0 && trickMs < 0 &&
+            feastMs < 0 && foodY == null && !sliding && Blows.handles(species.kind)
+        val wind = if (free) scene.wind else 0f
+        val wasBlown = blown
+        blown = wind >= Blows.FELT
+        if (blown && !wasBlown) windDir = when {
+            scene.tilt > 0.06f -> 1
+            scene.tilt < -0.06f -> -1
+            else -> 1
+        }
+        val target = if (blown) windDir * Blows.PUSH * wind else 0f
+        val speed = (if (blown) Blows.PUSH_SPEED else Blows.BACK_SPEED) * dtMs / 1000f
+        windPush += (target - windPush).coerceIn(-speed, speed)
+        val left = species.ox + (x + windPush).roundToInt()
+        val top = species.oy
+        Blows.step(blowBits, dtMs, wind, windDir, left, left + species.width - 1, top, top + species.height - 1, random)
+    }
+
     private fun updateBlink(dtMs: Long, asleep: Boolean) {
         if (asleep) return
         if (blinkLeftMs > 0) { blinkLeftMs -= dtMs; return }
@@ -1304,6 +1355,8 @@ class PetEngine(
         action != Action.NONE -> reaction() ?: Face.IDLE
         // Each kind takes a slope its own way ([TiltStyle]).
         sliding -> TiltStyle.of(kindNow).face
+        // Into the wind: eyes screwed up ([Blows]).
+        blown -> Blows.FACE
         // Brought closer to the viewer: wide happy eyes.
         closer -> Face.HAPPY
         yawnLeftMs > 0 -> Face.YAWN

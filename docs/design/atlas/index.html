@@ -88,6 +88,16 @@ dialog p { margin: 6px 0 0; color: var(--muted) }
 dialog .row { display: flex; justify-content: space-between; align-items: center; gap: 12px }
 dialog button { background: none; border: 1px solid var(--line); color: var(--ink); border-radius: 8px; padding: 6px 10px; cursor: pointer; font: 13px var(--body) }
 .loading { color: var(--muted); padding: 20px }
+#newPets { margin: 22px 0 28px }
+.newpets { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px }
+.newpet { border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 8px }
+.newpet h3 { margin: 0; font: 700 17px var(--display); color: var(--ink); text-transform: none; letter-spacing: 0 }
+.newpet p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.4 }
+.newpet .trick { color: #7fd6ff; font-size: 12px }
+.newpet .clips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px }
+.newpet figure { margin: 0; text-align: center }
+.newpet canvas { width: 100%; aspect-ratio: 1; display: block }
+.newpet figcaption { font-size: 11px; color: var(--muted); margin-top: 4px }
 .summary { margin: -12px 0 0; display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--muted); font-size: 13px }
 .summary b { color: var(--ink); font: 700 20px/1 var(--display); margin-right: 5px; font-variant-numeric: tabular-nums }
 @media (prefers-reduced-motion: reduce) { td.cell { transition: none } }
@@ -163,6 +173,11 @@ dialog button { background: none; border: 1px solid var(--line); color: var(--in
     </div>
   </section>
 
+  <section class="ideas" id="newPets" aria-labelledby="newPetsTitle" hidden>
+    <div class="bar"><h2 id="newPetsTitle">Новые питомцы · эскизы на выбор</h2><p>Пока только рисунки, в игре их нет. Выбери, кого делаем.</p></div>
+    <div class="newpets" id="newPetsList"></div>
+  </section>
+
   <section class="controls" aria-label="Фильтры">
     <div class="seg" role="group" aria-label="Стадия">
       <button type="button" data-stage="baby">Малыш</button>
@@ -211,6 +226,9 @@ const COLS = [
   ["turn", "Поворот краем", "Повернул телефон краем к себе", "Действия"],
   ["charging", "Зарядка", "Телефон на зарядке", "Система"],
   ["grow", "Рост", "Яйцо: 5 нажатий. Рост: тряска, когда готов", "Система"],
+  ["shiny", "Блестящий", "Каждый 5-й из яйца: перелив при наклоне, искры", "Новое"],
+  ["wind", "Ветер", "Подуй на матрицу (пока только облачко)", "Новое"],
+  ["clap", "Хлопок", "Хлопни в ладоши рядом", "Новое"],
 ];
 const RAR = { COMMON: "Обычный", RARE: "Редкий", LEGENDARY: "Легендарный", MYTHIC: "Мифический", ANOMALY: "Аномалия" };
 const IDEA_GROUPS = [["ANOMALY", "Аномалии · полный концепт, все анимации в таблице ниже"], ["IDEA_COMMON", "Обычные · ожившие вещи"], ["IDEA_RARE", "Редкие · звери с фишкой"], ["IDEA_LEGEND", "Легендарные · мифы и фольклор"], ["IDEA_GENRE", "Жанры · фантастика и приключения"], ["IDEA_ODD", "Странные · ломают правила"]];
@@ -251,6 +269,7 @@ const TILT_RU = { TURN: "поворачивается головой вверх"
   FLOAT: "плывёт", HOP: "скачет", SCUTTLE: "семенит", SKATE: "скользит со следом", GLITCH: "глитч-прыжки", STOMP: "топает" };
 // How much each column of a hero is its own, the shared one, a repeat, or missing.
 function tagOf(pet, col, form) {
+  if (col === "shiny") return ["std", "фольга"];
   if (pet.concept) return ["own", (pet.tags && pet.tags[col]) || "своя"];
   const stageForm = pet.forms[STAGE[stage]];
   switch (col) {
@@ -284,6 +303,9 @@ function tagOf(pet, col, form) {
     case "asleep": return ["own", "свой знак сна"];
     case "hungry": return ["own", "думает о своей еде"];
     case "grow": return ["std", stage === "baby" ? "вылупление" : "эволюция"];
+    case "shiny": return ["std", "фольга"];
+    case "wind": return ["own", "сносит, клочки"];
+    case "clap": return ["std", "вздрагивает"];
     default: return ["std", ""];
   }
 }
@@ -306,6 +328,7 @@ function draw(cv, f) {
 }
 
 const live = new Map(); // canvas -> {frames, seq}
+const ideaLive = new Map(); // the new pets' sketches: canvas -> {frames, seq}
 const visible = new Set();
 const io = new IntersectionObserver(es => es.forEach(e => e.isIntersecting ? visible.add(e.target) : visible.delete(e.target)), { rootMargin: "120px" });
 let bigAnim = null;
@@ -317,6 +340,13 @@ function loop(t) {
     const a = live.get(cv);
     if (!a) continue;
     const k = reduced ? Math.floor(a.seq.length / 2) : n % a.seq.length;
+    if (cv._k === k) continue;
+    cv._k = k;
+    draw(cv, a.frames[a.seq[k]]);
+  }
+  const m = Math.floor(t / 160);
+  for (const [cv, a] of ideaLive) {
+    const k = reduced ? Math.floor(a.seq.length / 2) : m % a.seq.length;
     if (cv._k === k) continue;
     cv._k = k;
     draw(cv, a.frames[a.seq[k]]);
@@ -403,6 +433,23 @@ function openBig(td) {
   document.getElementById("big").showModal();
 }
 
+// The new pets to pick from (ideas.json, by tools/NewPetSketches): a card each, its clips side by side.
+async function loadIdeas() {
+  let d;
+  try { d = await (await fetch("ideas.json")).json(); } catch (e) { return; }
+  const list = document.getElementById("newPetsList");
+  const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  list.innerHTML = d.pets.map(p => `<article class="newpet"><h3>${esc(p.name)}</h3><p>${esc(p.idea)}</p><p class="trick">Фишка: ${esc(p.trick)}</p>` +
+    `<div class="clips">${p.clips.map(c => `<figure><canvas width="200" height="200" data-pet="${p.kind}" data-clip="${c.id}" aria-label="${esc(p.name)}: ${esc(c.name)}"></canvas><figcaption>${esc(c.name)}</figcaption></figure>`).join("")}</div></article>`).join("");
+  for (const p of d.pets) for (const c of p.clips) {
+    const cv = list.querySelector(`canvas[data-pet="${p.kind}"][data-clip="${c.id}"]`);
+    const a = { frames: c.f.map(decodeFrame), seq: decodeSeq(c.s) };
+    ideaLive.set(cv, a);
+    draw(cv, a.frames[a.seq[0]]);
+  }
+  document.getElementById("newPets").hidden = false;
+}
+
 async function setStage(s) {
   stage = s;
   try { localStorage.setItem("atlas-stage", s); } catch (e) {}
@@ -443,6 +490,7 @@ async function setStage(s) {
   let s = "teen";
   try { s = localStorage.getItem("atlas-stage") || "teen"; } catch (e) {}
   await setStage(STAGE[s] ? s : "teen");
+  loadIdeas();
   requestAnimationFrame(loop);
 })();
 </script>

@@ -21,7 +21,7 @@ object Moments {
     private const val CRACK_END = 1300L
     private const val FLASH_END = 1500L
     private const val BURST_END = 2300L
-    private const val POP_AT = 1700L
+    const val POP_AT = 1700L
     private const val POP_BRIGHT_MS = 130L
     const val HATCH_MS = 3200L
 

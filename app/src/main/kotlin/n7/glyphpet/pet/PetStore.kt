@@ -54,7 +54,12 @@ data class Nursery(
     /** Minutes with an adult toward the next egg, and whether there is a hero left for it to bring. */
     val eggMinutes: Int = 0,
     val eggsLeft: Boolean = false,
+    /** The heroes that hatched shiny ([NurseryRules.SHINY_CHANCE]). */
+    val shiny: Set<String> = emptySet(),
 ) {
+    /** The active pet is a shiny one. */
+    val activeShiny: Boolean get() = active?.id in shiny
+
     fun pressesOf(id: String): Int = presses[id] ?: 0
 
     /** How far the active pet has grown, or null without a pet. */
@@ -127,6 +132,7 @@ class PetStore(context: Context) {
             justEvolved = GrowthRules.justEvolved(state, nowMs),
             eggMinutes = state.eggMinutes,
             eggsLeft = GrowthRules.eggsLeft(state),
+            shiny = state.shiny,
         )
     }
 
@@ -320,6 +326,22 @@ class PetStore(context: Context) {
         get() = prefs.getBoolean(KEY_VIBRATION, true)
         set(value) = prefs.edit().putBoolean(KEY_VIBRATION, value).apply()
 
+    /**
+     * Setting: the pet hears the phone's microphone while it is live on the matrix (blowing on it, a clap). On by
+     * default, but it needs the system's microphone permission, asked when the switch is turned on.
+     */
+    var mic: Boolean
+        get() = prefs.getBoolean(KEY_MIC, true)
+        set(value) = prefs.edit().putBoolean(KEY_MIC, value).apply()
+
+    /** Debug builds: the active pet becomes shiny, or plain again. */
+    @Synchronized
+    fun debugShiny(nowMs: Long = GameClock.now()) {
+        val s = loadState(nowMs)
+        val id = s.active ?: return
+        saveState(s.copy(shiny = if (id in s.shiny) s.shiny - id else s.shiny + id))
+    }
+
     @Synchronized
     fun setSupporter(value: Boolean, nowMs: Long = GameClock.now()) {
         saveState(loadState(nowMs).copy(supporter = value))
@@ -377,6 +399,7 @@ class PetStore(context: Context) {
                 evolvedAtMs = prefs.getLong(KEY_EVOLVED_AT, 0),
                 evolvedId = prefs.getString(KEY_EVOLVED_ID, null),
                 eggMinutes = prefs.getInt(KEY_EGG_MINUTES, 0),
+                shiny = prefs.getStringSet(KEY_SHINY, null)?.toSet() ?: emptySet(),
             )
             val grown = SaveMigration.withGrowth(loaded, today)
             if (version < VERSION || grown !== loaded) saveState(grown)
@@ -420,6 +443,7 @@ class PetStore(context: Context) {
             .putLong(KEY_XP_AT, s.xpAtMs)
             .putLong(KEY_EVOLVED_AT, s.evolvedAtMs)
             .putInt(KEY_EGG_MINUTES, s.eggMinutes)
+            .putStringSet(KEY_SHINY, s.shiny)
         if (s.evolvedId != null) e.putString(KEY_EVOLVED_ID, s.evolvedId)
         e.apply()
     }
@@ -480,6 +504,8 @@ class PetStore(context: Context) {
         const val KEY_GRANT_DAY = "grant_day"
         const val KEY_HIDE_UNSEEN = "hide_unseen"
         const val KEY_VIBRATION = "vibration"
+        const val KEY_MIC = "mic"
+        const val KEY_SHINY = "shiny"
         const val KEY_GROWTH = "growth"
         const val KEY_XP_AT = "xp_at"
         const val KEY_EGG_MINUTES = "egg_minutes"

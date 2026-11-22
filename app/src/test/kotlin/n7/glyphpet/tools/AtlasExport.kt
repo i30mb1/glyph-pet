@@ -11,6 +11,8 @@ import n7.glyphpet.pet.PetEngine
 import n7.glyphpet.pet.PetState
 import n7.glyphpet.pet.Rarity
 import n7.glyphpet.pet.Scene
+import n7.glyphpet.pet.Shading
+import n7.glyphpet.pet.Blows
 import n7.glyphpet.pet.Signature
 import n7.glyphpet.pet.Signatures
 import n7.glyphpet.pet.Species
@@ -127,6 +129,7 @@ class AtlasExport {
                     } else Drawn.clip(a, id, st.ordinal)
                     clipJson(id, frames)
                 })
+                sb.append(',').append(clipJson("shiny", shiny(SpeciesForms.of(a.kind, st))))
                 sb.append('}')
             }
             sb.append('}')
@@ -170,10 +173,26 @@ class AtlasExport {
             "turn" to (if (Living3D.handles(s)) custom(s, 4800) { _, t ->
                 scene(s, yaw = (0.7 * sin(2 * PI * t / 4800.0)).toFloat(), tilt = (0.4 * sin(2 * PI * t / 4800.0 + 1)).toFloat())
             } else null),
+            "shiny" to shiny(s),
+            "wind" to (if (Blows.handles(s.kind)) custom(s, 5600) { _, t ->
+                // Blown on for two seconds, harder then softer, then left to drift home.
+                scene(s).copy(wind = if (t < 2400) (0.6f + 0.4f * sin(PI * t / 2400.0).toFloat()) else 0f)
+            } else null),
+            "clap" to custom(s, 2400, start = { it.clap() }) { _, _ -> scene(s) },
             "grow" to custom(s, 6400, start = { e ->
                 if (s.stage == Stage.BABY) e.hatchOf(SpeciesForms.of(s.kind, Stage.TEEN), golden = false) else e.evolveInto(s)
             }) { _, _ -> scene(s) },
         )
+    }
+
+    /** The shiny pet, calm, while the light swings from one side to the other and back, as a lean of the phone does. */
+    private fun shiny(s: Species): List<IntArray> = try {
+        custom(s, 5200) { _, t ->
+            Shading.light = (0.85 * sin(2 * PI * t / 5200.0)).toFloat()
+            scene(s).copy(shiny = true)
+        }
+    } finally {
+        Shading.light = Shading.DEFAULT_LIGHT
     }
 
     private fun scene(s: Species, tilt: Float = 0f, tiltY: Float = 1f, yaw: Float = 0f) =

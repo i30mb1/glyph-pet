@@ -190,6 +190,9 @@
     <string name="matrix_hide_text">The matrix goes out while the phone lies screen up or is in a pocket, and lights up again when you pick it up.</string>
     <string name="matrix_vibration_title">Vibration</string>
     <string name="matrix_vibration_text">The phone answers with a soft tap when you feed the pet, crack an egg, play or watch it grow. Never while it sleeps. Follows the system touch feedback setting.</string>
+    <string name="shiny_label">✦ Shiny: a rare find, one hatch in twenty</string>
+    <string name="matrix_mic_title">Hears you</string>
+    <string name="matrix_mic_text">Blow on the pet and the wind carries it; clap and it starts. Only while it is live on the matrix, and only how loud it is: nothing is recorded or sent.</string>
     <string name="matrix_notify_title">Wakes for notifications</string>
     <string name="matrix_notify_text">The pet looks up when a notification comes and shows a phone while a call is missed. Glyph Pet sees only the kind of a notification, never its text.</string>
 
