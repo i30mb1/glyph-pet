@@ -10,13 +10,15 @@ class BlowsTest {
 
     private fun engine(seed: Int = 7) = PetEngine(Random(seed), autoHabits = false, autoSignatures = false)
 
-    private val kinds = SpeciesCatalog.sprites.map { it.kind }
+    private val sprites = SpeciesCatalog.sprites.map { it.kind }
+    private val kinds = sprites + n7.glyphpet.pet.drawn.Drawn.all.map { it.kind }
 
     @Test
     fun `every kind has its own way with the wind`() {
         val missing = kinds.filter { !Blows.handles(it) }
         assertTrue("no way with the wind: $missing", missing.isEmpty())
-        val ways = Blows.WAYS.entries.groupBy { (_, w) -> Triple(w.move, w.face, w.debris) }.filter { it.value.size > 1 }
+        // A drawn hero's face is its own drawing: the move and the debris alone must tell every kind apart.
+        val ways = Blows.WAYS.entries.groupBy { (_, w) -> w.move to w.debris }.filter { it.value.size > 1 }
         assertTrue("the same way with the wind: ${ways.values.map { g -> g.map { it.key } }}", ways.isEmpty())
     }
 
@@ -36,14 +38,14 @@ class BlowsTest {
                 for (i in f.indices) if (f[i] > 0 && !GlyphMatrixSpec.isVisible(i % 25, i / 25)) problems += "${s.id}: lit off the matrix"
             }
             if (changed < 10) problems += "${s.id}: the wind hardly showed ($changed frames)"
-            if (e.shown.face != Blows.of(kind)!!.face) problems += "${s.id}: face ${e.shown.face} in the wind"
+            if (kind in sprites && e.shown.face != Blows.of(kind)!!.face) problems += "${s.id}: face ${e.shown.face} in the wind"
             // Left alone for long enough, it is itself again: at home, whole and as bright as ever.
             var last = IntArray(0)
             repeat(120) { last = e.tick(80, Scene(s, Mood.CONTENT)) }
             val ref = calm.tick(80, Scene(s, Mood.CONTENT))
             if (kotlin.math.abs(e.shown.dx) > PetEngine.walkRange(s).last) problems += "${s.id}: not home (dx ${e.shown.dx})"
             if (last.sum() < ref.sum() * 0.8f) problems += "${s.id}: still faded after the wind"
-            if (e.shown.face == Blows.of(kind)!!.face && Blows.of(kind)!!.face != Face.IDLE) problems += "${s.id}: still makes its wind face"
+            if (kind in sprites && e.shown.face == Blows.of(kind)!!.face && Blows.of(kind)!!.face != Face.IDLE) problems += "${s.id}: still makes its wind face"
         }
         assertTrue(problems.take(30).joinToString("\n"), problems.isEmpty())
     }
@@ -51,7 +53,7 @@ class BlowsTest {
     @Test
     fun `the wind never cuts a habit, and a sleeper does not stir`() {
         val problems = mutableListOf<String>()
-        for (kind in kinds) {
+        for (kind in sprites) {
             val s = SpeciesForms.of(kind, Stage.ADULT)
             if (s.habit.none) continue
             val e = engine()

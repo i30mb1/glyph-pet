@@ -68,6 +68,24 @@ object Startles {
         "planet" to Style(Move.SPIN, Face.DIZZY, Mark.STARS, 1400L),
         "raccoon" to Style(Move.DART, Face.SCARED, Mark.SWEAT, 1400L),
         "cloud" to Style(Move.JOLT, Face.ANGRY, Mark.ZAP),
+        // The drawn heroes: their whole picture jolts; their face is their own drawing, so the move and the mark tell.
+        "phoenix" to Style(Move.JUMP, Face.IDLE, Mark.PUFF),
+        "blackhole" to Style(Move.SHRINK, Face.IDLE, Mark.RINGS),
+        "swarm" to Style(Move.DART, Face.IDLE, Mark.SPARK, 1400L),
+        "dragon" to Style(Move.FREEZE, Face.IDLE, Mark.PUFF),
+        "mimic" to Style(Move.JUMP, Face.IDLE, Mark.BANG),
+        "moonrabbit" to Style(Move.BOUNCE, Face.IDLE, Mark.STARS, 1300L),
+        "schrodinger" to Style(Move.SHRINK, Face.IDLE, Mark.QUESTION, 1400L),
+        "lavalamp" to Style(Move.BOUNCE, Face.IDLE, Mark.PUFF, 1300L),
+        "paperboat" to Style(Move.TOPPLE, Face.IDLE, Mark.RINGS, 1600L),
+        "pebble" to Style(Move.JOLT, Face.IDLE, Mark.DUST),
+        "sprout" to Style(Move.DUCK, Face.IDLE, Mark.QUESTION, 1300L),
+        "spider" to Style(Move.DUCK, Face.IDLE, Mark.BANG, 1300L),
+        "astronaut" to Style(Move.SPIN, Face.IDLE, Mark.BANG, 1400L),
+        "kodama" to Style(Move.SPIN, Face.IDLE, Mark.NOTE, 1300L),
+        "kraken" to Style(Move.DART, Face.IDLE, Mark.RINGS, 1400L),
+        "glitch" to Style(Move.JOLT, Face.IDLE, Mark.QUESTION),
+        "shadow" to Style(Move.SHRINK, Face.IDLE, Mark.SPIKES, 1400L),
     )
 
     private val FALLBACK = Style(Move.JUMP, Face.SCARED, Mark.BANG)

@@ -47,6 +47,7 @@ object Blows {
     enum class Debris {
         NONE, PUFF, FUR, LEAVES, FLUFF, FEATHER, DOWN, SNOW, SPORES, SAND, CRUMBS, DUST, FOAM, SPRAY, BUBBLES, RIPPLE,
         DROPS, WISPS, STATIC, ROAR, POLLEN, TEARS, SPARKLE, STARDUST, LITTER,
+        EMBERS, INFALL, FLIES, FIREBREATH, COINS,
     }
 
     /** One kind's way with the wind. [push]: how far it goes at full wind (cells); [speed]: how fast (cells/s). */
@@ -83,6 +84,24 @@ object Blows {
         "gem" to Way(Move.HOLD, Face.IDLE, Debris.SPARKLE),
         "planet" to Way(Move.ROLL, Face.IDLE, Debris.STARDUST, push = 3f, speed = 5f),
         "raccoon" to Way(Move.PUSH, Face.SCARED, Debris.LITTER, push = 2f, speed = 4f),
+        // The drawn heroes: their whole picture moves; the face is their own drawing, so only the move and debris tell.
+        "phoenix" to Way(Move.HOLD, Face.IDLE, Debris.EMBERS),
+        "blackhole" to Way(Move.HOLD, Face.IDLE, Debris.INFALL),
+        "swarm" to Way(Move.PUSH, Face.IDLE, Debris.FLIES, push = 5f, speed = 7f),
+        "dragon" to Way(Move.HOLD, Face.IDLE, Debris.FIREBREATH),
+        "mimic" to Way(Move.HOLD, Face.IDLE, Debris.COINS),
+        "moonrabbit" to Way(Move.HOP, Face.IDLE, Debris.STARDUST, push = 4f),
+        "schrodinger" to Way(Move.DIM, Face.IDLE, Debris.STATIC, push = 0f),
+        "lavalamp" to Way(Move.HOLD, Face.IDLE, Debris.BUBBLES),
+        "paperboat" to Way(Move.PUSH, Face.IDLE, Debris.RIPPLE, push = 5f, speed = 6f),
+        "pebble" to Way(Move.HOLD, Face.IDLE, Debris.LEAVES),
+        "sprout" to Way(Move.HOLD, Face.IDLE, Debris.FLUFF),
+        "spider" to Way(Move.PUSH, Face.IDLE, Debris.WISPS, push = 3f, speed = 4f),
+        "astronaut" to Way(Move.WRAP, Face.IDLE, Debris.STARDUST, speed = 6f),
+        "kodama" to Way(Move.LIFT, Face.IDLE, Debris.LEAVES, push = 2f, speed = 4f),
+        "kraken" to Way(Move.PUSH, Face.IDLE, Debris.FOAM, push = 2f, speed = 3f),
+        "glitch" to Way(Move.TUMBLE, Face.IDLE, Debris.STATIC, speed = 9f),
+        "shadow" to Way(Move.DIM, Face.IDLE, Debris.WISPS, push = 0f),
     )
 
     fun of(kind: String?): Way? = WAYS[kind]
@@ -102,6 +121,8 @@ object Blows {
         val from: From, val rate: Float, val vx: ClosedFloatingPointRange<Float>, val vy: ClosedFloatingPointRange<Float>,
         val gravity: Float = 0f, val wobble: Float = 0f, val life: LongRange, val value: Int, val shape: Shape,
         val length: Int = 1, val twinkle: Boolean = false,
+        /** Flies to the middle of the pet instead of along the wind (pulled in). */
+        val inward: Boolean = false,
     )
 
     private const val B = SpeciesRenderer.BODY
@@ -131,6 +152,11 @@ object Blows {
         Debris.SPARKLE to Spec(From.AROUND, 5f, 0f..0f, 0f..0f, life = 300L..500L, value = SpeciesRenderer.BRIGHT, shape = Shape.PLUS, twinkle = true),
         Debris.STARDUST to Spec(From.DOWNWIND, 24f, 5f..8f, -0.4f..0.4f, life = 700L..1100L, value = (B * 0.7f).toInt(), shape = Shape.DOT, twinkle = true),
         Debris.LITTER to Spec(From.EDGE, 3f, 9f..13f, -1f..1f, wobble = 1.5f, life = 2400L..3000L, value = (B * 1.1f).toInt(), shape = Shape.SCRAP),
+        Debris.EMBERS to Spec(From.TOP, 14f, 6f..10f, -3f..-1f, life = 600L..1000L, value = (B * 1.6f).toInt(), shape = Shape.DOT, twinkle = true),
+        Debris.INFALL to Spec(From.EDGE, 14f, 9f..12f, 0f..0f, life = 3000L..3000L, value = (B * 0.7f).toInt(), shape = Shape.TRAIL, length = 2, inward = true),
+        Debris.FLIES to Spec(From.BODY, 14f, 6f..12f, -3f..3f, wobble = 2f, life = 600L..1000L, value = (B * 1.4f).toInt(), shape = Shape.DOT, twinkle = true),
+        Debris.FIREBREATH to Spec(From.MOUTH, 7f, -11f..-8f, -0.6f..0.6f, life = 500L..700L, value = (B * 1.5f).toInt(), shape = Shape.TRAIL, length = 3),
+        Debris.COINS to Spec(From.BODY, 5f, 4f..8f, -7f..-4f, gravity = 20f, life = 1200L..1600L, value = (B * 1.6f).toInt(), shape = Shape.DROP),
     )
 
     private val STREAK = Spec(From.EDGE, 6f, 20f..30f, 0f..0f, life = 1600L..1600L, value = 420, shape = Shape.TRAIL, length = 3)
@@ -188,10 +214,21 @@ object Blows {
                 From.MOUTH -> box.mouth.first.toFloat() to box.mouth.second.toFloat()
                 From.AROUND -> between(box.left - 2, box.right + 2).toFloat() to between(box.top - 2, box.bottom + 2).toFloat()
             }
-            val life = if (s.life.last > s.life.first) random.nextLong(s.life.first, s.life.last + 1) else s.life.first
+            var life = if (s.life.last > s.life.first) random.nextLong(s.life.first, s.life.last + 1) else s.life.first
             fun pick(r: ClosedFloatingPointRange<Float>) = r.start + random.nextFloat() * (r.endInclusive - r.start)
+            var vx = dir * pick(s.vx) * (0.6f + 0.4f * wind)
+            var vy = pick(s.vy)
+            if (s.inward) {
+                // Pulled straight in to the middle of the pet, and gone when it gets there.
+                val tx = (box.left + box.right) / 2f - x
+                val ty = (box.top + box.bottom) / 2f - y
+                val d = kotlin.math.hypot(tx, ty).coerceAtLeast(1f)
+                val speed = pick(s.vx)
+                vx = tx / d * speed; vy = ty / d * speed
+                life = ((d - 2f).coerceAtLeast(0.5f) / speed * 1000).toLong()
+            }
             bits += Bit(
-                x, y, dir * pick(s.vx) * (0.6f + 0.4f * wind), pick(s.vy), life, life, s.value, s.shape.ordinal, s.length,
+                x, y, vx, vy, life, life, s.value, s.shape.ordinal, s.length,
                 s.gravity, s.wobble, s.twinkle, random.nextFloat() * 6.28f, (box.bottom + 1).toFloat(),
             )
         }

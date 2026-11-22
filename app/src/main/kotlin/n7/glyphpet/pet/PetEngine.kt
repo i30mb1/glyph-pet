@@ -1027,6 +1027,54 @@ class PetEngine(
     }
 
     /**
+     * A drawn hero in the wind ([Blows]) or startled by a clap ([Startles]): its whole picture is pushed, lifted, turned
+     * or faded its own way, with its own debris and mark. [free]: nothing else is going on, so the wind may move it.
+     */
+    private fun drawnBlownAndStartled(dtMs: Long, species: Species, scene: Scene, free: Boolean, frame: IntArray) {
+        val way = Blows.of(species.kind)
+        val startle = if (action == Action.STARTLE) Startles.of(species.kind) else null
+        if (way == null && startle == null) { calmWind(); return }
+        // Where the hero is in its picture: the box round what is lit.
+        var l = 25; var r = -1; var tp = 25; var b = -1
+        for (i in frame.indices) if (frame[i] >= BODY / 3) { val cx = i % SIZE; val cy = i / SIZE; l = minOf(l, cx); r = maxOf(r, cx); tp = minOf(tp, cy); b = maxOf(b, cy) }
+        if (r < 0) { l = 8; r = 16; tp = 8; b = 16 }
+        var dx = 0; var dy = 0; var angle = 0f; var dim = 1f
+        if (way != null) {
+            val wind = windMotion(dtMs, way, if (free) scene.wind else 0f, scene, b - tp + 1)
+            dx += windPush.roundToInt() + if (way.move == Blows.Move.HOLD && blown && scene.wind > 0.45f) (if ((time / 90) % 2 == 0L) -1 else 1) else 0
+            dy -= blowLift() + if (blowHopMs >= 0) HOP.getOrElse((blowHopMs / 80).toInt()) { 0 }.coerceAtLeast(0) else 0
+            angle += blowAngle
+            dim *= blowDim
+            val box = Blows.Box(l + dx, r + dx, tp + dy, b + dy, listOf((l + r) / 2 + dx to (tp + b) / 2 + dy), (l + r) / 2 + dx to (tp + b) / 2 + 1 + dy)
+            Blows.step(blowBits, dtMs, wind, windDir, way, box, random)
+        }
+        val startleMs = startle?.let { it.durationMs - actionLeftMs } ?: 0L
+        if (startle != null) {
+            dx += Startles.dx(startle, startleMs, startleDir)
+            dy -= Startles.lift(startle, startleMs)
+            angle += Startles.angle(startle, startleMs)
+            dim *= Startles.dim(startle, startleMs)
+        }
+        val wraps = way != null && (way.move == Blows.Move.WRAP || way.move == Blows.Move.TUMBLE)
+        if (abs(angle) > 0.03f) TiltStyle.rotate(frame, l, r, tp, b, angle)
+        if (dx != 0 || dy != 0) {
+            val src = frame.copyOf()
+            frame.fill(0)
+            for (y in 0 until SIZE) for (x0 in 0 until SIZE) {
+                val v = src[y * SIZE + x0]
+                if (v == 0) continue
+                var nx = x0 + dx
+                val ny = y + dy
+                if (wraps) nx = Math.floorMod(nx, SIZE)
+                if (GlyphMatrixSpec.isVisible(nx, ny)) frame[ny * SIZE + nx] = maxOf(frame[ny * SIZE + nx], v)
+            }
+        }
+        if (dim < 0.995f) for (i in frame.indices) frame[i] = (frame[i] * dim).toInt()
+        if (startle != null) Startles.mark(frame, startle, startleMs, l + dx, r + dx, tp + dy, b + dy, startleDir)
+        if (blowBits.isNotEmpty()) Blows.draw(frame, blowBits, windDir, time)
+    }
+
+    /**
      * What a trick or a signature plays with. On the desk the phone cannot be tilted: turning it round on the table is
      * the sideways lean, so every one of them is playable without lifting the phone.
      */
@@ -1331,13 +1379,30 @@ class PetEngine(
     private fun updateWind(dtMs: Long, species: Species, scene: Scene, asleep: Boolean, sliding: Boolean, own: HabitFrame?): Blows.Way? {
         val way = Blows.of(species.kind)
         if (way == null) {
-            windPush = 0f; blown = false; blowLiftF = 0f; blowAngle = 0f; blowDim = 1f; blowHopMs = -1; blowHopTo = 0f
-            blowBits.clear()
+            calmWind()
             return null
         }
         val free = !asleep && action == Action.NONE && own == null && habitMs < 0 && signatureMs < 0 && trickMs < 0 &&
             feastMs < 0 && foodY == null && !sliding
-        val wind = if (free) scene.wind else 0f
+        val wind = windMotion(dtMs, way, if (free) scene.wind else 0f, scene, species.height)
+        val left = species.ox + x.roundToInt() + windPush.roundToInt()
+        val top = species.oy - blowLift()
+        val box = Blows.Box(
+            left, left + species.width - 1, top, top + species.height - 1,
+            species.eyes.map { (ex, ey) -> left + ex to top + ey }.ifEmpty { listOf(left + species.width / 2 to top + species.height / 3) },
+            species.mouth?.let { (mx, my) -> left + mx + 1 to top + my } ?: (left + species.width / 2 to top + species.height / 2),
+        )
+        Blows.step(blowBits, dtMs, wind, windDir, way, box, random)
+        return way
+    }
+
+    private fun calmWind() {
+        windPush = 0f; blown = false; blowLiftF = 0f; blowAngle = 0f; blowDim = 1f; blowHopMs = -1; blowHopTo = 0f
+        blowBits.clear()
+    }
+
+    /** Moves the blown body on by [way] in a wind of [wind] (0 when the pet is not free for it); returns the wind felt. */
+    private fun windMotion(dtMs: Long, way: Blows.Way, wind: Float, scene: Scene, height: Int): Float {
         val wasBlown = blown
         blown = wind >= Blows.FELT
         if (blown && !wasBlown) windDir = when {
@@ -1379,7 +1444,7 @@ class PetEngine(
         blowDim += ((if (way.move == Blows.Move.DIM && blown) 1f - 0.75f * wind else 1f) - blowDim) * (dtMs / 400f).coerceAtMost(1f)
         blowAngle = when (way.move) {
             // Rolled along: it turns as far as it went, round its own middle.
-            Blows.Move.ROLL -> windPush / (species.height / 2f).coerceAtLeast(2f)
+            Blows.Move.ROLL -> windPush / (height / 2f).coerceAtLeast(2f)
             Blows.Move.TUMBLE -> windPush * 0.45f
             Blows.Move.FLIP -> {
                 val to = if (blown) PI.toFloat() else 0f
@@ -1387,15 +1452,7 @@ class PetEngine(
             }
             else -> 0f
         }
-        val left = species.ox + x.roundToInt() + windPush.roundToInt()
-        val top = species.oy - blowLift()
-        val box = Blows.Box(
-            left, left + species.width - 1, top, top + species.height - 1,
-            species.eyes.map { (ex, ey) -> left + ex to top + ey }.ifEmpty { listOf(left + species.width / 2 to top + species.height / 3) },
-            species.mouth?.let { (mx, my) -> left + mx + 1 to top + my } ?: (left + species.width / 2 to top + species.height / 2),
-        )
-        Blows.step(blowBits, dtMs, wind, windDir, way, box, random)
-        return way
+        return wind
     }
 
     private fun blowLift(): Int = blowLiftF.roundToInt()
