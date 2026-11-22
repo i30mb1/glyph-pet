@@ -206,6 +206,8 @@ object SpeciesRenderer {
     /** The bubbles to try, in order, and where the food goes in each (its left and top). */
     private val THOUGHTS = listOf(THOUGHT_RIGHT to (3 to 1), THOUGHT_LEFT to (1 to 1), THOUGHT_BARE_RIGHT to (2 to 0), THOUGHT_BARE_LEFT to (0 to 0))
     private const val THOUGHT_DIM = 700
+    /** The food in the thought glows up and down once in this long: a longing, not a blinking bulb. */
+    private const val THOUGHT_PULSE_MS = 1800L
 
     /** The pupil of a sleeper's opened eye, in its 2x2 eye slot. */
     private val PEEK_PUPIL = 1 to 1
@@ -428,7 +430,7 @@ object SpeciesRenderer {
                     glyph(frame, rows, x, y, hashValue = THOUGHT_DIM)
                     // What it is hungry for, its own food, glowing up and down.
                     val (ix, iy) = THOUGHTS.first { it.first === rows }.second
-                    val glow = if ((timeMs / 450) % 2 == 0L) BRIGHT else BRIGHT * 3 / 5
+                    val glow = BRIGHT * 3 / 5 + (BRIGHT * 2 / 5 * Breaths.swell(timeMs, THOUGHT_PULSE_MS)).toInt()
                     glyph(frame, Cravings.of(species.kind), x + ix, y + iy, hashValue = glow * 3 / 5, brightValue = glow)
                 }
                 // Each kind its own sadness ([MoodSigns]); the tear for those whose sign it is.

@@ -9,8 +9,9 @@ import kotlin.math.floor
 /**
  * The heroes that breathe at rest, each its own way and with one part of the body only: the face never moves.
  * The frog's throat sac swells under its mouth, the jellyfish's bell pulses wider, the cloud's edge billows, the slime
- * settles and spreads, a wave of light runs down the axolotl's frills, the ghost's hem ripples. Asleep, slower and
- * fainter. Drawn over the finished body by [SpeciesRenderer.render] when the pet is at rest.
+ * settles and spreads, a wave of light runs down the axolotl's frills, the ghost's hem ripples, the cat's flanks fill
+ * and its whiskers reach. Asleep, slower and fainter. Drawn over the finished body by [SpeciesRenderer.render] when
+ * the pet is at rest.
  */
 object Breaths {
     const val PERIOD_MS = 3000L
@@ -19,7 +20,7 @@ object Breaths {
     /** The ghost's hem flows one cell in this long. */
     const val HEM_CELL_MS = 700f
 
-    private val KINDS = setOf("frog", "jelly", "cloud", "slime", "axolotl", "ghost")
+    private val KINDS = setOf("frog", "jelly", "cloud", "slime", "axolotl", "ghost", "cat")
 
     fun has(kind: String): Boolean = kind in KINDS
 
@@ -41,6 +42,7 @@ object Breaths {
             "slime" -> s.slime()
             "axolotl" -> s.axolotl()
             "ghost" -> s.ghost(asleep)
+            "cat" -> s.cat()
         }
     }
 
@@ -192,6 +194,32 @@ object Breaths {
         /** The smallest repeat of the lit pattern of row [y] between [l] and [r] that has a gap, or null. */
         private fun period(y: Int, l: Int, r: Int): Int? = (2..6).firstOrNull { p ->
             r - l + 1 >= 2 * p && (l..r).any { !lit(it, y) } && (l..r - p).all { lit(it, y) == lit(it + p, y) }
+        }
+
+        /**
+         * The ribs fill: the flanks push out a cell at the chest, just under the mouth, easing away to nothing at the
+         * eyes and at the feet. The breath only ever lights cells outside the silhouette, so the carved face cannot
+         * move; squared, so the lion is plainly out of breath at the top of it and plainly still at the bottom.
+         * On the lion these are the rows its mane ends in, so what breathes is the mane over its ribs.
+         */
+        fun cat() {
+            val (_, my) = species.mouth ?: return
+            val top = (species.eyes.minOfOrNull { it.second } ?: y0) + 1
+            // The last row is the feet: they stay planted.
+            val foot = y1 - 1
+            if (foot <= top) return
+            // The chest is under the mouth's slot (its two rows), and always a row inside the band: a kitten is small
+            // enough that the row under its mouth is already the ground.
+            val chest = (my + 2).coerceIn(top + 1, foot)
+            val k = a * a
+            for (y in top..foot) {
+                val (l, r) = span(y) ?: continue
+                val fall = if (y <= chest) (y - top).toFloat() / (chest - top) else (foot - y).toFloat() / (foot - chest)
+                if (fall <= 0f) continue
+                val v = body * 1.6f * k * fall
+                up(l - 1, y, v)
+                up(r + 1, y, v)
+            }
         }
     }
 }

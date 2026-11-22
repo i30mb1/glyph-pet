@@ -2,6 +2,7 @@ package n7.glyphpet.pet
 
 import kotlin.math.PI
 import kotlin.math.cos
+import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
@@ -131,14 +132,17 @@ internal object KindCharge2 {
         val x0 = midX(s) - 2
         val y0 = max(1, top(s) - rows.size - 1)
         val h = rows.size
-        val beat = st.live && (st.pace * 0.8).toInt() % 2 == 0
+        // A heartbeat, not a bulb: a quick rise and a slower fall, once a beat of the pet's work.
+        val beat = if (!st.live) 0f else (st.pace * 0.4).let { it - floor(it) }.toFloat().let {
+            if (it < 0.18f) it / 0.18f else ((1f - it) / 0.82f).coerceAtLeast(0f)
+        }
         rows.forEachIndexed { y, row ->
             row.forEachIndexed { x, c ->
                 if (c != '#') return@forEachIndexed
                 val full = st.done || y + 0.5f > h - level(st) * h
                 val v = when {
                     st.still -> if (full) FULL / 2 else EMPTY / 2
-                    full -> if (beat) BRIGHT else FULL
+                    full -> FULL + ((BRIGHT - FULL) * beat).toInt()
                     else -> EMPTY
                 }
                 set(f, x0 + x, y0 + y, v)

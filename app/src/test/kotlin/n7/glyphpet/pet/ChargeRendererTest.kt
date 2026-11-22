@@ -69,14 +69,16 @@ class ChargeRendererTest {
     }
 
     @Test
-    fun `more watts change the picture more often`() {
+    fun `more watts beat faster`() {
         val cat = SpeciesCatalog.get("cat")!!
-        fun changes(watts: Float): Int {
+        // The charging speed is the rhythm, not the number of frames that differ: a pulse that eases up and down
+        // changes every frame at any speed. Counted as the peaks of the whole picture's light.
+        fun beats(watts: Float): Int {
             val engine = PetEngine(Random(3))
-            val frames = (0 until 60).map { engine.tick(80, charging(cat, watts)).toList() }
-            return frames.zipWithNext().count { (a, b) -> a != b }
+            val light = (0 until 120).map { engine.tick(80, charging(cat, watts)).sum() }
+            return light.windowed(3).count { (a, b, c) -> b > a && b >= c }
         }
-        assertTrue(changes(65f) > changes(5f))
+        assertTrue(beats(65f) > beats(5f))
     }
 
     @Test

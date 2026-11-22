@@ -85,13 +85,77 @@ object MoodSigns {
 
     private fun mouthOf(s: Species) = s.mouth ?: (s.width / 2 - 1 to s.height / 2)
 
+    /**
+     * A head nodding off: it dips over [NOD_FALL_MS], hangs there a moment, then comes back up slowly, and rests
+     * until the next one. How far it leans, in cells at the top of the body. A nod that snapped on and off read as
+     * the sprite glitching, not as a pet dozing.
+     */
+    private fun nod(ms: Long): Float {
+        val t = Math.floorMod(ms, NOD_EVERY_MS)
+        return NOD_LEAN * when {
+            t < NOD_FALL_MS -> ease(t.toFloat() / NOD_FALL_MS)
+            t < NOD_FALL_MS + NOD_HOLD_MS -> 1f
+            t < NOD_FALL_MS + NOD_HOLD_MS + NOD_RISE_MS -> 1f - ease((t - NOD_FALL_MS - NOD_HOLD_MS).toFloat() / NOD_RISE_MS)
+            else -> 0f
+        }
+    }
+
+    private fun ease(p: Float) = p.coerceIn(0f, 1f).let { it * it * (3 - 2 * it) }
+
+    /** One nod: a quick dip, a moment hanging, a slow lift, then a rest before the next. */
+    private const val NOD_EVERY_MS = 3400L
+    private const val NOD_FALL_MS = 420L
+    private const val NOD_HOLD_MS = 360L
+    private const val NOD_RISE_MS = 900L
+    private const val NOD_LEAN = 1.6f
+
+    /**
+     * Falling into sadness, and coming out of it again: the moment between the two faces. A pet does not change
+     * expression in a dissolve, it gives in first and cries after. Each kind falls the way it is sad
+     * ([Sad]): the ones that weep sink on their feet, a wilting one leans over, a breaking heart flinches back.
+     */
+    const val FALL_MS = 520L
+
+    /** How far into the fall the new face arrives: the body has already given in by then. */
+    const val FALL_FACE_AT = 0.55f
+
+    /** The shape of the fall: nothing, deepest as the face turns, and back to nothing. It must end where it began. */
+    private fun bump(p: Float): Float {
+        val down = ease((p / FALL_FACE_AT).coerceAtMost(1f))
+        val up = ease(((p - FALL_FACE_AT) / (1f - FALL_FACE_AT)).coerceIn(0f, 1f))
+        return down * (1f - up)
+    }
+
+    /** Rows the body sinks [p] (0..1) into its fall; negative is down. */
+    fun fallLift(kind: String, p: Float): Int = when (sad(kind)) {
+        // Weepers and a breaking heart sink where they stand; the rest keep their feet and only lean or dim.
+        Sad.TEAR, Sad.TWO_TEARS, Sad.HEARTBREAK -> -(bump(p) + 0.4f).toInt()
+        else -> 0
+    }
+
+    /** How bright the body is drawn [p] (0..1) into its fall, 1 as it is: the light goes out of it and comes back. */
+    fun fallDim(p: Float): Float = 1f - 0.22f * bump(p)
+
+    /** The leaning part of the fall, for the kinds that bend rather than sink; 0 for the rest. */
+    fun fallLean(kind: String, p: Float): Float = when (sad(kind)) {
+        Sad.WILT -> 1.3f * bump(p)
+        Sad.RAINCLOUD -> 0.7f * bump(p)
+        else -> 0f
+    }
+
+    /** Bends the body of [s] drawn at ([ox], [oy]) over, [p] into its fall. */
+    fun drawFall(f: IntArray, s: Species, ox: Int, oy: Int, p: Float) {
+        val lean = fallLean(s.kind, p)
+        if (lean != 0f) lean(f, ox, ox + s.width - 1, oy, oy + s.height - 1, lean)
+    }
+
     /** Tired, on top of its yawns and heavy eyes. */
     fun drawTired(f: IntArray, s: Species, ox: Int, oy: Int, ms: Long) {
         val r = ox + s.width - 1
         val b = oy + s.height - 1
         when (tired(s.kind)) {
             Tired.DROOP -> if ((ms / 900) % 2 == 1L) sag(f, ox, r, oy, b)
-            Tired.NOD -> if ((ms % 2400) in 1600L..2200L) lean(f, ox, r, oy, b, 1.2f)
+            Tired.NOD -> lean(f, ox, r, oy, b, nod(ms))
             Tired.SWEAT -> {
                 val k = ((ms / 250) % 4).toInt()
                 light(f, r + 1, oy + 1 + k, BRIGHT * (4 - k) / 4)

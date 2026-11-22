@@ -57,6 +57,15 @@ class Habit(val id: String, val frames: List<HabitFrame>) {
     /** No habit at all (a baby): nothing ever plays. */
     val none: Boolean get() = frames.isEmpty()
 
+    /**
+     * The habit redraws the body or moves the whole of it, rather than only laying something over it: curling up,
+     * sinking into a toaster, flattening out. Those are real changes of pose and the engine dissolves into and out
+     * of them; a tail flicking or a fly buzzing past is the same body moving and must not dissolve.
+     */
+    val redrawsBody: Boolean by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        frames.any { it.rows != null || it.dx != 0 || it.dy != 0 }
+    }
+
     companion object {
         val NONE = Habit("none", emptyList())
     }

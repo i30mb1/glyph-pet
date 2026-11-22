@@ -778,6 +778,36 @@ class PetEngine(
     private var fadeMs = -1L
     private var lastLook: List<Any?>? = null
 
+    /** The habit playing now redraws the body ([Habit.redrawsBody]), so it is worth a cross-dissolve. */
+    private var habitRedraws = false
+
+    /** How far into a fall into sadness, or out of one, the pet is (-1: none), and the face it is falling toward. */
+    private var fallMs = -1L
+    private var fallTo: Face? = null
+
+    /**
+     * The moment a pet gives in to sadness, or straightens up out of it ([MoodSigns.FALL_MS]): the body sinks or
+     * bends first and only then does the face change, so there is something to watch between the two faces. Returns
+     * the face to draw this frame: the old one until the fall is far enough along, [wanted] after that.
+     * A habit, a sleeper and a pet with no face yet fall through untouched.
+     */
+    private fun updateFall(dtMs: Long, species: Species, wanted: Face, own: HabitFrame?): Face {
+        val was = lastFace
+        val sad = { f: Face -> f == Face.SAD }
+        if (fallMs < 0) {
+            val starts = was != null && own == null && wanted != was && (sad(wanted) != sad(was)) &&
+                was !in SHUT_FACES && wanted !in SHUT_FACES
+            if (!starts) return wanted
+            fallMs = 0
+            fallTo = wanted
+        }
+        // Whatever it was falling toward is no longer wanted: it straightens up where it is.
+        if (own != null || wanted != fallTo) { fallMs = -1; fallTo = null; return wanted }
+        fallMs += dtMs
+        if (fallMs >= MoodSigns.FALL_MS) { fallMs = -1; fallTo = null; return wanted }
+        return if (fallMs.toFloat() / MoodSigns.FALL_MS < MoodSigns.FALL_FACE_AT) was ?: wanted else wanted
+    }
+
     /**
      * One frame. When what the pet is doing changes (a new mood face, a reaction, a habit, the charger, a game, a
      * signature, a meal, a big moment), the old frame dissolves under the new one for [FADE_MS] instead of cutting.
@@ -788,8 +818,13 @@ class PetEngine(
         if (scene.shiny && scene.egg == null && moment == null && trickMs < 0 && signatureMs < 0 && feastMs < 0 && !shown.charging && !typeOn) {
             Shiny.draw(frame, time, Shading.light)
         }
-        val look = listOf(shown.face, shown.habit, shown.charging, trickMs >= 0, signatureMs >= 0, feastMs >= 0, moment != null, scene.egg != null, scene.species?.id,
-            typeOn, if (typeOn) typeStage else -1)
+        // What the pet is doing, for the cross-dissolve below. A habit only counts when it redraws the body
+        // ([Habit.redrawsBody]): a hedgehog curling into a ball is a change of pose and wants the dissolve, while a
+        // tail flicking is the same body moving and must flick, not fade in and out of thin air.
+        // [Scene.alsoSad] is in it because it brings the rain without changing the face: without it the sky would
+        // change with nothing dissolving at all.
+        val look = listOf(shown.face, shown.habit && habitRedraws, shown.charging, trickMs >= 0, signatureMs >= 0, feastMs >= 0, moment != null, scene.egg != null, scene.species?.id,
+            typeOn, if (typeOn) typeStage else -1, scene.alsoSad)
         val prev = lastOut
         // A change in the middle of a fade starts from what was on the matrix then, so nothing jumps.
         if (lastLook != null && look != lastLook && prev != null) { fadeFrom = prev; fadeMs = 0 }
@@ -995,7 +1030,11 @@ class PetEngine(
         // The frame of the species' habit playing now, if one is. The pet answers a tilted or turned phone with its
         // eyes alone ([look]): shifting the top of its body sideways read as a glitch of the sprite, not as a lean.
         val own = if (habitMs >= 0) species.habit.frameAt(habitMs) else null
-        val face = own?.face ?: face(scene.mood, asleep, sliding)
+        val wanted = own?.face ?: face(scene.mood, asleep, sliding)
+        // Falling into sadness, or out of it: the body gives in first and the face follows ([MoodSigns.FALL_MS]), so
+        // the change is a moment the pet lives through, not two pictures dissolved into one another.
+        val face = updateFall(dtMs, species, wanted, own)
+        val fall = if (fallMs >= 0) fallMs.toFloat() / MoodSigns.FALL_MS else -1f
         // A new face comes through a blink: the old eyes shut, the new ones open (the cross-dissolve runs over it).
         val was = lastFace
         if (was != null && face != was && own == null && face !in SHUT_FACES && was !in SHUT_FACES) faceBlinkMs = FACE_BLINK_MS
@@ -1011,6 +1050,7 @@ class PetEngine(
             blowHopMs >= 0 -> HOP.getOrElse((blowHopMs / 80).toInt()) { 0 }.coerceAtLeast(0)
             else -> 0
         }.plus(blowLift() + windUp(way) + (startle?.let { Startles.lift(it, startleMs) } ?: 0))
+            .plus(if (fall >= 0f) MoodSigns.fallLift(species.kind, fall) else 0)
             // Never up through the round top edge: a big pet jumps only as high as there is room.
             .coerceAtMost(maxOf(0, species.oy - 4))
             // Carried right out through the top by the wind, and in again from the bottom.
@@ -1081,6 +1121,12 @@ class PetEngine(
                 .flatMap { listOf(top + it, top + it + 1) }.toSet()
             tiltStyle.draw(frame, left, left + species.width - 1, top, top + species.height - 1, scene.tilt, slideMs, rolled, slideMoved, jumpedMs, faceRows, solid = painter != null)
         }
+        // Giving in to sadness, or straightening up again: the kinds that bend do it here, over the finished body.
+        if (fall >= 0f) {
+            MoodSigns.drawFall(frame, species, species.ox + dx, species.oy - SpeciesRenderer.jumpOf(face) - lift, fall)
+            val dim = MoodSigns.fallDim(fall)
+            if (dim < 0.995f) for (i in frame.indices) frame[i] = (frame[i] * dim).toInt()
+        }
         // Tipped away from the viewer: the pet shrinks back, a little dimmer.
         val backTo = if (!asleep && scene.toward < -TOWARD) BACK_DIM else 1f
         backK += (backTo - backK) * (dtMs / BACK_EASE_MS.toFloat()).coerceAtMost(1f)
@@ -1107,6 +1153,7 @@ class PetEngine(
         if (blowBits.isNotEmpty()) Blows.draw(frame, blowBits, windDir, time)
         if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
         shown = Shown(face, habit = own != null, lift = lift, step = own, dx = dx, cheer = joyMs >= 0 && cuddle != null, shut = faceBlinkMs > 0)
+        habitRedraws = own != null && species.habit.redrawsBody
         return frame
     }
 
@@ -1537,6 +1584,10 @@ class PetEngine(
             targetX = x.coerceIn(range.first.toFloat(), range.last.toFloat())
         } else if (spot != null) {
             targetX = spot.toFloat()
+        } else if (scene.mood == Mood.TIRED) {
+            // Worn out: it stays where it is and nods off ([MoodSigns]). A step here read as the sprite jumping,
+            // since a tired pet has nothing else moving to explain it.
+            targetX = x
         } else if (wanderInMs <= 0) {
             targetX = random.nextInt(range.first, range.last + 1).toFloat()
             wanderInMs = when (scene.mood) {

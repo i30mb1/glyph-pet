@@ -19,8 +19,8 @@ class BreathsTest {
     }.filter { (x, y) -> GlyphMatrixSpec.isVisible(x, y) }.map { (x, y) -> y * 25 + x }
 
     @Test
-    fun `the six heroes breathe in all their forms`() {
-        assertEquals(setOf("frog", "jelly", "cloud", "slime", "axolotl", "ghost"), breathers.map { it.kind }.toSet())
+    fun `the breathers breathe in all their forms`() {
+        assertEquals(setOf("frog", "jelly", "cloud", "slime", "axolotl", "ghost", "cat"), breathers.map { it.kind }.toSet())
         val still = breathers.filter { s -> times.map { atRest(s, Face.IDLE, it).toList() }.toSet().size == 1 }
         // A baby ghost's hem has no teeth to ripple yet.
         assertTrue("these do not move: ${still.map { it.id }}", still.all { it.kind == "ghost" && it.stage == Stage.BABY })
