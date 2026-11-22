@@ -102,6 +102,81 @@ object SpeciesRenderer {
         }
     }
 
+    /**
+     * Each kind's own open eyes, for the left eye: a box of columns ex-1..ex+2 and rows ey-1..ey+2 around its 2x2 slot,
+     * '#' dark, 'o' bright, anything else left as drawn; the right eye is its mirror image. Drawn only where they fit
+     * ([eyeStyle]); elsewhere the eye stays a round 2x2 hole with a catchlight.
+     */
+    private val EYE_STYLES: Map<String, List<String>> = mapOf(
+        // A cat's slit: a bright line between two dark ones.
+        "cat" to listOf("    ", " #o#", " #o#", "    "),
+        // Slanting: the outer corner higher than the inner.
+        "fox" to listOf("    ", " #. ", " .##", "    "),
+        // A bead, low at the outer side.
+        "hedgehog" to listOf("    ", " .. ", " #. ", "    "),
+        // On a stalk: a bright ball over a dark eye.
+        "crab" to listOf(" o  ", " #. ", " .. ", "    "),
+        // Hollow sockets, three rows tall.
+        "ghost" to listOf("    ", " ## ", " ## ", " ## "),
+        // Glowing in the dark: a bright slit instead of a dark eye.
+        "bat" to listOf("    ", " oo ", " .. ", "    "),
+        // Compound eyes: a checker of bright and dark.
+        "bee" to listOf("    ", " o#o", " #o#", "    "),
+        // Tall dots near the middle.
+        "shroom" to listOf("    ", " .# ", " .# ", "    "),
+        // A reptile's squint: a heavy lid over a dark eye with a glint.
+        "dino" to listOf("    ", " .. ", " #o ", "    "),
+        // Tiny dots, set wide like a real axolotl's.
+        "axolotl" to listOf("    ", " #. ", " .. ", "    "),
+    )
+
+    /**
+     * The cells of [style] for the eye at ([ex], [ey]): (x, y, '#' or 'o'), mirrored for the right eye, moved [out]
+     * cells away from the middle of the face.
+     */
+    private fun styleCells(style: List<String>, ex: Int, ey: Int, mirror: Boolean, out: Int = 0): List<Triple<Int, Int, Char>> =
+        style.flatMapIndexed { j, row ->
+            row.mapIndexedNotNull { k, c ->
+                if (c != '#' && c != 'o') null else Triple(ex + (if (mirror) 2 - k + out else k - 1 - out), ey + j - 1, c)
+            }
+        }
+
+    /** A kind's own eyes as drawn: the pattern and how far it is moved out from the middle ([styleCells]). */
+    private class Style(val rows: List<String>, val out: Int)
+
+    /**
+     * [species]' own open eyes ([EYE_STYLES]) when they fit with the eyes looking [eyeDx] aside over [rows]: every cell on
+     * body, clear of the mouth, and no dark cell outside the eye's own slot touching the outline. Null otherwise.
+     */
+    private fun eyeStyle(species: Species, rows: List<String>, eyeDx: Int): Style? {
+        if (species.inverted) return null
+        val style = EYE_STYLES[species.kind] ?: return null
+        val mouth = species.mouth
+        fun at(x: Int, y: Int) = rows.getOrNull(y)?.getOrNull(x) ?: '.'
+        fun edge(x: Int, y: Int) = at(x + 1, y) == '.' || at(x - 1, y) == '.' || at(x, y + 1) == '.' || at(x, y - 1) == '.'
+        // As drawn first; where that crowds the two eyes together, moved a cell out.
+        return (0..1).map { Style(style, it) }.firstOrNull { st ->
+            val cells = species.eyes.mapIndexed { i, e -> styleCells(st.rows, e.first + eyeDx, e.second, i == 1, st.out) }
+            val fits = species.eyes.withIndex().all { (i, e) ->
+                val ex = e.first + eyeDx
+                cells[i].all { (x, y, c) ->
+                    val slot = x - ex in 0..1 && y - e.second in 0..1
+                    val onMouth = mouth != null && x - mouth.first in 0..2 && y - mouth.second in 0..1
+                    at(x, y) == '#' && !onMouth && (c != '#' || slot || !edge(x, y))
+                }
+            }
+            // Two body cells between the eyes, or as many as the kind's own round eyes have.
+            val apart = species.eyes.size != 2 || species.eyes[1].first <= species.eyes[0].first || run {
+                val need = minOf(2, species.eyes[1].first - (species.eyes[0].first + 2))
+                cells[1].minOf { it.first } - cells[0].maxOf { it.first } - 1 >= need
+            }
+            fits && apart
+        }
+    }
+
+    /** Whether [species] shows its own open eyes ([EYE_STYLES]) at rest. */
+    fun ownEyes(species: Species): Boolean = eyeStyle(species, species.rows, 0) != null
+
     private val MOUTHS: Map<Mouth, List<Pair<Int, Int>>> = mapOf(
         Mouth.NEUTRAL to listOf(0 to 0, 1 to 0, 2 to 0),
         Mouth.SMILE to listOf(0 to 0, 2 to 0, 1 to 1),
@@ -179,6 +254,7 @@ object SpeciesRenderer {
         val hole = if (species.inverted) 'o' else '.'
         val wideCells = WIDE[eyes]
         val wide = wideCells?.let { wideBoxes(species, rows, it, eyeDx) }
+        val style = if (eyes == Eyes.OPEN) eyeStyle(species, rows, eyeDx) else null
 
         species.eyes.forEachIndexed { i, (homeX, ey) ->
             val ex = homeX + eyeDx
@@ -195,6 +271,10 @@ object SpeciesRenderer {
                     val inner = listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1).all { (a2, b2) -> (rows.getOrNull(y + b2)?.getOrNull(x + a2) ?: '.') != '.' }
                     if (rows.getOrNull(y)?.getOrNull(x) == '#' && inner && !onMouth && grid[y][x] == '#') grid[y][x] = 'o'
                 }
+                return@forEachIndexed
+            }
+            if (style != null) {
+                for ((x, y, c) in styleCells(style.rows, ex, ey, mirror, style.out)) cell(x, y, if (c == '#') hole else 'o')
                 return@forEachIndexed
             }
             when (eyes) {
@@ -280,7 +360,8 @@ object SpeciesRenderer {
         // A catchlight in each open eye, on the side the light comes from ([Shading]); it glides across as the phone
         // tilts, shared by both columns near the top. Drawn after the body.
         val glints = mutableListOf<Triple<Int, Int, Int>>()
-        if (flat && eyesOf(species, face, blink || habit?.blink == true, eyesShut) == Eyes.OPEN) {
+        // (A kind with its own eyes has its own light in them.)
+        if (flat && eyesOf(species, face, blink || habit?.blink == true, eyesShut) == Eyes.OPEN && eyeStyle(species, rows, eyesDx) == null) {
             val (left, right) = Shading.glintShares()
             for ((ex, ey) in species.eyes) for ((col, share) in listOf(0 to left, 1 to right)) {
                 if (share <= 0f) continue
@@ -621,7 +702,9 @@ object SpeciesRenderer {
      */
     fun safeEyeDx(species: Species, rows: List<String>, eyeDx: Int): Int {
         if (eyeDx == 0 || species.inverted) return eyeDx
-        fun fits(d: Int) = species.eyes.all { (ex, ey) ->
+        // A kind with its own eyes looks only as far as they still fit, so a glance never turns them round.
+        val own = eyeStyle(species, rows, 0) != null
+        fun fits(d: Int) = (!own || eyeStyle(species, rows, d) != null) && species.eyes.all { (ex, ey) ->
             (0..1).all { a ->
                 (0..1).all { b ->
                     val x = ex + d + a

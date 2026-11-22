@@ -15,6 +15,9 @@ class LightAndFacesTest {
     private val lights = listOf(-0.95f, -0.6f, 0f, 0.6f, 0.95f)
     private val moods = listOf(Face.CONTENT, Face.HAPPY, Face.LOVE, Face.DIZZY, Face.TIRED, Face.YAWN, Face.EAT)
 
+    /** The faces whose eyes are drawn differently from the plain round ones: the moods, and open eyes of their own kind. */
+    private val drawnEyes = moods + Face.IDLE
+
     @After
     fun reset() {
         Shading.light = Shading.DEFAULT_LIGHT
@@ -77,7 +80,8 @@ class LightAndFacesTest {
     fun `an open eye has one catchlight on the light's side and stays an eye`() {
         val problems = mutableListOf<String>()
         var withGlint = 0
-        for (s in flat) for (light in listOf(-0.6f, 0.6f)) {
+        // A kind with its own eyes (SpeciesRenderer.ownEyes) has its own light in them, no catchlight.
+        for (s in flat.filter { !SpeciesRenderer.ownEyes(it) }) for (light in listOf(-0.6f, 0.6f)) {
             Shading.light = light
             val f = SpeciesRenderer.render(s, Face.IDLE)
             for ((ex, ey) in s.eyes) {
@@ -97,7 +101,7 @@ class LightAndFacesTest {
             }
         }
         assertTrue(problems.take(20).joinToString("\n"), problems.isEmpty())
-        assertTrue("catchlights in only $withGlint eyes", withGlint >= flat.size)
+        assertTrue("catchlights in only $withGlint eyes", withGlint >= flat.count { !SpeciesRenderer.ownEyes(it) })
     }
 
     @Test
@@ -138,7 +142,7 @@ class LightAndFacesTest {
     @Test
     fun `wide eyes keep the outline whole and never touch each other`() {
         val problems = mutableListOf<String>()
-        for (s in flat) for (face in moods) {
+        for (s in flat) for (face in drawnEyes) {
             val grid = SpeciesRenderer.carve(s, face)
             val rows = s.rows
             fun at(x: Int, y: Int) = rows.getOrNull(y)?.getOrNull(x) ?: '.'

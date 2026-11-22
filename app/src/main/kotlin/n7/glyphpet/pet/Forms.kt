@@ -63,21 +63,21 @@ object SpeciesForms {
             ),
             ox = 8, oy = 8, eyes = listOf(1 to 4, 6 to 4), mouth = 3 to 6,
         ),
-        // bunny: fluffy ball
+        // bunny: fluffy ball, a big head on two little feet
         "bunny" to Sprite(
             listOf(
-                ".##...##.", ".##...##.", ".#######.", "#########", "#########", "#########", "#########", "#########",
-                ".#######.",
+                "..##...##..", "..##...##..", ".#########.", "###########", "###########", "###########", "###########",
+                ".#########.", "..##...##..",
             ),
-            ox = 8, oy = 9, eyes = listOf(1 to 4, 6 to 4), mouth = 3 to 6,
+            ox = 7, oy = 9, eyes = listOf(2 to 4, 7 to 4), mouth = 4 to 6,
         ),
-        // chick: still in its shell
+        // chick: a big head with a tuft, a little beak, a small bright belly
         "chick" to Sprite(
             listOf(
-                "...###...", ".#######.", "#########", "#########", "###ooo###", "o#o#o#o#o", "ooooooooo", ".ooooooo.",
-                "..ooooo..",
+                "....#.#....", "..#######..", ".#########.", "###########", "###########", "#####o#####", ".####o####.",
+                "..ooooooo..", "...ooooo...", "....o.o....",
             ),
-            ox = 8, oy = 8, eyes = listOf(1 to 2, 6 to 2), mouth = null,
+            ox = 7, oy = 7, eyes = listOf(2 to 3, 7 to 3), mouth = null,
         ),
         // shroom: button mushroom
         "shroom" to Sprite(
@@ -118,13 +118,13 @@ object SpeciesForms {
             ),
             ox = 8, oy = 9, eyes = listOf(2 to 2, 5 to 2), mouth = 3 to 4,
         ),
-        // penguin: fluffy chick
+        // penguin: fluffy chick, its eyes on the dark cap, the beak cut into the white face
         "penguin" to Sprite(
             listOf(
-                "..#####..", ".#######.", "##ooooo##", "#ooooooo#", "#ooooooo#", "#ooo#ooo#", "#ooooooo#", ".#ooooo#.",
-                "..#####..", ".oo...oo.",
+                "...#####...", ".#########.", "###########", "###########", "###########", "##ooo.ooo##", "#ooooooooo#",
+                ".ooooooooo.", "..ooooooo..", "...o...o...",
             ),
-            ox = 8, oy = 8, eyes = listOf(2 to 3, 5 to 3), mouth = null,
+            ox = 7, oy = 8, eyes = listOf(2 to 3, 7 to 3), mouth = null,
         ),
         // slime: drop
         "slime" to Sprite(
@@ -182,13 +182,13 @@ object SpeciesForms {
             ),
             ox = 7, oy = 8, eyes = listOf(2 to 5, 7 to 5), mouth = 4 to 7,
         ),
-        // whale: calf
+        // whale: calf, rounder and taller, the eyes away from the edge
         "whale" to Sprite(
             listOf(
-                "..o.o......", "...o.......", ".######....", "########..#", "########.##", "##########.",
-                "#########..", ".#######...",
+                "...o.o......", "....o.......", "..######....", ".########..#", "##########.#", "###########.",
+                "##########..", ".########...",
             ),
-            ox = 7, oy = 9, eyes = listOf(1 to 4, 4 to 4), mouth = 2 to 6,
+            ox = 6, oy = 9, eyes = listOf(2 to 4, 6 to 4), mouth = 3 to 6,
         ),
         // bee: fluffy larva
         "bee" to Sprite(
