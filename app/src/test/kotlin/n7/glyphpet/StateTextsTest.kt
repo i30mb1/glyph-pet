@@ -21,6 +21,16 @@ class StateTextsTest {
     }
 
     @Test
+    fun `every hero says what it does at the keyboard, each its own way`() {
+        val kinds = SpeciesCatalog.all.map { it.kind }.distinct()
+        for (k in kinds) {
+            assertTrue("$k has no typing scene", n7.glyphpet.pet.typing.Desks.has(k))
+            assertNotNull("$k has no typing text", TypingNames.about(k))
+        }
+        assertEquals("two heroes share a typing text", kinds.size, kinds.mapNotNull { TypingNames.about(it) }.toSet().size)
+    }
+
+    @Test
     fun `every state has its own name and when line`() {
         val cat = SpeciesCatalog.sprites.first()
         val names = PetState.entries.map { stateName(it, cat) }

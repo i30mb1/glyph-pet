@@ -1,0 +1,67 @@
+package n7.glyphpet
+
+import androidx.annotation.StringRes
+
+/** What each kind does in its typing toy ([n7.glyphpet.pet.typing.Desks]), one short sentence without a full stop, for the "At the keyboard" page of the states card. */
+internal object TypingNames {
+    private val byKind: Map<String, Int> = mapOf(
+        "cat" to R.string.type_cat_about,
+        "fox" to R.string.type_fox_about,
+        "bunny" to R.string.type_bunny_about,
+        "chick" to R.string.type_chick_about,
+        "owl" to R.string.type_owl_about,
+        "penguin" to R.string.type_penguin_about,
+        "shroom" to R.string.type_shroom_about,
+        "cactus" to R.string.type_cactus_about,
+        "toast" to R.string.type_toast_about,
+        "snail" to R.string.type_snail_about,
+        "hedgehog" to R.string.type_hedgehog_about,
+        "crab" to R.string.type_crab_about,
+        "whale" to R.string.type_whale_about,
+        "jelly" to R.string.type_jelly_about,
+        "axolotl" to R.string.type_axolotl_about,
+        "slime" to R.string.type_slime_about,
+        "frog" to R.string.type_frog_about,
+        "ghost" to R.string.type_ghost_about,
+        "ufo" to R.string.type_ufo_about,
+        "bot" to R.string.type_bot_about,
+        "dino" to R.string.type_dino_about,
+        "bee" to R.string.type_bee_about,
+        "bat" to R.string.type_bat_about,
+        "chameleon" to R.string.type_chameleon_about,
+        "eye" to R.string.type_eye_about,
+        "gem" to R.string.type_gem_about,
+        "planet" to R.string.type_planet_about,
+        "raccoon" to R.string.type_raccoon_about,
+        "cloud" to R.string.type_cloud_about,
+        "phoenix" to R.string.type_phoenix_about,
+        "blackhole" to R.string.type_blackhole_about,
+        "swarm" to R.string.type_swarm_about,
+        "dragon" to R.string.type_dragon_about,
+        "mimic" to R.string.type_mimic_about,
+        "moonrabbit" to R.string.type_moonrabbit_about,
+        "schrodinger" to R.string.type_schrodinger_about,
+        "lavalamp" to R.string.type_lavalamp_about,
+        "paperboat" to R.string.type_paperboat_about,
+        "astronaut" to R.string.type_astronaut_about,
+        "bubble" to R.string.type_bubble_about,
+        "capybara" to R.string.type_capybara_about,
+        "cassette" to R.string.type_cassette_about,
+        "dandelion" to R.string.type_dandelion_about,
+        "ferro" to R.string.type_ferro_about,
+        "fishjar" to R.string.type_fishjar_about,
+        "glitch" to R.string.type_glitch_about,
+        "hourglass" to R.string.type_hourglass_about,
+        "kodama" to R.string.type_kodama_about,
+        "kraken" to R.string.type_kraken_about,
+        "moon" to R.string.type_moon_about,
+        "pebble" to R.string.type_pebble_about,
+        "shadow" to R.string.type_shadow_about,
+        "spider" to R.string.type_spider_about,
+        "sprout" to R.string.type_sprout_about,
+        "tardigrade" to R.string.type_tardigrade_about,
+    )
+
+    @StringRes
+    fun about(kind: String): Int? = byKind[kind]
+}

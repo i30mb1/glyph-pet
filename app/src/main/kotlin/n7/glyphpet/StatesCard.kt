@@ -58,7 +58,7 @@ private class LiveFrame(val speciesId: String, val page: Int, val cells: List<Ce
 @Composable
 internal fun StatesCard(species: Species, found: Set<String>, open: Boolean, onOpen: (Boolean) -> Unit, modifier: Modifier = Modifier) {
     val states = remember(species.kind) {
-        PetState.entries.filter { (it != PetState.SIGNATURE || Signatures.has(species.kind)) && (it != PetState.GAME || n7.glyphpet.pet.Tricks.has(species.kind)) && (it != PetState.TRICK || !species.habit.none) }
+        PetState.entries.filter { (it != PetState.SIGNATURE || Signatures.has(species.kind)) && (it != PetState.GAME || n7.glyphpet.pet.Tricks.has(species.kind)) && (it != PetState.TRICK || !species.habit.none) && (it != PetState.TYPING || n7.glyphpet.pet.typing.Desks.has(species.kind)) }
     }
     val pager = rememberPagerState(pageCount = { states.size })
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -175,6 +175,7 @@ internal fun stateAsk(state: PetState): Int = when (state) {
     PetState.ASLEEP -> R.string.state_asleep_ask
     PetState.EATING -> R.string.state_eating_ask
     PetState.GAME -> R.string.state_game_ask
+    PetState.TYPING -> R.string.state_typing_ask
     PetState.LOVED -> R.string.state_loved_ask
     PetState.DIZZY -> R.string.state_dizzy_ask
     PetState.TRICK -> R.string.state_trick_ask
@@ -193,6 +194,7 @@ internal fun stateName(state: PetState, species: Species): Int = when (state) {
     PetState.ASLEEP -> R.string.state_asleep
     PetState.EATING -> R.string.state_eating
     PetState.GAME -> R.string.state_game
+    PetState.TYPING -> R.string.state_typing
     PetState.LOVED -> R.string.state_loved
     PetState.DIZZY -> R.string.state_dizzy
     PetState.TRICK -> habitName(species.habit.id) ?: R.string.state_trick
@@ -202,6 +204,10 @@ internal fun stateName(state: PetState, species: Species): Int = when (state) {
 /** When the toy shows a state; the signature's line also says what the effect is. */
 @Composable
 private fun stateWhenText(state: PetState, species: Species): String {
+    if (state == PetState.TYPING) {
+        val typing = TypingNames.about(species.kind) ?: return stringResource(R.string.state_typing_when, "").removePrefix(". ")
+        return stringResource(R.string.state_typing_when, stringResource(typing))
+    }
     if (state != PetState.SIGNATURE) return stringResource(stateWhen(state))
     val about = SignatureNames.about(species.kind) ?: return stringResource(R.string.state_signature_when, "").removePrefix(". ")
     return stringResource(R.string.state_signature_when, stringResource(about))
@@ -219,6 +225,7 @@ internal fun stateWhen(state: PetState): Int = when (state) {
     PetState.ASLEEP -> R.string.state_asleep_when
     PetState.EATING -> R.string.state_eating_when
     PetState.GAME -> R.string.state_game_when
+    PetState.TYPING -> R.string.state_typing_when
     PetState.LOVED -> R.string.state_loved_when
     PetState.DIZZY -> R.string.state_dizzy_when
     PetState.TRICK -> R.string.state_trick_when

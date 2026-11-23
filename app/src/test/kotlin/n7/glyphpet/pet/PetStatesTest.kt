@@ -37,7 +37,7 @@ class PetStatesTest {
     @Test
     fun `the states come in the order the app shows them, with stable ids`() {
         assertEquals(
-            listOf("calm", "signature", "happy", "hungry", "sad", "tired", "asleep", "eating", "game", "loved", "dizzy", "trick", "charging"),
+            listOf("calm", "signature", "happy", "hungry", "sad", "tired", "asleep", "eating", "game", "typing", "loved", "dizzy", "trick", "charging"),
             PetState.entries.map { it.id },
         )
     }

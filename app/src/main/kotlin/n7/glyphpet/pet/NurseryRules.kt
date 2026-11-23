@@ -65,13 +65,14 @@ object NurseryRules {
     fun missing(s: NurseryState): List<Species> = SpeciesCatalog.eggable.filter { !has(s, it.id) }
 
     /**
-     * Eggs ready to open, oldest first: the daily ones, then, for a supporter, every other missing hero. The
+     * Eggs ready to open, oldest first: the daily ones, then, for a supporter, every other missing hero, the found
+     * anomalies too, so heroes added in an update arrive at once. The
      * supporter's extra eggs are not saved, so a refund takes them back and leaves the daily ones.
      */
     fun available(s: NurseryState): List<String> {
         val daily = s.eggs.filter { SpeciesCatalog.get(it) != null && !has(s, it) }.distinct()
         if (!s.supporter) return daily
-        return daily + missing(s).map { it.id }.filter { it !in daily }
+        return daily + SpeciesCatalog.all.filter { !has(s, it.id) }.map { it.id }.filter { it !in daily }
     }
 
     /**

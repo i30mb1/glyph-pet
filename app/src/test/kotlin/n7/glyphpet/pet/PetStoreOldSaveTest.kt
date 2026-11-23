@@ -169,7 +169,7 @@ class PetStoreOldSaveTest {
         // The owl it was hatching is the oldest egg, waiting in the app, not cracked yet; as a supporter every other
         // missing pet is there too. The pet stays on the matrix.
         assertEquals("owl", n.eggs.first().id)
-        assertEquals(SpeciesCatalog.eggable.map { it.id }.toSet() - seen.keys, n.eggs.map { it.id }.toSet())
+        assertEquals(SpeciesCatalog.all.map { it.id }.toSet() - seen.keys, n.eggs.map { it.id }.toSet())
         assertNull(n.eggOnMatrix)
         // Needs, collection counts and the pet are saved under the same keys with the same values; 1.1's egg keys are gone.
         val kept = before.keys.filter { it !in oldEggKeys }

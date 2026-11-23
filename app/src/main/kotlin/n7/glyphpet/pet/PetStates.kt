@@ -66,6 +66,12 @@ enum class PetState(val id: String, val stage: Staging) {
      */
     GAME("game", Staging(Mood.HAPPY, null, Cue.GAME, cueFirstMs = 300, cueEveryMs = 14_000)),
 
+    /**
+     * Someone types by the phone lying matrix up: the kind's own typing toy ([n7.glyphpet.pet.typing.Desks]), with its
+     * acts at 10 s and 20 s. The preview types along by itself and starts over after [StatePreview.TYPING_LOOP_MS].
+     */
+    TYPING("typing", Staging(Mood.CONTENT, Face.IDLE)),
+
     /** Stroked with the Glyph button or the Pet button. */
     LOVED("loved", Staging(Mood.CONTENT, Face.LOVE, Cue.PET, cueFirstMs = 200, cueEveryMs = 2400)),
 
@@ -84,7 +90,7 @@ enum class PetState(val id: String, val stage: Staging) {
     fun isShownBy(shown: Shown): Boolean = when (this) {
         TRICK -> shown.habit
         // The engine does not report these; the preview stages them on its own clock.
-        SIGNATURE, GAME -> true
+        SIGNATURE, GAME, TYPING -> true
         CHARGING -> shown.charging
         ASLEEP -> shown.face == Face.SLEEP || shown.face == Face.PEEK
         else -> shown.face == stage.face
@@ -97,17 +103,18 @@ enum class PetState(val id: String, val stage: Staging) {
  */
 object Discovery {
     /** The states the live pet shows in this frame ([PetEngine.shown] and what it is playing). */
-    fun seenNow(shown: Shown, playingSignature: Boolean, playingTrick: Boolean): Set<PetState> =
+    fun seenNow(shown: Shown, playingSignature: Boolean, playingTrick: Boolean, typing: Boolean = false): Set<PetState> =
         PetState.entries.filterTo(mutableSetOf()) {
             when (it) {
                 PetState.SIGNATURE -> playingSignature
                 PetState.GAME -> playingTrick
+                PetState.TYPING -> typing
                 else -> it.isShownBy(shown)
             }
         }
 
     /** [seenNow] of [engine]'s last frame. */
-    fun seenNow(engine: PetEngine): Set<PetState> = seenNow(engine.shown, engine.playingSignature, engine.playingTrick)
+    fun seenNow(engine: PetEngine): Set<PetState> = seenNow(engine.shown, engine.playingSignature, engine.playingTrick, engine.typingNow)
 }
 
 /**
@@ -129,6 +136,7 @@ class StatePreview(val species: Species, val state: PetState) {
     val loopMs: Long = when (state) {
         PetState.TRICK -> maxOf(state.stage.cueEveryMs, species.habit.durationMs + 1600)
         PetState.SIGNATURE -> signatureMs + SIGNATURE_PAUSE_MS
+        PetState.TYPING -> TYPING_LOOP_MS
         else -> state.stage.cueEveryMs
     }
 
@@ -153,7 +161,16 @@ class StatePreview(val species: Species, val state: PetState) {
 
     /** One frame, [dtMs] after the previous one: 25x25 LED brightness, row by row, like [PetEngine.tick]. */
     fun tick(dtMs: Long): IntArray {
+        if (state == PetState.TYPING && timeMs >= TYPING_LOOP_MS) reset()
         timeMs += dtMs
+        if (state == PetState.TYPING) {
+            // Someone types along: a key every 150-260 ms, now and then a quick burst, the same keys each loop.
+            while (nextCueMs <= timeMs) {
+                engine.key()
+                val n = (nextCueMs / 37 % 7).toInt()
+                nextCueMs += if (n == 0) 90L else 150L + n * 18L
+            }
+        }
         val stage = state.stage
         if (stage.cue != null && timeMs >= nextCueMs) {
             when (stage.cue) {
@@ -190,6 +207,7 @@ class StatePreview(val species: Species, val state: PetState) {
             charging = stage.charging,
             watts = if (stage.charging) Staging.WATTS else 0f,
             battery = Staging.BATTERY,
+            typing = state == PetState.TYPING,
         )
         return engine.tick(dtMs, scene)
     }
@@ -204,6 +222,13 @@ class StatePreview(val species: Species, val state: PetState) {
      */
     fun still(): IntArray {
         val copy = StatePreview(species, state)
+        if (state == PetState.TYPING) {
+            // Its first act, a little way in: the toy is built up enough to tell what it is.
+            var frame = copy.tick(FRAME_MS)
+            var t = FRAME_MS
+            while (t < TYPING_STILL_MS) { frame = copy.tick(FRAME_MS); t += FRAME_MS }
+            return frame
+        }
         if (state == PetState.SIGNATURE) {
             // The engine does not tell when the effect is on: the frame that shows it best, the one changing the most
             // from the pet just before it, among the frames where the pet itself is drawn whole.
@@ -282,6 +307,9 @@ class StatePreview(val species: Species, val state: PetState) {
     companion object {
         /** The frame step of the app's previews, like the main matrix loop. */
         const val FRAME_MS = 80L
+        /** The typing preview plays through both acts (10 s, 20 s) and a little of the last, then starts over. */
+        const val TYPING_LOOP_MS = 24_000L
+        private const val TYPING_STILL_MS = 11_000L
         private const val STILL_SEARCH_MS = 4000L
         private const val STILL_HOLD_MS = 480L
 

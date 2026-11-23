@@ -14,6 +14,8 @@ class NurseryRulesTest {
 
     private val random = Random(7)
     private val all = SpeciesCatalog.eggable.map { it.id }
+    /** Every hero in the catalogue, the anomalies too: what a supporter gets, whatever an update adds. */
+    private val every = SpeciesCatalog.all.map { it.id }
 
     private fun at(day: Int, h: Int, m: Int = 0): Long = Calendar.getInstance().apply {
         clear()
@@ -213,17 +215,17 @@ class NurseryRulesTest {
     // --- Supporter -----------------------------------------------------------------------------------
 
     @Test
-    fun `a supporter has every missing pet as an egg at once, golden`() {
+    fun `a supporter has every missing pet as an egg at once, golden, the anomalies too`() {
         val s = withFirstPet().copy(supporter = true)
         val eggs = NurseryRules.available(s)
-        assertEquals(all.size - 1, eggs.size)
-        assertEquals(all.toSet() - s.active!!, eggs.toSet())
+        assertEquals(every.size - 1, eggs.size)
+        assertEquals(every.toSet() - s.active!!, eggs.toSet())
         // Opening them all, one after the other, the same day: each egg is put on the matrix before its presses.
         var t = s
-        repeat(all.size - 1) {
+        repeat(every.size - 1) {
             t = t.press(5, id = NurseryRules.available(t).first(), ms = at(1, 13))
         }
-        assertEquals(all.size, t.seen.size)
+        assertEquals(every.size, t.seen.size)
         assertTrue(NurseryRules.available(t).isEmpty())
     }
 
@@ -233,7 +235,7 @@ class NurseryRulesTest {
         val daily = NurseryRules.available(free)
         val sup = free.copy(supporter = true)
         assertEquals(daily, NurseryRules.available(sup).take(2))
-        assertEquals(all.size - 1, NurseryRules.available(sup).size)
+        assertEquals(every.size - 1, NurseryRules.available(sup).size)
     }
 
     @Test
