@@ -231,6 +231,8 @@ private fun Root(
 
 @Composable
 private fun Intro(onDone: () -> Unit) {
+    // A phone without the matrix gets the same story told for the app: the circle on screen is its Glyph button.
+    val glyphPhone = hasGlyphToys(LocalContext.current)
     var step by remember { mutableIntStateOf(0) }
     val egg = remember { PetEngine.toCells(PetEngine().still(Scene(null, Mood.CONTENT, egg = EggView(EggStage.CRACKED, golden = false)))) }
     val pet = remember { PetEngine.toCells(SpeciesRenderer.render(SpeciesCatalog.get("cat")!!, Face.LOVE)) }
@@ -245,10 +247,10 @@ private fun Intro(onDone: () -> Unit) {
         listOf(Face.EAT, Face.CONTENT, Face.SLEEP).map { PetEngine.toCells(SpeciesRenderer.render(cat, it)) }
     }
     val pages = listOf(
-        Triple(listOf(egg), R.string.intro_1_title, R.string.intro_1_text),
-        Triple(listOf(pet), R.string.intro_2_title, R.string.intro_2_text),
+        Triple(listOf(egg), R.string.intro_1_title, if (glyphPhone) R.string.intro_1_text else R.string.intro_1_text_app),
+        Triple(listOf(pet), R.string.intro_2_title, if (glyphPhone) R.string.intro_2_text else R.string.intro_2_text_app),
         Triple(needs, R.string.intro_needs_title, R.string.intro_needs_text),
-        Triple(listOf(hears), R.string.intro_hear_title, R.string.intro_hear_text),
+        Triple(listOf(hears), R.string.intro_hear_title, if (glyphPhone) R.string.intro_hear_text else R.string.intro_hear_text_app),
         Triple(crowd, R.string.intro_3_title, R.string.intro_3_text),
     )
     val (pictures, title, text) = pages[step]
@@ -572,7 +574,7 @@ private fun PetScreen(
                                 .combinedClickable(
                                     enabled = action != ButtonAction.NOTHING || engine.playingTrick,
                                     role = Role.Button,
-                                    onLongClickLabel = stringResource(R.string.action_press),
+                                    onLongClickLabel = stringResource(if (glyphPhone) R.string.action_press else R.string.action_press_app),
                                     onLongClick = ::press,
                                     onClick = {},
                                 ),
@@ -580,7 +582,7 @@ private fun PetScreen(
                         )
                     }
                     Text(
-                        stringResource(R.string.play_hint),
+                        stringResource(if (glyphPhone) R.string.play_hint else R.string.play_hint_app),
                         style = N7Type.Caption,
                         color = N7Colors.InkSubtle,
                         textAlign = TextAlign.Center,
@@ -1266,7 +1268,7 @@ private fun SettingsCard(
                     checked = notifications,
                     onChange = { onNotifications() },
                 )
-                if (glyphPhone) {
+                run {
                     N7Divider()
                     ToggleRow(
                         title = stringResource(R.string.matrix_mic_title),
@@ -1274,7 +1276,7 @@ private fun SettingsCard(
                         checked = mic,
                         onChange = onMic,
                     )
-                    if (mic) {
+                    if (mic && glyphPhone) {
                         N7Divider()
                         ToggleRow(
                             title = stringResource(R.string.matrix_mic_bg_title),

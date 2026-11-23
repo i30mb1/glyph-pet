@@ -288,7 +288,7 @@
     <string name="tab_nursery">Nursery</string>
     <string name="tab_settings">Settings</string>
     <string name="action_press">press the Glyph button</string>
-    <string name="play_hint">Hold: the Glyph button · tap the back twice: stroke · tilt, shake, blow and clap</string>
+    <string name="play_hint">Hold: the Glyph button · tap the back twice: stroke · tilt, shake, blow, clap, type nearby</string>
     <string name="states_found">Animations · %1$d of %2$d</string>
     <string name="state_calm_ask">What is it like when all is well?</string>
     <string name="state_signature_ask">What can it do if you shake the phone?</string>
@@ -366,4 +366,9 @@
     <string name="type_sprout_about">A vine climbs, a flower opens with every key; at 20 s butterflies come</string>
     <string name="type_tardigrade_about">Shrugs off fire, ice and lightning with every key, rising to space; at 20 s it floats among the stars</string>
     <string name="type_firefly_about">Every key a flash lights the whole jar; at 20 s the jar fills with fireflies</string>
+    <string name="intro_1_text_app">Every day you play, a new pet comes as an egg, always one you do not have yet. Hold the circle on the Play tab five times: it hatches.</string>
+    <string name="intro_2_text_app">The pet lives in the app. Hold the circle to feed it; a full one starts a mini-game you steer by tilting the phone. Tap the back of the phone twice to stroke it. A shake shows its signature, or grows it once it is ready.</string>
+    <string name="intro_hear_text_app">Blow on the phone and the wind carries your pet, each kind its own way. Clap and it starts. Lay the phone by your keyboard and type: it turns into its own little toy, each key does something, and at 10 and 20 seconds comes a finale. All of it brings it joy. The microphone only hears how loud it is, nothing is recorded; you turn it on in Settings.</string>
+    <string name="play_hint_app">Hold the circle: feed and play · tap the back twice: stroke · tilt, shake, blow, clap, type nearby</string>
+    <string name="action_press_app">hold the circle</string>
 </resources>

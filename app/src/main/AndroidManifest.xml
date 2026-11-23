@@ -10,7 +10,13 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <uses-feature android:name="com.nothing.feature" android:required="true" />
+    <!-- Any phone: the pet lives in the app everywhere, and on a Nothing phone with Glyph Toys on the matrix too. -->
+    <uses-feature android:name="com.nothing.feature" android:required="false" />
+
+    <!-- To tell whether the phone has Nothing's Glyph Toys (MainActivity.hasGlyphToys). -->
+    <queries>
+        <package android:name="com.nothing.thirdparty" />
+    </queries>
 
     <application
         android:name=".GlyphPetApp"
