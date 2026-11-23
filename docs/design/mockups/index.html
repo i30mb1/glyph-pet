@@ -1,0 +1,264 @@
+<meta charset="utf-8">
+<title>Glyph Pet — предложения к анимации</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Live 25x25 matrices, today beside the proposal, running off one clock so the difference is the animation. */
+:root {
+  color-scheme: dark;
+  --bg: #0b0c0e; --panel: #131519; --line: #23262d; --ink: #eceef2; --muted: #8d939f;
+  --own: #7ee0b5; --rep: #f2b35b; --plan: #9fb4ff; --warn: #ff8f6b;
+  --display: "Space Grotesk", system-ui, sans-serif;
+  --body: "Inter", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+}
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font: 14px/1.55 var(--body); margin: 0 }
+.wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 64px; display: grid; gap: 26px; max-width: 1180px; margin: 0 auto }
+h1 { font: 700 30px/1.1 var(--display); margin: 0; letter-spacing: -.01em; text-wrap: balance }
+h2 { font: 700 20px/1.2 var(--display); margin: 0 }
+.lede { color: var(--muted); max-width: 72ch; margin: 8px 0 0 }
+code, .k { font-family: var(--mono); font-size: 12px }
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 14px }
+.card > header { display: grid; gap: 6px }
+.card .how { color: var(--muted); font-size: 13px; max-width: 74ch }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start }
+@media (max-width: 560px) { .pair { grid-template-columns: 1fr } }
+.side { display: grid; gap: 8px; justify-items: center }
+.side em { font: 600 11px var(--body); letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-style: normal }
+.side.next em { color: var(--own) }
+canvas { width: 100%; max-width: 260px; aspect-ratio: 1; background: #0e1013; border-radius: 50%; display: block }
+.meta { font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: center; line-height: 1.5 }
+.meta b { color: var(--ink); font-weight: 500 }
+.side.next .meta b { color: var(--own) }
+.look { border-left: 2px solid var(--plan); padding-left: 12px; color: var(--muted); font-size: 13px; max-width: 74ch }
+.look b { color: var(--ink); font-weight: 600 }
+
+.sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px }
+.sum div { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px }
+.sum b { display: block; font: 700 24px/1.1 var(--display); color: var(--own) }
+.sum span { color: var(--muted); font-size: 12px; display: block; margin-top: 4px }
+.note { color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--line); padding-top: 14px }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Предложения к анимации</h1>
+    <p class="lede">Слева — что матрица показывает сегодня, справа — что покажет с правкой. Обе картинки живые,
+      сняты с настоящего движка, идут от одних часов. Правка нарисована поверх кадров движка, сам движок не менялся:
+      это макет для решения, а не готовая работа.</p>
+  </header>
+
+  <div class="sum" id="sum"></div>
+  <div id="list"></div>
+
+  <p class="note">Замеры: «движение» — доля кадров, отличающихся от предыдущего. Спокойный питомец сегодня
+    шевелится 26% времени, счастливый 29%, с паузами полной статики до 5 и 11 секунд. Взгляд на матрицу длится
+    2–3 секунды. Цифры под каждой матрицей считаются прямо из этих кадров.</p>
+</div>
+
+<script>
+let meta, mask, mockups = [];
+
+function decodeFrame(s) {
+  const out = new Uint8Array(625);
+  let i = 0;
+  for (const c of s) {
+    if (c >= "1" && c <= "9") out[i++] = c.charCodeAt(0) - 48;
+    else i += c.charCodeAt(0) - 96;
+  }
+  return out;
+}
+function decodeSeq(s) {
+  const seq = [];
+  for (let i = 0; i < s.length; i++) {
+    let v = parseInt(s[i], 36);
+    if (s[i + 1] === "!") { v += 36; i++; }
+    seq.push(v);
+  }
+  return seq;
+}
+function clipOf(c) {
+  return { frames: c.f.map(decodeFrame), seq: decodeSeq(c.s) };
+}
+
+function stats(a, ref) {
+  const n = a.seq.length;
+  let moved = 0, lit = 0;
+  for (const k of a.seq) lit += a.frames[k].reduce((s, v) => s + (v > 0 ? 1 : 0), 0);
+  let still = 0, worst = 0;
+  for (let i = 1; i < n; i++) {
+    const p = a.frames[a.seq[i-1]], q = a.frames[a.seq[i]];
+    let d = 0;
+    for (let j = 0; j < 625; j++) if (mask[j] === "1" && p[j] !== q[j]) d++;
+    if (d > 0) { moved++; still = 0; } else { still += meta.frameMs; if (still > worst) worst = still; }
+  }
+  // How many different brightness levels ever appear: a crisp print uses a handful, a blurred one hundreds.
+  const levels = new Set();
+  for (const k of a.seq) for (let j = 0; j < 625; j++) if (mask[j] === "1" && a.frames[k][j] > 0) levels.add(a.frames[k][j]);
+  // How far this stands from a calm pet, in LEDs: the point of a pose that changes the silhouette.
+  let vsRef = 0;
+  if (ref && ref.seq.length) {
+    let sum = 0;
+    for (let i = 0; i < n; i++) {
+      const p = a.frames[a.seq[i]], q = ref.frames[ref.seq[i % ref.seq.length]];
+      for (let j = 0; j < 625; j++) if (mask[j] === "1" && p[j] !== q[j]) sum++;
+    }
+    vsRef = Math.round(sum / n);
+  }
+  return {
+    uniq: new Set(a.seq).size, n,
+    motion: Math.round(100 * moved / Math.max(1, n - 1)),
+    frozen: worst, lit: Math.round(lit / n), levels: levels.size, vsRef,
+  };
+}
+
+/** What matters for each mockup: a bouncing pet is about cadence, a pose about standing apart from calm. */
+const METRICS = {
+  "happy-truth": ["motion", "freeze", "uniq"],
+  "happy-bounce": ["motion", "freeze"],
+  "hungry-slump": ["vsRef"],
+  "calm-breath": ["motion", "uniq"],
+  "turn-eyes": ["levels"],
+  "tired-nod": ["motion", "uniq"],
+  "wind-bristle": ["levels", "motion"],
+  "wind-flip": ["levels"],
+  "wind-rock": ["levels", "motion"],
+  "wind-axis": ["levels", "motion"],
+  "game-dandelion": ["motion", "uniq"],
+};
+
+function metaLine(s, which) {
+  const parts = [];
+  const on = v => which.includes(v);
+  if (on("motion")) parts.push(`<b>${s.motion}%</b> кадров в движении`);
+  if (on("freeze")) parts.push(`замирает до <b>${(s.frozen / 1000).toFixed(1)} с</b>`);
+  if (on("uniq")) parts.push(`<b>${s.uniq}</b> разных картин`);
+  if (on("levels")) parts.push(`<b>${s.levels}</b> уровней яркости`);
+  if (on("vsRef")) parts.push(`на <b>${s.vsRef}</b> LED не похож на спокойного`);
+  return parts.join(" · ");
+}
+
+function draw(cv, f) {
+  const ctx = cv.getContext("2d");
+  const w = cv.width, cell = w / 25, r = cell * 0.36;
+  ctx.clearRect(0, 0, w, w);
+  for (let y = 0; y < 25; y++) for (let x = 0; x < 25; x++) {
+    const i = y * 25 + x;
+    if (mask[i] !== "1") continue;
+    const v = f ? f[i] : 0;
+    ctx.fillStyle = v ? `rgba(244,246,250,${0.18 + 0.82 * v / 9})` : "#1a1d22";
+    ctx.beginPath();
+    ctx.arc((x + 0.5) * cell, (y + 0.5) * cell, v ? r * 1.15 : r, 0, 6.2832);
+    ctx.fill();
+  }
+}
+
+const live = new Map();
+const visible = new Set();
+const io = new IntersectionObserver(es => es.forEach(e => e.isIntersecting ? visible.add(e.target) : visible.delete(e.target)), { rootMargin: "160px" });
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function loop(t) {
+  const n = Math.floor(t / meta.frameMs);
+  for (const cv of visible) {
+    const a = live.get(cv);
+    if (!a) continue;
+    const k = reduced ? Math.floor(a.seq.length / 2) : n % a.seq.length;
+    if (cv._k === k) continue;
+    cv._k = k;
+    draw(cv, a.frames[a.seq[k]]);
+  }
+  requestAnimationFrame(loop);
+}
+
+const WHAT_TO_WATCH = {
+  "happy-truth": "Смотри 12 секунд, ни разу не отводя глаз. Сегодня на телефоне питомец почти всё это время стоит. " +
+    "В атласе он прыгает постоянно — потому что превью ставит быстрый темп. Это и есть главная правка: сначала честное зеркало.",
+  "happy-bounce": "Одинаковый seed, одинаковые редкие вспышки радости. Разница — мягкий подскок на клетку каждые 1.4 с. " +
+    "Проверь, что он не выглядит дёрганьем и не спорит с большой вспышкой.",
+  "hungry-slump": "Верх тела оседает на клетку: голодный питомец стоит ниже и сутулится. Смотри краем глаза — " +
+    "силуэт должен читаться, не вглядываясь.",
+  "calm-breath": "Рёбра наполняются и опадают, морда неподвижна — то же правило, что уже работает у льва. " +
+    "Сегодня у кактуса 3 разных кадра из 30, в предложении 18.",
+  "turn-eyes": "Сегодня поворот телефона крутит весь рисунок — и на одноцветной матрице он расплывается: " +
+    "смотри на глаза и контур в левой картинке. Справа ничего не крутится: зрачки уходят в сторону поворота, тело " +
+    "делает шаг. Меньше движения, но морда остаётся мордой.",
+  "tired-nod": "Сегодня у кактуса от усталости — один светодиод. В предложении голова опускается, висит и " +
+    "медленно поднимается, как уже сделано у кота.",
+  "wind-bristle": "Слева ёж кувыркается: движок крутит рисунок, и поворот размазывает клетки в серые " +
+    "полутона — морды нет, контура нет. Справа ничто не крутится: ёж оседает, съезжает с порывом и топорщит иглы — " +
+    "контур наливается на клетку наружу и опадает. Это его собственная реакция, не общий наклон.",
+  "wind-rock": "НЛО больше не кувыркается: встаёт на ребро и раскачивается от порыва, съезжая на пару клеток. " +
+    "Смотри на контур: слева он рассыпается в полутона, справа держится резким.",
+  "wind-axis": "Планета качается медленно и тяжело — масса чувствуется. Ряды сдвигаются целиком, поэтому край " +
+    "остаётся краем, а не серым пятном.",
+  "game-dandelion": "Это игра, а не реакция: вся матрица — её. Слева у одуванчика игры нет вовсе. Справа: слабый " +
+    "выдох уносит пушинку-другую, хороший — целое облако; отпустил — ветер стих, и снятые пушинки опускаются вниз, " +
+    "так что дуть надо до конца. Смотри, как голова лысеет — цель видна без всякого счёта.",
+  "wind-flip": "Пол-оборота — единственный поворот, который на сетке делается точно: каждая клетка переезжает в " +
+    "другую. Поэтому мышь перекидывается скачком и висит вверх тормашками, пока ветер держит.",
+};
+
+function card(m) {
+  const el = document.createElement("section");
+  el.className = "card";
+  const head = document.createElement("header");
+  head.innerHTML = `<h2>${m.name}</h2><p class="how">${m.how}</p>`;
+  el.append(head);
+
+  const pair = document.createElement("div");
+  pair.className = "pair";
+  const now = clipOf(m.now), next = clipOf(m.next), ref = m.ref ? clipOf(m.ref) : null;
+  const which = METRICS[m.id] || ["motion", "uniq"];
+  for (const [label, a, cls] of [[m.nowLabel, now, "now"], [m.nextLabel, next, "next"]]) {
+    const side = document.createElement("div");
+    side.className = "side " + cls;
+    const em = document.createElement("em");
+    em.textContent = label;
+    const cv = document.createElement("canvas");
+    cv.width = cv.height = 300;
+    const s = stats(a, ref);
+    const mt = document.createElement("div");
+    mt.className = "meta";
+    mt.innerHTML = metaLine(s, which);
+    side.append(em, cv, mt);
+    pair.append(side);
+    live.set(cv, a);
+    io.observe(cv);
+    draw(cv, a.frames[a.seq[0]]);
+  }
+  el.append(pair);
+
+  const look = document.createElement("p");
+  look.className = "look";
+  look.innerHTML = "<b>На что смотреть.</b> " + (WHAT_TO_WATCH[m.id] || "");
+  el.append(look);
+  return el;
+}
+
+(async function start() {
+  [meta, mockups] = await Promise.all([
+    fetch("mockups.json").then(r => r.json()),
+    fetch("mockups.json").then(r => r.json()),
+  ]);
+  mask = meta.mask;
+  const list = document.getElementById("list");
+  for (const m of mockups.mockups) list.append(card(m));
+
+  const byId = Object.fromEntries(mockups.mockups.map(m => [m.id, m]));
+  const a = stats(clipOf(byId["happy-truth"].now)), b = stats(clipOf(byId["happy-truth"].next));
+  const calm = stats(clipOf(byId["calm-breath"].now)), calm2 = stats(clipOf(byId["calm-breath"].next));
+  document.getElementById("sum").innerHTML = [
+    [a.motion + "% → " + b.motion + "%", "кадров в движении у счастливого: атлас и телефон. В атласе почти вдвое больше"],
+    [b.frozen / 1000 + " с", "самая долгая полная заморозка счастливого питомца на телефоне"],
+    [calm.uniq + " → " + calm2.uniq, "разных кадров у кактуса в покое: сейчас и с дыханием"],
+  ].map(([big, cap]) => `<div><b>${big}</b><span>${cap}</span></div>`).join("");
+
+  requestAnimationFrame(loop);
+})();
+</script>

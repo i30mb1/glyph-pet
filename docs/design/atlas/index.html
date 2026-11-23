@@ -183,6 +183,7 @@ dialog button { background: none; border: 1px solid var(--line); color: var(--in
     <div class="controls" role="group" aria-label="Статус" id="rarities"></div>
     <input type="search" id="q" placeholder="Найти питомца" aria-label="Найти питомца">
     <button type="button" class="chip" id="focusBtn" aria-pressed="false">Скрыть своё</button>
+    <button type="button" class="chip" id="changedBtn" aria-pressed="false" title="Подсветить светодиоды, которые изменились в ревизии анимации">Что изменилось</button>
     <div class="legend">
       <span><i class="dot d-std"></i>общая у всех</span>
       <span><i class="dot d-own"></i>своя</span>
@@ -237,6 +238,8 @@ const IDEA_GROUPS = [["ANOMALY", "Аномалии · полный концеп�
 const STAGE = { baby: "BABY", teen: "TEEN", adult: "ADULT" };
 
 let meta, mask, stage = "teen", frames = {}, focus = false, query = "", rarityOn = new Set(Object.keys(RAR));
+/** Per stage, kind and clip: the LEDs the animation revision changed, so the owner can look straight at them. */
+let changedByStage = {}, showChanged = false;
 const cache = {};
 
 function decodeFrame(s) {
@@ -318,7 +321,7 @@ function tagOf(pet, col, form) {
 let habitKinds = {};
 
 // One LED matrix drawn into a canvas: dark dots for the LEDs that exist, lit ones from 1 to 9.
-function draw(cv, f) {
+function draw(cv, f, diff) {
   const ctx = cv.getContext("2d");
   const w = cv.width, cell = w / 25, r = cell * 0.36;
   ctx.clearRect(0, 0, w, w);
@@ -330,6 +333,17 @@ function draw(cv, f) {
     ctx.beginPath();
     ctx.arc((x + 0.5) * cell, (y + 0.5) * cell, v ? r * 1.15 : r, 0, 6.2832);
     ctx.fill();
+  }
+  // The revision: a ring round every LED that changed, so the eye goes to the right cells by itself.
+  if (diff && diff.length) {
+    ctx.strokeStyle = "rgba(242,179,91,.95)";
+    ctx.lineWidth = Math.max(1, cell * 0.13);
+    for (const i of diff) {
+      const x = i % 25, y = (i - x) / 25;
+      ctx.beginPath();
+      ctx.arc((x + 0.5) * cell, (y + 0.5) * cell, r * 1.5, 0, 6.2832);
+      ctx.stroke();
+    }
   }
 }
 
@@ -348,7 +362,7 @@ function loop(t) {
     const k = reduced ? Math.floor(a.seq.length / 2) : n % a.seq.length;
     if (cv._k === k) continue;
     cv._k = k;
-    draw(cv, a.frames[a.seq[k]]);
+    draw(cv, a.frames[a.seq[k]], a.diff);
   }
   const m = Math.floor(t / 160);
   for (const [cv, a] of ideaLive) {
@@ -420,8 +434,9 @@ function render() {
   grid.querySelectorAll("td.cell").forEach(td => {
     const cv = td.querySelector("canvas");
     const a = frames[td.dataset.kind][td.dataset.col];
+    a.diff = showChanged ? ((changedByStage[stage] || {})[td.dataset.kind] || {})[td.dataset.col] : null;
     live.set(cv, a);
-    draw(cv, a.frames[a.seq[0]]);
+    draw(cv, a.frames[a.seq[0]], a.diff);
     io.observe(cv);
   });
 }
@@ -486,6 +501,12 @@ async function setStage(s) {
   document.getElementById("q").addEventListener("input", e => { query = e.target.value.trim().toLowerCase(); render(); });
   document.getElementById("focusBtn").addEventListener("click", e => {
     focus = !focus; e.currentTarget.setAttribute("aria-pressed", String(focus)); document.body.classList.toggle("focus", focus);
+  });
+  try { changedByStage = await (await fetch("changed.json")).json(); } catch (e) { changedByStage = {}; }
+  document.getElementById("changedBtn").addEventListener("click", e => {
+    showChanged = !showChanged;
+    e.currentTarget.setAttribute("aria-pressed", String(showChanged));
+    render();
   });
   const grid = document.getElementById("grid");
   grid.addEventListener("click", e => { const td = e.target.closest("td.cell"); if (td) openBig(td); });
