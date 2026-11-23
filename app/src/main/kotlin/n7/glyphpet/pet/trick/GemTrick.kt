@@ -69,7 +69,8 @@ internal class GemTrick : Trick(0L) {
         if (burst > 0L) burst -= ms
 
         val face = when {
-            r > 0f -> Face.CONTENT
+            // Going home with its eyes open: shut-eye arcs stamped on the turning stone broke into bits.
+            r > 0f -> Face.IDLE
             party > 0L -> Face.HAPPY
             hold > 0L -> Face.LOVE
             else -> Face.IDLE

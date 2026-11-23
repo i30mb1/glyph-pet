@@ -223,7 +223,8 @@ internal class GravityMeal : Meal(2600) {
             val ang = 2 * PI * a / 16
             dot(frame, p.mid + rx * cos(ang).toFloat(), cy + ry * sin(ang).toFloat(), Kit.BODY * 0.25f)
         }
-        pet(frame, input, if (flash) Face.YAWN else Face.CONTENT, dx = input.dx, gain = if (flash) 1.8f else 1f)
+        // Its eyes stay open: the content face's shut-eye arcs, stamped on a turning 3D gem or planet, broke into bits.
+        pet(frame, input, if (flash) Face.YAWN else Face.IDLE, dx = input.dx, gain = if (flash) 1.8f else 1f)
         when {
             t < CAUGHT_MS -> piece(frame, p.mid + rx, lerp(-2f, cy, phase(t, 0, CAUGHT_MS)), 2)
             t < SPIRAL_MS -> {

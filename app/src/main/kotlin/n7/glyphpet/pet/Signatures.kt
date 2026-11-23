@@ -20,6 +20,8 @@ class SignatureInput(
     val feel: (HapticEvent) -> Unit = {},
     /** The phone just turned round the vertical in the hand ([Scene.yaw]), radians; 0 when not. */
     val yaw: Float = 0f,
+    /** The engine's own clock (-1 when there is none): a 3D body turned by it goes on turning without a jump in or out. */
+    val clockMs: Long = -1L,
 )
 
 /**

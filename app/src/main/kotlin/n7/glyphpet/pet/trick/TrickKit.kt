@@ -82,6 +82,29 @@ internal class SpriteCache {
         flipX: Boolean = false,
     ): Sprite = map.getOrPut("${species.id}|$face|$blink|$withFace|$flipY|$flipX") {
         Kit.sprite(species, face, blink, withFace = withFace, flipY = flipY).let { if (flipX) it.flippedX() else it }
+            .also { SpriteForms.meta[it] = SpriteForms.Meta(species, face, blink, withFace, flipY, flipX) }
+    }
+}
+
+/**
+ * The pet's own smaller forms for a game that wants it smaller: its teen or baby drawing at its own size, instead of
+ * shrinking the big one (dropping rows and columns ran its eyes and mouth together).
+ */
+internal object SpriteForms {
+    class Meta(val species: Species, val face: Face, val blink: Boolean, val withFace: Boolean, val flipY: Boolean, val flipX: Boolean)
+    val meta = java.util.WeakHashMap<Sprite, Meta>()
+    private val made = HashMap<String, Sprite>()
+
+    /** The biggest smaller form of [s]'s pet no bigger than about [w] x [h], or null when it has none. */
+    fun smaller(s: Sprite, w: Int, h: Int): Sprite? {
+        val m = meta[s] ?: return null
+        val forms = n7.glyphpet.pet.Stage.entries.filter { it.ordinal < m.species.stage.ordinal }
+            .map { n7.glyphpet.pet.SpeciesForms.of(m.species.kind, it) }.sortedByDescending { it.height }
+        if (forms.isEmpty()) return null
+        val pick = forms.firstOrNull { it.height <= h * 1.2f && it.width <= w * 1.2f } ?: forms.last()
+        return made.getOrPut("${pick.id}|${m.face}|${m.blink}|${m.withFace}|${m.flipY}|${m.flipX}") {
+            Kit.sprite(pick, m.face, m.blink, withFace = m.withFace, flipY = m.flipY).let { if (m.flipX) it.flippedX() else it }
+        }
     }
 }
 
@@ -201,8 +224,19 @@ internal fun Canvas.spriteAt(s: Sprite, cx: Float, cy: Float, sx: Float, sy: Flo
  * a smaller pet keeps its eyes as dark LEDs; otherwise the brightest cell. Bilinear shrinking smeared the pet into a
  * grey blob and mixed its eyes away.
  */
-internal fun Canvas.spriteCrisp(s: Sprite, cx: Float, cy: Float, sx: Float, sy: Float = sx, gain: Float = 1f) {
-    if (sx <= 0.05f || sy <= 0.05f || cx.isNaN() || cy.isNaN()) return
+internal fun Canvas.spriteCrisp(s: Sprite, cx: Float, cy: Float, sx0: Float, sy0: Float = sx0, gain: Float = 1f) {
+    if (sx0 <= 0.05f || sy0 <= 0.05f || cx.isNaN() || cy.isNaN()) return
+    // Asked smaller: its own smaller form at its own size where it has one.
+    if (sx0 < 0.85f || sy0 < 0.85f) {
+        val alt = SpriteForms.smaller(s, Math.round(s.w * sx0), Math.round(s.h * sy0))
+        if (alt != null && alt.h < s.h) {
+            val k = minOf(1f, s.h * sy0 / alt.h)
+            return spriteCrisp(alt, cx, cy, k * (sx0 / sy0).coerceIn(0.5f, 2f), k, gain)
+        }
+    }
+    // A little smaller only: drawn at its own size; shrinking by a few cells is what breaks a face.
+    val sx = if (sx0 >= 0.7f && sx0 < 1f) 1f else sx0
+    val sy = if (sy0 >= 0.7f && sy0 < 1f) 1f else sy0
     val n = Kit.N
     val dw = maxOf(1, Math.round(s.w * sx))
     val dh = maxOf(1, Math.round(s.h * sy))
@@ -405,7 +439,9 @@ internal abstract class Trick(@Suppress("UNUSED_PARAMETER") planned: Long) : Sig
     private fun home(out: IntArray, input: SignatureInput, sinceMs: Long) {
         out.fill(0)
         val lift = if (sinceMs in HOP_FROM_MS until HOP_TO_MS) 1 else 0
-        Kit.drawPet(out, input.species, Face.CONTENT, input.blink && lift == 0, input.dx, lift, painter = body3d(input))
+        // A 3D pet comes home with its eyes open: the content face's shut-eye arcs broke up on its turning body.
+        val face = if (n7.glyphpet.pet.Living3D.handles(input.species)) Face.IDLE else Face.CONTENT
+        Kit.drawPet(out, input.species, face, input.blink && lift == 0, input.dx, lift, painter = body3d(input))
     }
 
     /**
@@ -414,7 +450,7 @@ internal abstract class Trick(@Suppress("UNUSED_PARAMETER") planned: Long) : Sig
      */
     private val view3d = n7.glyphpet.pet.Living3D()
     private fun body3d(input: SignatureInput) =
-        if (n7.glyphpet.pet.Living3D.handles(input.species)) runCatching { view3d.live(input.species, input.dtMs, input.gx, input.gy, input.tMs, -1f, input.yaw) }.getOrNull() else null
+        if (n7.glyphpet.pet.Living3D.handles(input.species)) runCatching { view3d.live(input.species, input.dtMs, input.gx, input.gy, if (input.clockMs >= 0) input.clockMs else input.tMs, -1f, input.yaw) }.getOrNull() else null
 }
 
 /**

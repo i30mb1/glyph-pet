@@ -828,9 +828,11 @@ class PetEngine(
             typeOn, scene.alsoSad)
         val prev = lastOut
         // A change in the middle of a fade starts from what was on the matrix then, so nothing jumps.
-        // A game going on or off makes its own change (it cuts between the pet and its play picture, never mixing two);
-        // mixing here too put two pets on the matrix at once.
-        val gameEdge = lastLook != null && lastLook!![3] != look[3]
+        // A game going on or off, a signature or a meal ending, cuts instead of mixing (a meal still flows in from hunger): a dissolve there put two pets on the
+        // matrix at once (the meal's last hop over the pet at home read as a smeared double, the gem's most of all).
+        val jumpEdge = lastLook != null && (lastLook!![0] as? Face)?.let { SpeciesRenderer.jumpOf(it) } != (look[0] as? Face)?.let { SpeciesRenderer.jumpOf(it) }
+        // A face that jumps (happy) against one that does not, mixed, is the pet twice a row apart: a smear, so it cuts.
+        val gameEdge = jumpEdge || lastLook != null && (lastLook!![3] != look[3] || (lastLook!![4] == true && look[4] == false) || (lastLook!![5] == true && look[5] == false))
         if (lastLook != null && look != lastLook && prev != null && !gameEdge) { fadeFrom = prev; fadeMs = 0 }
         if (gameEdge) { fadeMs = -1; fadeFrom = null }
         lastLook = look
@@ -1319,7 +1321,7 @@ class PetEngine(
      */
     private fun input(species: Species, tMs: Long, dtMs: Long, scene: Scene, face: Face) = SignatureInput(
         species, tMs, dtMs, if (scene.desk) scene.spin else scene.tilt, scene.tiltY, blinkLeftMs > 0, face, x.roundToInt(), feel,
-        yaw = scene.yaw,
+        yaw = scene.yaw, clockMs = time,
     )
 
     /**

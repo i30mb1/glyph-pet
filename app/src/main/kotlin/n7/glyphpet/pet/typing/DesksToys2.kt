@@ -19,7 +19,16 @@ private fun keyN(d: DeskInput) = d.last?.n ?: -1
 /** The hero, [hgt] cells tall, standing with its feet on row [bottom] at column [x]. */
 private fun Cv.pet(d: DeskInput, x: Float, bottom: Float, hgt: Float, look: Look = d.mood(), flip: Boolean = false, gain: Float = 1f) {
     val s = d.pet.fit(hgt)
-    d.pet.draw(this, x, bottom - hgt / 2f, s, look, gain = gain, flipX = flip)
+    // Drawn on its own and laid over the scene by its silhouette (each row from its first lit cell to its last), so
+    // its dark eyes and mouth stay dark: drawn straight over a slope or a pile, the scene showed through its eyes.
+    val tmp = Cv()
+    d.pet.draw(tmp, x, bottom - hgt / 2f, s, look, gain = gain, flipX = flip)
+    for (y in 0..24) {
+        var l = -1; var r = -1
+        for (xx in 0..24) if (tmp.get(xx, y) > 0f) { if (l < 0) l = xx; r = xx }
+        if (l < 0) continue
+        for (xx in l..r) set(xx, y, tmp.get(xx, y))
+    }
 }
 
 private fun Cv.ground(y: Int, b: Float = 0.25f) { for (x in 0..24) put(x, y, b) }
@@ -291,13 +300,20 @@ internal class ConveyorToy : Desk() {
 /** Dino, the volcano: each key the ground shakes and it stomps; the volcano behind rumbles hotter as you type, and after 40 s it erupts. */
 internal class VolcanoToy : Desk() {
     override fun draw(c: Cv, d: DeskInput) {
-        val g = gk(d); val shake = if (since(d) < 120) (if (d.t % 80 < 40) 1 else -1) else 0
-        for (j in 0..8) for (x in 12 - (j + 2)..12 + (j + 2)) c.put(x + 4 + shake, 12 + j, 0.2f)
-        for (x in 14..18) c.put(x + shake, 12, 0.3f + 0.6f * g)
-        if (won(d)) d.recent(1500) { k, a -> for (i in 0..3) { val (x, y) = arc(16f, 11f, (h(k.n, i) - 0.5f) * 18f, -22f - h(k.n, i + 4) * 8f, 40f, a); c.put(x, y, 1f) } }
-        else if (g > 0.5f) for (i in 0..2) { val q = ((d.t / 600f + i / 3f) % 1f); c.put(16f + sin(q * 6 + i) , 11f - q * 7, 0.3f * (1 - q)) }
+        val g = gk(d); val a = since(d)
+        // The volcano stands still (a whole grey mountain jerking a cell read as a glitch) and clear of the pet on the
+        // right; it answers each stomp with a flare in its crater.
+        for (j in 0..8) { val hw = (1.5f + j * 0.7f).roundToInt(); for (x in 18 - hw..18 + hw) c.put(x, 12 + j, 0.2f) }
+        val flare = if (d.last != null && a in 100L until 280L) 1f else 0.3f + 0.6f * g
+        for (x in 17..19) c.put(x, 12, flare)
+        if (won(d)) d.recent(1500) { k, q -> for (i in 0..3) { val (x, y) = arc(18f, 11f, (h(k.n, i) - 0.5f) * 18f, -22f - h(k.n, i + 4) * 8f, 40f, q); c.put(x, y, 1f) } }
+        else if (g > 0.5f) for (i in 0..2) { val q = ((d.t / 600f + i / 3f) % 1f); c.put(18f + sin(q * 6 + i), 11f - q * 7, 0.3f * (1 - q)) }
         c.ground(21, 0.3f)
-        c.pet(d, 6f + shake, 21f - (if (since(d) < 120) 1 else 0), 8f, if (since(d) < 150) Look.WOW else d.mood())
+        // The stomp: up for a moment, then down with a puff of dust at its feet, on the ground.
+        val up = d.last != null && a < 100
+        c.pet(d, 6f, 21f - (if (up) 1 else 0), 7f, if (a < 250) Look.WOW else d.mood())
+        if (d.last != null && a in 100L until 300L) { val p = (a - 100) / 200f; val r = (2 + p * 2).roundToInt()
+            for (s in listOf(-1, 1)) { c.put(6 + s * r, 21, 0.7f * (1 - p) + 0.3f); c.put(6 + s * r, 20, 0.6f * (1 - p)) } }
     }
 }
 

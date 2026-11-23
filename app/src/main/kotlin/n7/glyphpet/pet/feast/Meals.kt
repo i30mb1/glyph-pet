@@ -27,7 +27,7 @@ internal abstract class Meal(override val durationMs: Long) : Signature {
         blink: Boolean = input.blink,
     ) {
         val s = input.species
-        val painter = if (Living3D.handles(s)) runCatching { view.live(s, input.dtMs, input.gx, input.gy, input.tMs, -1f, input.yaw) }.getOrNull() else null
+        val painter = if (Living3D.handles(s)) runCatching { view.live(s, input.dtMs, input.gx, input.gy, if (input.clockMs >= 0) input.clockMs else input.tMs, -1f, input.yaw) }.getOrNull() else null
         Kit.drawPet(frame, s, face, blink, dx, lift = lift, gain = gain, painter = painter)
     }
 

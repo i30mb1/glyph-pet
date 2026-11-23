@@ -1,5 +1,6 @@
 package n7.glyphpet.pet
 
+
 import n7.glyph.ui.matrix.GlyphMatrixSpec
 import kotlin.math.PI
 import kotlin.math.atan2
@@ -172,6 +173,8 @@ object Breaths {
 
         /** The hem ripples: its last two rows flow sideways, their teeth travelling along it. */
         fun ghost(asleep: Boolean) {
+            // A baby's hem has no teeth to ripple, and its mouth sits low on it.
+            if (species.stage == Stage.BABY) return
             val cell = if (asleep) HEM_CELL_MS * 2 else HEM_CELL_MS
             for (y in y1 - 1..y1) {
                 val (l, r) = span(y) ?: continue

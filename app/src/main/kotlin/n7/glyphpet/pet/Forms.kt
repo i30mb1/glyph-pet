@@ -30,7 +30,8 @@ object SpeciesForms {
                 "....#....", "...##....", "..####...", ".######..", ".#######.", "#########", "#########", "#########",
                 ".#######.", "..#####..",
             ),
-            ox = 8, oy = 8, eyes = listOf(1 to 5, 6 to 5), mouth = 3 to 7,
+            // The eyes a row higher than they were: right on top of the mouth, eyes and mouth ran together into one hole.
+            ox = 8, oy = 8, eyes = listOf(2 to 4, 5 to 4), mouth = 3 to 8,
         ),
         // bot: little bot
         "bot" to Sprite(
