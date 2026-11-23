@@ -394,7 +394,7 @@ internal abstract class Trick(@Suppress("UNUSED_PARAMETER") planned: Long) : Sig
         }
         if (t < IN_MS) {
             val k = t.toFloat() / IN_MS
-            if (k < 0.5f) { frame.fill(0); Kit.drawPet(frame, input.species, input.face, input.blink, input.dx); dim(frame, 1f - k * 2f) }
+            if (k < 0.5f) { frame.fill(0); Kit.drawPet(frame, input.species, input.face, input.blink, input.dx, painter = body3d(input)); dim(frame, 1f - k * 2f) }
             else dim(frame, k * 2f - 1f)
         }
     }
@@ -405,8 +405,16 @@ internal abstract class Trick(@Suppress("UNUSED_PARAMETER") planned: Long) : Sig
     private fun home(out: IntArray, input: SignatureInput, sinceMs: Long) {
         out.fill(0)
         val lift = if (sinceMs in HOP_FROM_MS until HOP_TO_MS) 1 else 0
-        Kit.drawPet(out, input.species, Face.CONTENT, input.blink && lift == 0, input.dx, lift)
+        Kit.drawPet(out, input.species, Face.CONTENT, input.blink && lift == 0, input.dx, lift, painter = body3d(input))
     }
+
+    /**
+     * The legendary and mythic pets stay in 3D going into a game and coming home ([n7.glyphpet.pet.Living3D]), as
+     * everywhere else: drawn flat for the hop, the gem and the planet broke into a soft flat picture and back.
+     */
+    private val view3d = n7.glyphpet.pet.Living3D()
+    private fun body3d(input: SignatureInput) =
+        if (n7.glyphpet.pet.Living3D.handles(input.species)) runCatching { view3d.live(input.species, input.dtMs, input.gx, input.gy, input.tMs, -1f, input.yaw) }.getOrNull() else null
 }
 
 /**

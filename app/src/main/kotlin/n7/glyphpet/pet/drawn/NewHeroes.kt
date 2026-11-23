@@ -217,7 +217,8 @@ private object FishJar : NewHero(
             1 -> listOf(".##.#", "#o###", ".##.#")
             else -> listOf("..###..#", ".#o####.", "########", ".#####.#")
         }
-        val r = if (right) rows else rows.map { it.reversed() }
+        // The baby is drawn facing right, the bigger ones facing left: each is turned to swim head first.
+        val r = if (right == (st == 0)) rows else rows.map { it.reversed() }
         val left = (x - r[0].length / 2f).roundToInt(); val top = (y - r.size / 2f).roundToInt()
         r.forEachIndexed { dy, row -> row.forEachIndexed { dx, ch ->
             when (ch) {

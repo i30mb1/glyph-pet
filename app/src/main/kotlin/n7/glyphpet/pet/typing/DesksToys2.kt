@@ -339,10 +339,10 @@ internal class DisguiseToy : Desk() {
         val n = keyN(d).coerceAtLeast(0); val g = gk(d)
         fun pat(x: Int, y: Int) = when (n % 3) { 0 -> if ((x + y) % 4 < 2) 0.35f else 0.12f; 1 -> if (x % 3 == 0 && y % 3 == 0) 0.45f else 0.1f; else -> if ((x / 2 + y / 2) % 2 == 0) 0.35f else 0.12f }
         val flash = since(d) < 120
-        val dimBg = 0.3f + 0.7f * g
+        val dimBg = 0.12f + 0.88f * g
         for (y in 0..24) for (x in 0..24) c.put(x, y, (if (flash) pat(x, y) * 1.6f else pat(x, y)) * dimBg)
         val tmp = Cv(); tmp.pet(d, 12f, 18f, 9f)
-        for (y in 0..24) for (x in 0..24) { val v = tmp.get(x, y); if (v > 0f) c.set(x, y, mix(v, pat(x, y), if (won(d)) 1f else g * 0.8f)) else if (v == 0f && tmp.get(x, y) == 0f) Unit }
+        for (y in 0..24) for (x in 0..24) { val v = tmp.get(x, y); if (v > 0f) c.set(x, y, mix(maxOf(v, 0.5f), pat(x, y) * dimBg, if (won(d)) 1f else g * g * 0.85f)) else if (v == 0f && tmp.get(x, y) == 0f) Unit }
         if (won(d)) { c.set(14, 13, 1f); c.set(16, 13, 1f) }
     }
 }
