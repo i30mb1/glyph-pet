@@ -111,6 +111,14 @@ class PetEngine(
 
         /** Rows a happy pet is off the ground, frame by frame (80 ms each): a crouch first, then up and down. */
         private val HOP = intArrayOf(-1, 1, 2, 2, 1)
+
+        /**
+         * A happy pet keeps a light bounce going: up a row for a moment, then down, once in [BOUNCE_MS]. Its big burst
+         * of joy stays rare ([JOY_EVERY_MIN_MS]); this is the small one that says "happy" the whole time, on every
+         * hero, so a glance of two or three seconds always catches it. The face never moves.
+         */
+        private const val BOUNCE_MS = 1360L
+        private val BOUNCE = intArrayOf(1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
         const val HOP_MS = 400L
 
         /** A pet changes its face through a blink this long (under the cross-dissolve), so the new eyes open fresh. */
@@ -306,6 +314,9 @@ class PetEngine(
     private val blowBits = mutableListOf<Blows.Bit>()
     private var blowLiftF = 0f
     private var blowAngle = 0f
+
+    /** The wind the pet feels now, 0..1: what its wind pose ([WindPoses]) is drawn from. */
+    private var blowStrength = 0f
     private var blowDim = 1f
     private var blowHopMs = -1L
     private var blowHopTo = 0f
@@ -1058,6 +1069,8 @@ class PetEngine(
             else -> 0
         }.plus(blowLift() + windUp(way) + (startle?.let { Startles.lift(it, startleMs) } ?: 0))
             .plus(if (fall >= 0f) MoodSigns.fallLift(species.kind, fall) else 0)
+            // Happy in the body, not only in the eyes: a light bounce goes on between the rare bursts of joy.
+            .plus(happyLift(scene.mood, asleep, own, sliding))
             // Never up through the round top edge: a big pet jumps only as high as there is room.
             .coerceAtMost(maxOf(0, species.oy - 4))
             // Carried right out through the top by the wind, and in again from the bottom.
@@ -1687,7 +1700,10 @@ class PetEngine(
         val ease = (dtMs / 250f).coerceAtMost(1f)
         blowLiftF += ((if (way.move == Blows.Move.LIFT && blown) 1f + 2f * wind else 0f) - blowLiftF) * ease
         blowDim += ((if (way.move == Blows.Move.DIM && blown) 1f - 0.75f * wind else 1f) - blowDim) * (dtMs / 400f).coerceAtMost(1f)
-        blowAngle = when (way.move) {
+        // The heroes with a wind pose of their own ([WindPoses]) never turn the picture: a rotation would blend cells
+        // into grey. Their answer is drawn on whole cells instead (see [blownPose]).
+        blowStrength = if (blown) wind else 0f
+        blowAngle = if (kindNow?.let(WindPoses::has) == true) 0f else when (way.move) {
             // Rolled along: it turns as far as it went, round its own middle.
             Blows.Move.ROLL -> windPush / (height / 2f).coerceAtLeast(2f)
             Blows.Move.TUMBLE -> windPush * 0.45f
@@ -1702,19 +1718,38 @@ class PetEngine(
 
     private fun blowLift(): Int = blowLiftF.roundToInt()
 
+    /**
+     * The light bounce a happy pet keeps in its body ([BOUNCE]): zero whenever something else is going on — a habit, a
+     * game, a show, a meal, a reaction, a slide down a lean, or its own rare burst of joy — so the two never stack.
+     */
+    private fun happyLift(mood: Mood, asleep: Boolean, own: HabitFrame?, sliding: Boolean): Int {
+        val free = mood == Mood.HAPPY && !asleep && own == null && !sliding && action == Action.NONE &&
+            hopMs < 0 && joyMs < 0 && blowHopMs < 0 && foodY == null && moment == null &&
+            trickMs < 0 && signatureMs < 0 && feastMs < 0
+        if (!free) return 0
+        return BOUNCE[(time / 80).toInt() % BOUNCE.size]
+    }
+
     /** How far up the wind has pushed the pet now (rows): the wind blows up the matrix ([Blows]). */
     private fun windUp(way: Blows.Way?): Int =
         if (way == null || way.move == Blows.Move.WRAP || way.move == Blows.Move.TUMBLE || way.move == Blows.Move.LIFT) 0
         else windPush.roundToInt().coerceAtLeast(0)
 
     /**
-     * The blown pet's pose over the frame just drawn: turned (rolled, tumbled or upside down), coming in from the other
-     * side as it is carried through the edge, or faded into hiding.
+     * The blown pet's pose over the frame just drawn: its own wind pose for the kinds that used to roll or tumble
+     * ([WindPoses]), a turn for the rest, coming in from the other side as it is carried through the edge, or faded
+     * into hiding.
      */
     private fun blownPose(frame: IntArray, species: Species, face: Face, dx: Int, lift: Int, painter: BodyPainter?, wraps: Boolean) {
         val top = species.oy - SpeciesRenderer.jumpOf(face) - lift
         val left = species.ox + dx
-        if (abs(blowAngle) > 0.03f) TiltStyle.rotate(frame, left, left + species.width - 1, top, top + species.height - 1, blowAngle)
+        val pose = WindPoses.of(species.kind)
+        if (pose != null) {
+            // Its own answer, in whole cells: spines out, rocked on its axis, turned right over.
+            WindPoses.draw(frame, species, pose, blowStrength, time, left, top)
+        } else if (abs(blowAngle) > 0.03f) {
+            TiltStyle.rotate(frame, left, left + species.width - 1, top, top + species.height - 1, blowAngle)
+        }
         if (wraps && windPush.roundToInt() != 0) {
             // The part already out at the top comes in at the bottom.
             SpeciesRenderer.render(
