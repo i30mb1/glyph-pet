@@ -112,6 +112,7 @@ object Blows {
         "tardigrade" to Way(Move.ROLL, Face.IDLE, Debris.DUST, push = 3f, speed = 4f),
         "cassette" to Way(Move.TUMBLE, Face.IDLE, Debris.LITTER, speed = 8f),
         "ferro" to Way(Move.HOLD, Face.IDLE, Debris.STARDUST),
+        "firefly" to Way(Move.PUSH, Face.IDLE, Debris.SPARKLE, push = 4f, speed = 6f),
     )
 
     fun of(kind: String?): Way? = WAYS[kind]

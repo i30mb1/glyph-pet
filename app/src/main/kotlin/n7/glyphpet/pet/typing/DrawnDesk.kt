@@ -26,7 +26,7 @@ internal class DrawnDesk(private val kind: String) : Desk() {
         /** The drawn heroes whose typing is their own clip. */
         val KINDS = listOf(
             "astronaut", "bubble", "capybara", "cassette", "dandelion", "ferro", "fishjar", "glitch", "hourglass",
-            "kodama", "kraken", "moon", "pebble", "shadow", "spider", "sprout", "tardigrade",
+            "kodama", "kraken", "moon", "pebble", "shadow", "spider", "sprout", "tardigrade", "firefly",
         )
     }
 }

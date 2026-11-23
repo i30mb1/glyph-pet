@@ -60,6 +60,7 @@ internal object TypingNames {
         "spider" to R.string.type_spider_about,
         "sprout" to R.string.type_sprout_about,
         "tardigrade" to R.string.type_tardigrade_about,
+        "firefly" to R.string.type_firefly_about,
     )
 
     @StringRes

@@ -95,6 +95,7 @@ object Startles {
         "tardigrade" to Style(Move.DUCK, Face.IDLE, Mark.SWEAT, 1300L),
         "cassette" to Style(Move.JOLT, Face.IDLE, Mark.NOTE),
         "ferro" to Style(Move.JUMP, Face.IDLE, Mark.SPIKES),
+        "firefly" to Style(Move.SHRINK, Face.IDLE, Mark.SPARK),
     )
 
     private val FALLBACK = Style(Move.JUMP, Face.SCARED, Mark.BANG)
