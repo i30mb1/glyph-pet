@@ -96,6 +96,12 @@ object Startles {
         "cassette" to Style(Move.JOLT, Face.IDLE, Mark.NOTE),
         "ferro" to Style(Move.JUMP, Face.IDLE, Mark.SPIKES),
         "firefly" to Style(Move.SHRINK, Face.IDLE, Mark.SPARK),
+        "radar" to Style(Move.DART, Face.IDLE, Mark.ZAP),
+        "candle" to Style(Move.FREEZE, Face.IDLE, Mark.SPARK),
+        "cocoa" to Style(Move.JUMP, Face.IDLE, Mark.NOTE),
+        "wisp" to Style(Move.SPIN, Face.IDLE, Mark.SPARK),
+        "sonar" to Style(Move.DUCK, Face.IDLE, Mark.RINGS),
+        "scope" to Style(Move.JOLT, Face.IDLE, Mark.ZAP),
     )
 
     private val FALLBACK = Style(Move.JUMP, Face.SCARED, Mark.BANG)

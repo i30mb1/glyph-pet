@@ -66,6 +66,8 @@ object Rings {
         "hourglass" to Style(Move.SPIN, Mark.ORBIT), "fishjar" to Style(Move.BOUNCE, Mark.PHONE), "dandelion" to Style(Move.SWAY, Mark.ORBIT),
         "bubble" to Style(Move.BOUNCE, Mark.BARS), "capybara" to Style(Move.PULSE, Mark.PHONE), "moon" to Style(Move.PULSE, Mark.ORBIT),
         "tardigrade" to Style(Move.BUZZ, Mark.PHONE), "cassette" to Style(Move.JUMP, Mark.BARS), "ferro" to Style(Move.BUZZ, Mark.ORBIT), "firefly" to Style(Move.FLASH, Mark.ORBIT),
+        "radar" to Style(Move.SPIN, Mark.PHONE), "candle" to Style(Move.SWAY, Mark.PHONE), "cocoa" to Style(Move.JUMP, Mark.PHONE),
+        "wisp" to Style(Move.LEAN, Mark.ORBIT), "sonar" to Style(Move.LEAN, Mark.PHONE), "scope" to Style(Move.FLASH, Mark.PHONE),
     )
 
     fun of(kind: String?): Style = STYLES[kind] ?: Style(Move.BUZZ, Mark.HANDSET)
@@ -182,6 +184,8 @@ object Notices {
         "hourglass" to Style(Move.TURN, Mark.STAR), "fishjar" to Style(Move.HOP, Mark.ARROW), "dandelion" to Style(Move.RISE, Mark.STAR),
         "bubble" to Style(Move.GLOW, Mark.ARROW), "capybara" to Style(Move.NOD, Mark.STAR), "moon" to Style(Move.GLOW, Mark.STAR),
         "tardigrade" to Style(Move.PERK, Mark.STAR), "cassette" to Style(Move.BLINK, Mark.STAR), "ferro" to Style(Move.WIGGLE, Mark.CHAT), "firefly" to Style(Move.GLOW, Mark.CHAT),
+        "radar" to Style(Move.WIGGLE, Mark.STAR), "candle" to Style(Move.PERK, Mark.CHAT), "cocoa" to Style(Move.HOP, Mark.STAR),
+        "wisp" to Style(Move.RISE, Mark.CHAT), "sonar" to Style(Move.HOP, Mark.CHAT), "scope" to Style(Move.TURN, Mark.CHAT),
     )
 
     fun of(kind: String?): Style = STYLES[kind] ?: Style(Move.PERK, Mark.DOT)

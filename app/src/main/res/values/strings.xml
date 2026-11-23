@@ -371,4 +371,10 @@
     <string name="intro_hear_text_app">Blow on the phone and the wind carries your pet, each kind its own way. Clap and it starts. Lay the phone by your keyboard and type: it turns into its own little toy, each key does something, and at 10 and 20 seconds comes a finale. All of it brings it joy. The microphone only hears how loud it is, nothing is recorded; you turn it on in Settings.</string>
     <string name="play_hint_app">Hold the circle: feed and play · tap the back twice: stroke · tilt, shake, blow, clap, type nearby</string>
     <string name="action_press_app">hold the circle</string>
+    <string name="type_radar_about">Every key a ping lights the ghost; at 10 s other blips join it, at 20 s the whole scope glows</string>
+    <string name="type_candle_about">Every key the flame flares; at 10 s it burns taller, at 20 s it is a bonfire</string>
+    <string name="type_cocoa_about">Every key a marshmallow splashes in; at 10 s the steam thickens into a whirling cloud</string>
+    <string name="type_wisp_about">Every key it flares; at 10 s little wisps follow it, at 20 s a ring of them circles round</string>
+    <string name="type_sonar_about">Every key a ping finds the fish; at 10 s a shoal answers, at 20 s the whole sea glows</string>
+    <string name="type_scope_about">Every key a spike runs along the wave; at 10 s its face sings above it</string>
 </resources>

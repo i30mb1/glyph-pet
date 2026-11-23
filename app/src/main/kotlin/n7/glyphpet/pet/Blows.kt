@@ -113,6 +113,12 @@ object Blows {
         "cassette" to Way(Move.TUMBLE, Face.IDLE, Debris.LITTER, speed = 8f),
         "ferro" to Way(Move.HOLD, Face.IDLE, Debris.STARDUST),
         "firefly" to Way(Move.PUSH, Face.IDLE, Debris.SPARKLE, push = 4f, speed = 6f),
+        "radar" to Way(Move.DIM, Face.IDLE, Debris.SPARKLE, push = 0f),
+        "candle" to Way(Move.LIFT, Face.IDLE, Debris.EMBERS, push = 1f, speed = 3f),
+        "cocoa" to Way(Move.HOLD, Face.IDLE, Debris.WISPS),
+        "wisp" to Way(Move.PUSH, Face.IDLE, Debris.EMBERS, push = 4f, speed = 6f),
+        "sonar" to Way(Move.LOOK, Face.IDLE, Debris.RIPPLE, push = 1f, speed = 2f),
+        "scope" to Way(Move.WRAP, Face.IDLE, Debris.STATIC, speed = 6f),
     )
 
     fun of(kind: String?): Way? = WAYS[kind]

@@ -27,6 +27,7 @@ internal class DrawnDesk(private val kind: String) : Desk() {
         val KINDS = listOf(
             "astronaut", "bubble", "capybara", "cassette", "dandelion", "ferro", "fishjar", "glitch", "hourglass",
             "kodama", "kraken", "moon", "pebble", "shadow", "spider", "sprout", "tardigrade", "firefly",
+            "radar", "candle", "cocoa", "wisp", "sonar", "scope",
         )
     }
 }

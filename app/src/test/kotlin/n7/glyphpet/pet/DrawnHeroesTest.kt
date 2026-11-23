@@ -13,6 +13,10 @@ class DrawnHeroesTest {
     @Test
     fun `every drawn hero draws every state at every stage, inside the matrix, and it moves`() {
         val bad = mutableListOf<String>()
+        // The little worlds are shared: another test's wind may have just popped the bubble, which would hold its pop
+        // for the whole clip here.
+        n7.glyphpet.pet.drawn.DrawnWorld.poppedAt = Long.MIN_VALUE / 2
+        n7.glyphpet.pet.drawn.DrawnWorld.bubble = 0.45f
         for (h in Drawn.all) for (st in Stage.entries) for ((col, ms) in Drawn.COLS) {
             val frames = (0 until ms step Drawn.STEP).map { Drawn.frame(h.kind, col, it, st, if (col == "tilt" || col == "game") 0.8f * kotlin.math.sin(it / 600f) else 0f).toList() }
             if (frames.all { f -> f.none { it > 0 } }) bad += "${h.kind}/${st.name}/$col: dark"

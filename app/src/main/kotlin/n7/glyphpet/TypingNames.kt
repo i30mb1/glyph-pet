@@ -61,6 +61,12 @@ internal object TypingNames {
         "sprout" to R.string.type_sprout_about,
         "tardigrade" to R.string.type_tardigrade_about,
         "firefly" to R.string.type_firefly_about,
+        "radar" to R.string.type_radar_about,
+        "candle" to R.string.type_candle_about,
+        "cocoa" to R.string.type_cocoa_about,
+        "wisp" to R.string.type_wisp_about,
+        "sonar" to R.string.type_sonar_about,
+        "scope" to R.string.type_scope_about,
     )
 
     @StringRes
