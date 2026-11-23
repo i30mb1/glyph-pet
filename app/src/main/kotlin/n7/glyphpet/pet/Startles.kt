@@ -151,17 +151,20 @@ object Startles {
         }
     }
 
-    /** How far the body is turned (radians). */
-    fun angle(style: Style, t: Long): Float {
+    /**
+     * How far the body is turned, in QUARTER turns clockwise (0..3), not radians. A turn by a free angle has to blend
+     * a cell with its neighbours, and on a 25x25 monochrome print a blended cell is a brightness the art never had:
+     * the pet becomes grey mush and its face is the first thing to go. A quarter turn lands every cell on another
+     * cell exactly, so a spin reads as a spin and the eyes stay eyes.
+     *
+     * A spin goes round in four steps and comes back upright; a topple falls on its side, lies there and gets up.
+     */
+    fun quarters(style: Style, t: Long): Int {
         val p = q(style, t)
         return when (style.move) {
-            Move.SPIN -> (2 * PI * ease((p / 0.7f).coerceAtMost(1f))).toFloat().let { if (it >= 2 * PI - 0.02) 0f else it }
-            Move.TOPPLE -> (PI / 2 * when {
-                p < 0.2f -> ease(p / 0.2f)
-                p > 0.65f -> 1f - ease((p - 0.65f) / 0.35f)
-                else -> 1f
-            }).toFloat()
-            else -> 0f
+            Move.SPIN -> if (p >= 0.72f) 0 else (ease((p / 0.72f).coerceAtMost(1f)) * 4f).toInt().coerceIn(0, 3)
+            Move.TOPPLE -> if (p < 0.2f || p > 0.78f) 0 else 1
+            else -> 0
         }
     }
 

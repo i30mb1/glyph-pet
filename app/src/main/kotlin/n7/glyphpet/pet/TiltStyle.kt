@@ -109,6 +109,35 @@ enum class TiltStyle(val face: Face) {
          * matrix) about the box's centre. Every cell takes the four it comes from between, blended (bilinear): a thin
          * pixel drawing turned cell by cell broke apart, blended it turns smoothly, like the mini-games' sprites.
          */
+        /**
+         * [k] quarter turns clockwise about the middle of the box, cell for cell: every cell lands on another cell,
+         * so nothing is blended and the face stays a face. Between two quarter turns there is no half-way picture —
+         * a turn by a free angle can only be made by mixing neighbours, which on a one-colour print is grey mush.
+         */
+        fun quarter(frame: IntArray, left: Int, right: Int, top: Int, bottom: Int, k: Int) {
+            val q = Math.floorMod(k, 4)
+            if (q == 0) return
+            val size = SpeciesRenderer.SIZE
+            val cx = (left + right) / 2f
+            val cy = (top + bottom) / 2f
+            // Big enough for the turned box, never past the matrix.
+            val half = (maxOf(right - left, bottom - top) + 1) / 2 + 1
+            val x0 = (cx - half).toInt().coerceAtLeast(0)
+            val x1 = (cx + half).toInt().coerceAtMost(size - 1)
+            val y0 = (cy - half).toInt().coerceAtLeast(0)
+            val y1 = (cy + half).toInt().coerceAtMost(size - 1)
+            val copy = frame.copyOf()
+            fun at(x: Int, y: Int): Int =
+                if (x in 0 until size && y in 0 until size) copy[y * size + x] else 0
+            for (y in y0..y1) for (x in x0..x1) {
+                if (!GlyphMatrixSpec.isVisible(x, y)) continue
+                var dx = x - cx
+                var dy = y - cy
+                repeat(q) { val o = dx; dx = dy; dy = -o }
+                frame[y * size + x] = at((cx + dx).roundToInt(), (cy + dy).roundToInt())
+            }
+        }
+
         fun rotate(frame: IntArray, left: Int, right: Int, top: Int, bottom: Int, angle: Float) {
             val size = SpeciesRenderer.SIZE
             val cx = (left + right) / 2f

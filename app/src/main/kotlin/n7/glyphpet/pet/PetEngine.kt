@@ -1111,8 +1111,9 @@ class PetEngine(
         if (startle != null) {
             val top = species.oy - SpeciesRenderer.jumpOf(face) - lift
             val left = species.ox + dx
-            val angle = Startles.angle(startle, startleMs)
-            if (abs(angle) > 0.03f) TiltStyle.rotate(frame, left, left + species.width - 1, top, top + species.height - 1, angle)
+            // A spin or a topple goes round in quarter turns: exact on a grid, so nothing is blended and the face stays.
+            val quarters = Startles.quarters(startle, startleMs)
+            if (quarters != 0) TiltStyle.quarter(frame, left, left + species.width - 1, top, top + species.height - 1, quarters)
             val k = Startles.dim(startle, startleMs)
             if (k < 0.995f) for (i in frame.indices) frame[i] = (frame[i] * k).toInt()
             Startles.mark(frame, startle, startleMs, left, left + species.width - 1, top, top + species.height - 1, startleDir)
@@ -1246,7 +1247,7 @@ class PetEngine(
         var l = 25; var r = -1; var tp = 25; var b = -1
         for (i in frame.indices) if (frame[i] >= BODY / 3) { val cx = i % SIZE; val cy = i / SIZE; l = minOf(l, cx); r = maxOf(r, cx); tp = minOf(tp, cy); b = maxOf(b, cy) }
         if (r < 0) { l = 8; r = 16; tp = 8; b = 16 }
-        var dx = 0; var dy = 0; var angle = 0f; var dim = 1f
+        var dx = 0; var dy = 0; var angle = 0f; var dim = 1f; var quarters = 0
         if (way != null) {
             val wind = windMotion(dtMs, way, if (free) scene.wind else 0f, scene, b - tp + 1)
             dx += if (way.move == Blows.Move.HOLD && blown && scene.wind > 0.45f) (if ((time / 90) % 2 == 0L) -1 else 1) else 0
@@ -1261,11 +1262,12 @@ class PetEngine(
         if (startle != null) {
             dx += Startles.dx(startle, startleMs, startleDir)
             dy -= Startles.lift(startle, startleMs)
-            angle += Startles.angle(startle, startleMs)
+            quarters += Startles.quarters(startle, startleMs)
             dim *= Startles.dim(startle, startleMs)
         }
         val wraps = way != null && (way.move == Blows.Move.WRAP || way.move == Blows.Move.TUMBLE)
         if (abs(angle) > 0.03f) TiltStyle.rotate(frame, l, r, tp, b, angle)
+        if (quarters != 0) TiltStyle.quarter(frame, l, r, tp, b, quarters)
         shiftWhole(frame, dx, dy, wraps)
         if (dim < 0.995f) for (i in frame.indices) frame[i] = (frame[i] * dim).toInt()
         if (startle != null) Startles.mark(frame, startle, startleMs, l + dx, r + dx, tp + dy, b + dy, startleDir)
