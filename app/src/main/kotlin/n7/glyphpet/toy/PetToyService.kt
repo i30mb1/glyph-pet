@@ -47,6 +47,8 @@ import n7.glyphpet.pet.XpSource
 class PetToyService : Service(), GlyphMatrixManager.Callback {
 
     private companion object {
+        /** How often the live pet looks at the app's microphone switch. */
+        const val MIC_CHECK_MS = 1000L
         const val TAG = "PetToy"
         const val FRAME_MS = 80L
         /** How quickly the light on the pet follows the phone's lean (see [Shading]). */
@@ -419,6 +421,9 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         engine.alert()
     }
 
+    /** When [renderLive] last looked at the microphone switch. */
+    private var micCheckedAt = 0L
+
     private fun startLive() {
         if (running || !connected) return
         running = true
@@ -459,6 +464,12 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             return
         }
         updatePosture(now)
+        // The microphone switch in the app takes effect at once, both ways: no restarting the toy to start hearing,
+        // and switched off it stops listening there and then.
+        if (now - micCheckedAt >= MIC_CHECK_MS) {
+            micCheckedAt = now
+            if (store.mic && !aodBurst && burstUntil == 0L) mic.start() else if (!store.mic) mic.stop()
+        }
         if (hideUnseen && hidden(now)) {
             // Nobody can see the matrix: whatever the phone did, the pet does nothing about it.
             motion.consumeShake()
