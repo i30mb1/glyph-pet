@@ -206,11 +206,14 @@ class PetStore(context: Context) {
 
     /**
      * Grants the egg of every anomaly whose condition is met now ([AnomalyUnlocks]) and the player has neither hatched
-     * nor been given yet. Returns the kinds granted.
+     * nor been given yet, once the player has a first pet. Returns the kinds granted.
      */
     @Synchronized
     fun anomalies(charging: Boolean, battery: Float, desk: Boolean, deskMs: Long, nowMs: Long = GameClock.now()): List<String> = runCatching {
         val state = loadState(nowMs)
+        // The first pet always comes from the daily egg: a found egg would jump the queue, and everyone starting in
+        // the days round a full moon would hatch the moon rabbit first.
+        if (state.seen.values.none { it > 0 }) return@runCatching emptyList()
         val facts = facts(state, charging, battery, desk, deskMs, nowMs)
         val new = n7.glyphpet.pet.drawn.Drawn.anomalies.map { it.kind }
             .filter { (state.seen[it] ?: 0) == 0 && it !in state.eggs && AnomalyUnlocks.met(it, facts) }

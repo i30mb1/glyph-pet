@@ -1,7 +1,7 @@
 <resources>
     <string name="toy_summary">Каждый день новый питомец в яйце. Положи его на Glyph Matrix, и после пяти долгих нажатий кнопки Glyph он вылупится. Собери всех 28, от обычных до мифических.</string>
 
-    <string name="tagline">Питомец на твоей Glyph Matrix.</string>
+    <string name="tagline">Маленький питомец в телефоне и на Glyph Matrix.</string>
     <string name="main_hint">Каждый день новый питомец в яйце</string>
     <string name="need_food">Еда</string>
     <string name="need_joy">Радость</string>
@@ -16,7 +16,7 @@
         <item quantity="other">Без тебя тает точка за %d минуты, в играх быстрее</item>
     </plurals>
     <plurals name="need_joy_fill">
-        <item quantity="other">Сытому зажми кнопку Glyph: каждые 10 секунд игры — точка радости</item>
+        <item quantity="other">Сытого удержи: каждые 10 секунд игры — точка радости</item>
     </plurals>
     <plurals name="need_joy_drain">
         <item quantity="one">Без тебя тает точка за %d минуту</item>
@@ -42,7 +42,7 @@
 
     <string name="egg_title">Яйцо</string>
     <string name="egg_tile_description">Яйцо, нажатий %1$d из %2$d</string>
-    <string name="egg_crack_action">пять долгих нажатий кнопки Glyph его разобьют</string>
+    <string name="egg_crack_action">пять долгих нажатий его разобьют</string>
     <string name="egg_label">Яйцо</string>
 
     <string name="collection_title">Питомник · %1$d из %2$d</string>
@@ -95,7 +95,7 @@
     <string name="egg_take_off_matrix">Убрать яйцо с матрицы</string>
     <string name="now_hatched">Вылупился %1$s!</string>
     <string name="now_eggs_waiting">Яиц ждёт: %1$d. Положи одно на матрицу, чтобы оно вылупилось.</string>
-    <string name="now_egg_how">Зажимай кнопку Glyph на задней панели, всего пять долгих нажатий.</string>
+    <string name="now_egg_how">Зажимай круг или кнопку Glyph на задней панели Nothing: всего пять долгих нажатий.</string>
     <string name="now_egg_presses">Осталось нажатий до вылупления: %1$d</string>
     <string name="now_sleeping">%1$s спит</string>
     <string name="now_hungry">%1$s хочет есть</string>
@@ -103,7 +103,7 @@
     <string name="now_sad">%1$s скучает</string>
     <string name="now_happy">%1$s счастлив</string>
     <string name="now_content">У %1$s всё хорошо</string>
-    <string name="button_now">Кнопка Glyph сейчас: %1$s.</string>
+    <string name="button_now">Удержи сейчас: %1$s.</string>
     <string name="button_feed">питомец поест (сытый отвернётся)</string>
     <string name="button_stir">питомец приоткроет глаз и уснёт дальше</string>
     <string name="button_hatch">из яйца вылупится питомец</string>
@@ -114,9 +114,9 @@
     <string name="next_supporter">Все питомцы, которых у тебя нет, уже ждут в яйцах.</string>
 
     <string name="mood_sleeping">Спит. Скоро проснётся отдохнувшим</string>
-    <string name="mood_hungry">Хочет есть. Зажми кнопку Glyph</string>
+    <string name="mood_hungry">Хочет есть. Удержи, чтобы покормить</string>
     <string name="mood_tired">Устал. Переверни телефон или поставь на зарядку</string>
-    <string name="mood_sad">Скучает. Накорми досыта и зажми кнопку Glyph: поиграете</string>
+    <string name="mood_sad">Скучает. Накорми досыта и удержи: поиграете</string>
     <string name="mood_happy">Счастлив</string>
     <string name="mood_content">Всё хорошо</string>
 
@@ -134,7 +134,7 @@
     <string name="state_asleep">Спит</string>
     <string name="state_asleep_when">Когда энергия кончилась: спит меньше минуты</string>
     <string name="state_eating">Ест</string>
-    <string name="state_eating_when">Зажми кнопку Glyph: одна еда — одна точка</string>
+    <string name="state_eating_when">Удержи: одна еда — одна точка</string>
     <string name="state_loved">Его гладят</string>
     <string name="state_loved_when">Два лёгких стука по задней панели</string>
     <string name="state_dizzy">Голова кругом</string>
@@ -301,7 +301,7 @@
     <string name="state_sad_ask">А если долго с ним не играть?</string>
     <string name="state_tired_ask">Что будет после многих игр подряд?</string>
     <string name="state_asleep_ask">А когда энергия совсем кончится?</string>
-    <string name="state_eating_ask">Что будет, если зажать кнопку Glyph?</string>
+    <string name="state_eating_ask">Что будет, если его удержать?</string>
     <string name="state_game_ask">А если зажать кнопку, когда он сыт?</string>
     <string name="state_loved_ask">А если легонько постучать по нему?</string>
     <string name="state_dizzy_ask">А если трясти слишком часто?</string>

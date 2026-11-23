@@ -424,4 +424,18 @@ class PetStoreOldSaveTest {
         // Read once more from the rewritten save: the experience stays as it is, not converted twice.
         assertEquals(XpRules.fromCareDays(Stage.TEEN, 2), PetStore(fakeContext(prefs)).nursery(now + 1000).activeGrowth?.xp)
     }
+
+    @Test
+    fun `a new player's first pet comes from the daily egg, even at a full moon`() {
+        val now = at(2026, 11, 23, 12)
+        assertTrue("the test needs a full moon", AnomalyUnlocks.fullMoon(now))
+        val fresh = PetStore(fakeContext(MemoryPrefs()))
+        assertTrue(fresh.anomalies(charging = false, battery = 0.5f, desk = false, deskMs = 0L, nowMs = now).isEmpty())
+        assertFalse("moonrabbit" in fresh.nursery(now).eggs.map { it.id })
+        // With a first pet, the full moon brings its egg as before.
+        val prefs = MemoryPrefs()
+        write12(prefs, now, active = "cat", seen = mapOf("cat" to 1))
+        val player = PetStore(fakeContext(prefs))
+        assertEquals(listOf("moonrabbit"), player.anomalies(charging = false, battery = 0.5f, desk = false, deskMs = 0L, nowMs = now))
+    }
 }

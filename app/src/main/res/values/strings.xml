@@ -3,7 +3,7 @@
     <string name="toy_name" translatable="false">Glyph Pet</string>
     <string name="toy_summary">A new pet every day, as an egg. Put it on your Glyph Matrix and five long presses of the Glyph button hatch it. Collect all 28, from common to mythic.</string>
 
-    <string name="tagline">A pet that lives on your Glyph Matrix.</string>
+    <string name="tagline">A little pet on your phone, and on the Glyph Matrix.</string>
     <string name="main_hint">A new pet every day, as an egg</string>
     <string name="need_food">Food</string>
     <string name="need_joy">Joy</string>
@@ -16,7 +16,7 @@
         <item quantity="other">Away, a dot lasts %d minutes; games use it faster</item>
     </plurals>
     <plurals name="need_joy_fill">
-        <item quantity="other">Fed full, hold the Glyph button: every 10 seconds of a game is a dot of joy</item>
+        <item quantity="other">Fed full, hold it: every 10 seconds of a game is a dot of joy</item>
     </plurals>
     <plurals name="need_joy_drain">
         <item quantity="one">Away, a dot lasts %d minute</item>
@@ -38,7 +38,7 @@
 
     <string name="egg_title">Egg</string>
     <string name="egg_tile_description">Egg, %1$d of %2$d presses</string>
-    <string name="egg_crack_action">five long presses of the Glyph button crack it</string>
+    <string name="egg_crack_action">five long presses crack it</string>
     <string name="egg_label">Egg</string>
 
     <string name="collection_title">Nursery · %1$d of %2$d</string>
@@ -91,7 +91,7 @@
     <string name="egg_take_off_matrix">Take the egg off the matrix</string>
     <string name="now_hatched">%1$s has hatched!</string>
     <string name="now_eggs_waiting">Eggs waiting: %1$d. Put one on the matrix to hatch it.</string>
-    <string name="now_egg_how">Hold the Glyph button on the back of the phone, five long presses in all.</string>
+    <string name="now_egg_how">Hold the circle, or the Glyph button on the back of a Nothing phone: five long presses in all.</string>
     <string name="now_egg_presses">Presses left to open the egg: %1$d</string>
     <string name="now_sleeping">%1$s is asleep</string>
     <string name="now_hungry">%1$s is hungry</string>
@@ -99,7 +99,7 @@
     <string name="now_sad">%1$s is bored</string>
     <string name="now_happy">%1$s is happy</string>
     <string name="now_content">%1$s is fine</string>
-    <string name="button_now">Glyph button now: %1$s.</string>
+    <string name="button_now">Hold now: %1$s.</string>
     <string name="button_feed">your pet eats (a full one turns away)</string>
     <string name="button_stir">your pet opens one eye and sleeps on</string>
     <string name="button_hatch">the egg hatches</string>
@@ -110,9 +110,9 @@
     <string name="next_supporter">Every pet you do not have yet is already waiting in an egg.</string>
 
     <string name="mood_sleeping">Asleep. It wakes up rested soon</string>
-    <string name="mood_hungry">Hungry. Hold the Glyph button</string>
+    <string name="mood_hungry">Hungry. Hold to feed it</string>
     <string name="mood_tired">Tired. Turn the phone over or charge it</string>
-    <string name="mood_sad">Bored. Feed it full and hold the Glyph button to play</string>
+    <string name="mood_sad">Bored. Feed it full and hold to play</string>
     <string name="mood_happy">Happy</string>
     <string name="mood_content">Doing fine</string>
 
@@ -130,7 +130,7 @@
     <string name="state_asleep">Asleep</string>
     <string name="state_asleep_when">When its energy runs out: it naps for under a minute</string>
     <string name="state_eating">Eating</string>
-    <string name="state_eating_when">Hold the Glyph button: one meal, one dot</string>
+    <string name="state_eating_when">Hold: one meal, one dot</string>
     <string name="state_loved">Loved</string>
     <string name="state_loved_when">Two light taps on the back of the phone</string>
     <string name="state_dizzy">Dizzy</string>
@@ -297,7 +297,7 @@
     <string name="state_sad_ask">And if nobody plays with it for a long time?</string>
     <string name="state_tired_ask">What happens after many games in a row?</string>
     <string name="state_asleep_ask">And when its energy runs out?</string>
-    <string name="state_eating_ask">What happens if you hold the Glyph button?</string>
+    <string name="state_eating_ask">What happens if you hold it?</string>
     <string name="state_game_ask">And if you hold the button when it is full?</string>
     <string name="state_loved_ask">And if you tap on it lightly?</string>
     <string name="state_dizzy_ask">And if you shake it too often?</string>
