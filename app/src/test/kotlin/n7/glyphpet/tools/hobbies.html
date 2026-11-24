@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Занятия взрослых героев: партия 1</title>
+<style>
+  :root { --bg:#0e0e10; --card:#17171a; --line:#2a2a2f; --text:#ececef; --dim:#8b8b93; --accent:#e5484d; --ok:#46a758; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { padding:28px 32px 8px; max-width:1240px; margin:0 auto; }
+  h1 { font-size:22px; margin:0 0 6px; font-weight:650; }
+  header p { color:var(--dim); margin:4px 0; max-width:820px; }
+  main { max-width:1240px; margin:0 auto; padding:8px 32px 48px; }
+  section { border-top:1px solid var(--line); padding:22px 0 8px; }
+  h2 { font-size:17px; margin:0 0 14px; font-weight:600; }
+  h2 .n { color:var(--dim); font-weight:500; margin-right:8px; font-variant-numeric:tabular-nums; }
+  .row { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:10px; }
+  .card.now { opacity:.78; }
+  .card h3 { margin:0; font-size:15px; font-weight:600; }
+  .card .tag { font-size:12px; color:var(--dim); font-family:ui-monospace, Consolas, monospace; }
+  .card p { margin:0; color:var(--dim); font-size:13.5px; }
+  canvas { width:100%; aspect-ratio:1; background:#000; border-radius:50%; cursor:pointer; display:block; }
+  .ctl { display:flex; align-items:center; gap:8px; font-variant-numeric:tabular-nums; }
+  .ctl button { background:#232328; color:var(--text); border:1px solid var(--line); border-radius:7px; padding:4px 9px; font-size:13px; cursor:pointer; min-width:34px; }
+  .ctl button:hover { border-color:#45454d; }
+  .ctl input[type=range] { flex:1; accent-color:var(--text); }
+  .ctl .fn { min-width:62px; text-align:right; font-size:13px; color:var(--dim); }
+  .flag { font-size:12.5px; }
+  .flag.bad { color:var(--accent); }
+  .flag.good { color:var(--ok); }
+  .speed { font-size:13px; color:var(--dim); display:flex; gap:6px; align-items:center; margin-top:8px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Занятия взрослых героев: партия 1 (10 героев)</h1>
+  <p>У каждого взрослого героя появятся свои занятия: раз в несколько минут, подряд не повторяются. Сейчас у него одна привычка, которая крутится по кругу. Первая карточка в ряду для сравнения: то, что герой делает сейчас.</p>
+  <p>Всё записано настоящим движком на настоящих взрослых спрайтах, кадр 80 мс. Нажми на матрицу: пауза. Ползунок и кнопки ‹ › листают кадры, номер кадра можно назвать в ответе.</p>
+  <div class="speed">Скорость: <button data-s="1">1×</button><button data-s="0.5">0.5×</button><button data-s="0.25">0.25×</button></div>
+</header>
+<main id="main"></main>
+<script>
+const DATA = /*DATA*/null;
+const mask = DATA.mask;
+let speed = 1;
+document.querySelectorAll('.speed button').forEach(b => b.onclick = () => { speed = +b.dataset.s; });
+
+function draw(ctx, frame, size) {
+  ctx.clearRect(0, 0, size, size);
+  const c = size / 25;
+  for (let i = 0; i < 625; i++) {
+    if (mask[i] !== '1') continue;
+    const v = +frame[i];
+    const x = (i % 25) * c + c / 2, y = Math.floor(i / 25) * c + c / 2;
+    ctx.beginPath();
+    ctx.arc(x, y, c * 0.42, 0, Math.PI * 2);
+    if (v === 0) { ctx.fillStyle = '#141416'; }
+    else { const l = Math.round(60 + 195 * Math.sqrt(v / 9)); ctx.fillStyle = `rgb(${l},${l},${l})`; }
+    ctx.fill();
+  }
+}
+
+const players = [];
+const main = document.getElementById('main');
+DATA.heroes.forEach((h, hi) => {
+  const sec = document.createElement('section');
+  sec.innerHTML = `<h2><span class="n">${hi + 1}</span>${h.name} <span class="tag">${h.kind}</span></h2>`;
+  const row = document.createElement('div');
+  row.className = 'row';
+  h.clips.forEach(cl => {
+    const card = document.createElement('div');
+    card.className = 'card' + (cl.now ? ' now' : '');
+    const loose = cl.clip.loose, off = cl.clip.off;
+    const flags = cl.now ? '' :
+      (loose.length || off.length
+        ? `<div class="flag bad">${loose.length ? 'Отдельные точки в кадрах: ' + loose.join(', ') + '. ' : ''}${off.length ? 'За краем матрицы: ' + off.join(', ') : ''}</div>`
+        : `<div class="flag good">Проверено: без отдельных точек, не выходит за край</div>`);
+    card.innerHTML = `<h3>${cl.name}</h3><div class="tag">${cl.id}</div><canvas width="500" height="500"></canvas>
+      <div class="ctl"><button class="pp">❚❚</button><button class="pv">‹</button><input type="range" min="0" value="0"><button class="nx">›</button><span class="fn"></span></div>
+      <p>${cl.how}</p>${flags}`;
+    row.appendChild(card);
+    const cv = card.querySelector('canvas'), ctx = cv.getContext('2d');
+    const seq = cl.clip.s, frames = cl.clip.f;
+    const range = card.querySelector('input'), fn = card.querySelector('.fn'), pp = card.querySelector('.pp');
+    range.max = seq.length - 1;
+    const p = { i: 0, playing: true, acc: 0 };
+    p.show = () => { draw(ctx, frames[seq[p.i]], 500); range.value = p.i; fn.textContent = `${p.i + 1}/${seq.length}`; pp.textContent = p.playing ? '❚❚' : '▶'; };
+    p.toggle = () => { p.playing = !p.playing; p.show(); };
+    cv.onclick = p.toggle; pp.onclick = p.toggle;
+    card.querySelector('.pv').onclick = () => { p.playing = false; p.i = (p.i - 1 + seq.length) % seq.length; p.show(); };
+    card.querySelector('.nx').onclick = () => { p.playing = false; p.i = (p.i + 1) % seq.length; p.show(); };
+    range.oninput = () => { p.playing = false; p.i = +range.value; p.show(); };
+    p.step = dt => { if (!p.playing) return; p.acc += dt * speed; while (p.acc >= DATA.frameMs) { p.acc -= DATA.frameMs; p.i = (p.i + 1) % seq.length; } p.show(); };
+    p.show();
+    players.push(p);
+  });
+  sec.appendChild(row);
+  main.appendChild(sec);
+});
+let last = performance.now();
+function loop(t) { const dt = t - last; last = t; players.forEach(p => p.step(dt)); requestAnimationFrame(loop); }
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

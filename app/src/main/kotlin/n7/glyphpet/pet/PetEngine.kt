@@ -199,6 +199,14 @@ class PetEngine(
         const val GROWN_HABIT_MIN_MS = 30_000L
         const val GROWN_HABIT_MAX_MS = 60_000L
 
+        /**
+         * An adult's pastimes ([Pastimes]): once in [PASTIME_EVERY_MIN_MS]..[PASTIME_EVERY_MAX_MS] of quiet the next
+         * habit slot goes to one of them instead, never the one it did last; the first comes [PASTIME_FIRST_MS] in.
+         */
+        const val PASTIME_EVERY_MIN_MS = 2 * 60_000L
+        const val PASTIME_EVERY_MAX_MS = 4 * 60_000L
+        const val PASTIME_FIRST_MS = 60_000L
+
         /** A glint runs over the pet for this long before a signature that came by itself: "now the big one". */
         const val ANNOUNCE_MS = 400L
 
@@ -265,8 +273,8 @@ class PetEngine(
          * there). A habit that reaches out to one side (a tail, a tongue, a roar) only plays from these; the pet walks
          * to the nearest one first.
          */
-        fun habitSpots(species: Species): Set<Int> = habitSpotCache.getOrPut(species.id) {
-            walkRange(species).filter { dx -> habitFits(species, species.habit.frames, dx) }.toSet()
+        fun habitSpots(species: Species, habit: Habit = species.habit): Set<Int> = habitSpotCache.getOrPut(species.id + "/" + habit.id) {
+            walkRange(species).filter { dx -> habitFits(species, habit.frames, dx) }.toSet()
         }
 
         /** Whether every frame of [frames] at [dx] keeps every LED the plain pet keeps there. */
@@ -359,6 +367,22 @@ class PetEngine(
     /** The wait after the quiet before the next habit, so habits come every 10-20 s and not like clockwork. */
     private var habitInMs = 0L
 
+    /**
+     * The habit playing now ([habitMs] >= 0) or about to (the pet is walking to where it fits): one of an adult's
+     * [Pastimes]. Null: the species' own habit.
+     */
+    private var playingHabit: Habit? = null
+
+    /** The quiet left before an adult's next pastime ([PASTIME_EVERY_MIN_MS]), and the one it did last. */
+    private var pastimeInMs = PASTIME_FIRST_MS
+    private var lastPastime: String? = null
+
+    /** A pastime asked for by id ([pastime]): it plays on the next free tick. */
+    private var pastimeAsked: String? = null
+
+    /** The habit of [species] that is playing, or would play now. */
+    private fun habitOf(species: Species): Habit = playingHabit?.takeIf { it in Pastimes.of(species) } ?: species.habit
+
     /** The glint before a signature that came by itself ([ANNOUNCE_MS]); -1 when none is running. */
     private var announceMs = -1L
 
@@ -439,12 +463,15 @@ class PetEngine(
         val walk = species?.let { walkRange(it) }
         val slide = species?.let { slideRange(it) }
         return ("x=%.1f walk=%s slide=%s sliding=%b action=%s(%dms) habit=%d sig=%s@%d(in %d) moment=%s(%d) trick=%d food=%s " +
-            "feast=%d hop=%d pending=%d busy=%b").format(
+            "feast=%d hop=%d pending=%d busy=%b pastime=%s(in %d)").format(
             x, walk, slide, slidingNow, action, actionLeftMs, habitMs, signatureKind, signatureMs, signatureInMs,
             moment?.javaClass?.simpleName, momentMs, trickMs, foodY?.let { "%.1f".format(it) }, feastMs, hopMs,
-            pending.size, busy,
+            pending.size, busy, pastimeNow, pastimeInMs,
         )
     }
+
+    /** The adult's pastime playing now ([Pastimes]), by id; null while none is. */
+    val pastimeNow: String? get() = if (habitMs >= 0) playingHabit?.id else null
 
     /** The 3D look of the legendary and mythic pets. */
     private val living = Living3D()
@@ -772,6 +799,11 @@ class PetEngine(
         trickAsked = true
     }
 
+    /** Plays the adult's pastime [id] ([Pastimes]) on the next free tick, as [trick] does its habit (previews, tests). */
+    fun pastime(id: String) {
+        pastimeAsked = id
+    }
+
     /**
      * One calm frame for Always-on. With no motion to tell them apart, a happy pet is caught jumping for joy, and a
      * tired one yawns, or, without a mouth to yawn with, shows its heavy eyes on a dimmed body. On the charger the pet
@@ -956,6 +988,7 @@ class PetEngine(
         // The signature's minute runs while the pet is awake and at ease, habits or not; the habit waits after the quiet.
         if (!asleep && !scene.charging && !typeOn && signatureInMs > 0 && (scene.mood == Mood.CONTENT || scene.mood == Mood.HAPPY)) signatureInMs -= dtMs
         if (quietMs >= QUIET_MS && habitInMs > 0) habitInMs -= dtMs
+        if (quietMs >= QUIET_MS && pastimeInMs > 0) pastimeInMs -= dtMs
         if (sinceSignatureMs >= 0) sinceSignatureMs += dtMs
         stir(asleep)
         updateCharge(dtMs, scene, asleep)
@@ -1084,7 +1117,7 @@ class PetEngine(
 
         // The frame of the species' habit playing now, if one is. The pet answers a tilted or turned phone with its
         // eyes alone ([look]): shifting the top of its body sideways read as a glitch of the sprite, not as a lean.
-        val own = if (habitMs >= 0) species.habit.frameAt(habitMs) else null
+        val own = if (habitMs >= 0) habitOf(species).frameAt(habitMs) else null
         val wanted = own?.face ?: face(scene.mood, asleep, sliding)
         // Falling into sadness, or out of it: the body gives in first and the face follows ([MoodSigns.FALL_MS]), so
         // the change is a moment the pet lives through, not two pictures dissolved into one another.
@@ -1131,7 +1164,7 @@ class PetEngine(
         cover.fill(SpeciesRenderer.COVER_NONE)
         // Legendary and mythic pets are drawn in 3D, turning a little with the phone ([Living3D]).
         val painter = if (Living3D.handles(species)) {
-            val progress = if (own != null) habitMs / species.habit.durationMs.coerceAtLeast(1).toFloat() else -1f
+            val progress = if (own != null) habitMs / habitOf(species).durationMs.coerceAtLeast(1).toFloat() else -1f
             runCatching { living.live(species, dtMs, scene.tilt, scene.tiltY, time, progress, scene.yaw) }.getOrNull()
         } else {
             null
@@ -1212,7 +1245,7 @@ class PetEngine(
         if (blowBits.isNotEmpty()) Blows.draw(frame, blowBits, windDir, time)
         if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
         shown = Shown(face, habit = own != null, lift = lift, step = own, dx = dx, cheer = joyMs >= 0 && cuddle != null, shut = faceBlinkMs > 0)
-        habitRedraws = own != null && species.habit.redrawsBody
+        habitRedraws = own != null && habitOf(species).redrawsBody
         return frame
     }
 
@@ -1443,12 +1476,14 @@ class PetEngine(
             if (action != Action.NONE || !keep) {
                 habitMs = -1
                 habitSpot = null
+                playingHabit = null
                 return
             }
             habitMs += dtMs
-            if (habitMs >= species.habit.durationMs) {
+            if (habitMs >= habitOf(species).durationMs) {
                 habitMs = -1
                 habitInMs = nextHabitIn()
+                playingHabit = null
             }
             return
         }
@@ -1456,21 +1491,43 @@ class PetEngine(
             feastMs < 0
         if (!free) {
             trickAsked = false
+            pastimeAsked = null
             habitSpot = null
-            return
-        }
-        val spots = habitSpots(species)
-        val at = x.roundToInt()
-        if (species.habit.none) {
-            trickAsked = false
+            playingHabit = null
             return
         }
         val due = autoHabits && quietMs >= QUIET_MS && habitInMs <= 0 && !signatureDue() && signatureMs < 0 && announceMs < 0
+        // What plays next: an asked-for trick is the species' habit; an asked-for pastime, or one that is due, is one of
+        // an adult's pastimes (never the one it did last); otherwise its habit. Chosen once, kept while it walks to its spot.
+        if (playingHabit == null) {
+            val pastimes = Pastimes.of(species)
+            val asked = pastimeAsked?.let { id -> pastimes.firstOrNull { it.id == id } }
+            playingHabit = when {
+                trickAsked -> null
+                asked != null -> asked
+                due && pastimeInMs <= 0 && pastimes.isNotEmpty() -> pastimes.filter { it.id != lastPastime }.ifEmpty { pastimes }.random(random)
+                else -> null
+            }
+        }
+        val habit = habitOf(species)
+        val spots = habitSpots(species, habit)
+        val at = x.roundToInt()
+        if (habit.none) {
+            trickAsked = false
+            pastimeAsked = null
+            return
+        }
+        val asked = trickAsked || pastimeAsked != null
         // A hop in the air lands first; an asked-for trick starts at once (once the pet stands where it fits).
-        if (trickAsked || (due && hopMs < 0)) {
+        if (asked || (due && hopMs < 0)) {
             if (at in spots || spots.isEmpty()) {
                 trickAsked = false
+                pastimeAsked = null
                 habitSpot = null
+                if (playingHabit != null) {
+                    lastPastime = habit.id
+                    pastimeInMs = random.nextLong(PASTIME_EVERY_MIN_MS, PASTIME_EVERY_MAX_MS + 1)
+                }
                 habitMs = 0
                 hopMs = -1
             joyMs = -1
