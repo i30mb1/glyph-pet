@@ -97,6 +97,18 @@ object Gags {
     // --- dizzy ------------------------------------------------------------------------------------------------------------
 
     /** The kind's dizzy gag on the pet drawn at [ox], [oy]; [t] ms of the engine's clock. False for a kind without one. */
+    /**
+     * The eye and mouth slots of [s] drawn at ([ox], [oy]) with a cell of margin, as matrix cells: what a gag must
+     * never paint over, or the face turns to mush.
+     */
+    private fun faceCells(s: Species, ox: Int, oy: Int): Set<Pair<Int, Int>> = buildSet {
+        fun slot(left: Int, top: Int, w: Int, h: Int) {
+            for (y in top - 1..top + h) for (x in left - 1..left + w) add(x to y)
+        }
+        s.eyes.forEach { (ex, ey) -> slot(ox + ex, oy + ey, 2, 2) }
+        s.mouth?.let { (mx, my) -> slot(ox + mx, oy + my, 3, 2) }
+    }
+
     fun dizzy(f: IntArray, s: Species, ox: Int, oy: Int, t: Long): Boolean {
         val box = Box(ox, ox + s.width - 1, oy, oy + s.height - 1)
         val phase = (t % 1200) / 1200f
@@ -104,13 +116,15 @@ object Gags {
             // Spins like a top: seen from the front, its two sides swap round and round.
             "cat" -> if ((t / 120) % 2 == 1L) mirror(f, box)
             "raccoon" -> { if ((t / 180) % 2 == 1L) mirror(f, box); move(f, box, 0, if ((t / 180) % 2 == 1L) -1 else 0) }
-            // Sees double: a dim copy drifts out each side.
+            // Sees double: a dim copy drifts out each side, but never over its own face — a half-bright copy of a hole
+            // lands in the eye slot as a grey square, and a grey eye is no eye at all.
             "ghost" -> {
                 val d = 1 + ((t / 250) % 3).toInt()
                 val copy = f.copyOf()
+                val face = faceCells(s, ox, oy)
                 for (y in box.t..box.b) for (x in box.l..box.r) {
                     val v = copy[y * SIZE + x] / 2
-                    if (v > 0) { light(f, x - d, y, v); light(f, x + d, y, v) }
+                    if (v > 0) for (nx in intArrayOf(x - d, x + d)) if (nx to y !in face) light(f, nx, y, v)
                 }
             }
             // Glitches: each row of it jumps aside on its own.
@@ -192,9 +206,15 @@ object Gags {
                 for (x in box.l + box.w / 2 - 2..box.l + box.w / 2 + 2) light(f, x, box.t - 1, SpeciesRenderer.BODY)
             }
             // Flashes through its colours.
-            "chameleon" -> for (y in box.t..box.b) for (x in box.l..box.r) {
-                val v = at(f, x, y)
-                if (v > 0) set(f, x, y, if (Math.floorMod(x - y + (t / 60).toInt(), 4) < 2) (v * 2.4f).toInt() else (v * 0.45f).toInt())
+            // Its colours run: bands of light and dark travel across it. The face is left out — dimming an eye hole's
+            // neighbours to a fraction puts a grey square where the eye should read, and a dizzy pet still needs eyes.
+            "chameleon" -> {
+                val face = faceCells(s, ox, oy)
+                for (y in box.t..box.b) for (x in box.l..box.r) {
+                    if (x to y in face) continue
+                    val v = at(f, x, y)
+                    if (v > 0) set(f, x, y, if (Math.floorMod(x - y + (t / 60).toInt(), 4) < 2) (v * 2.4f).toInt() else (v * 0.45f).toInt())
+                }
             }
             // Bubbles go round its head, and it sways along.
             "axolotl" -> {
