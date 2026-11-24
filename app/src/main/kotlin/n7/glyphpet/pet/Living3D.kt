@@ -110,12 +110,14 @@ internal class Living3D {
      * The habit frame to hand [SpeciesRenderer.render] on the 3D path. A legendary pet's habit redraws the rows, and
      * those rows become the volume, so it is kept as is. A mythic pet is ray-cast from its own shape: the habit's
      * redrawn rows (ring tilts, squeezed spins, orbiting moon dots) are dropped and played in 3D instead (see
-     * [Mythic3D]); its moves, face, blink, brightness and other overlays stay.
+     * [Mythic3D]); its moves, face, blink, brightness and other overlays stay. A [pastime] ([Pastimes]) is drawn on top
+     * of the 3D body as it is, so its overlays stay for every kind (the planet's habit overlays are its moon, played in
+     * 3D instead).
      */
-    fun habitFor(species: Species, own: HabitFrame?): HabitFrame? {
+    fun habitFor(species: Species, own: HabitFrame?, pastime: Boolean = false): HabitFrame? {
         if (species.rarity != Rarity.MYTHIC) return own
         if (own == null) return null
-        val over = if (species.kind == "planet") emptyList() else own.over
+        val over = if (species.kind == "planet" && !pastime) emptyList() else own.over
         return HabitFrame(own.ms, rows = null, over = over, dx = own.dx, dy = own.dy, body = own.body, face = own.face, blink = own.blink)
     }
 }

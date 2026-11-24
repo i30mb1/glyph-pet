@@ -21,6 +21,15 @@ internal object GlowHeroes2 {
 private val PIF = PI.toFloat()
 private const val TAU_F = 6.2831855f
 
+/** The calm clip's own clock at pastime time [t]: it loops, as the engine plays it. */
+private fun Anomaly.calmAt(t: Long): Long = Math.floorMod(calmT(t), Drawn.length("calm"))
+
+/** How long the pastime [col] runs. */
+private fun Anomaly.pastimeMs(col: String): Long = pastimes.first { it.id == col }.ms
+
+/** [a] brought into -pi..pi. */
+private fun wrapPi(a: Float): Float { var d = a % TAU_F; if (d > PIF) d -= TAU_F; if (d < -PIF) d += TAU_F; return d }
+
 /** The angle from (cx, cy) to (x, y), 0..2pi. */
 private fun angleOf(x: Float, y: Float, cx: Float = 12f, cy: Float = 12f): Float {
     val a = atan2(y - cy, x - cx)
@@ -65,8 +74,7 @@ private object RadarGhost : NewHero(
     }
 
     /** The ghost at ([gx], [gy]) lit by the beam; [all] lights it whatever the beam (a flash). */
-    private fun ghost(c: Cv, st: Int, gx: Float, gy: Float, beam: Float?, all: Float = 0f, shut: Boolean = false, b: Float = 1f) {
-        val rows = SHAPES[st]
+    private fun ghost(c: Cv, st: Int, gx: Float, gy: Float, beam: Float?, all: Float = 0f, shut: Boolean = false, b: Float = 1f, rows: List<String> = SHAPES[st]) {
         val left = (gx - rows[0].length / 2f).roundToInt(); val top = (gy - rows.size / 2f).roundToInt()
         rows.forEachIndexed { j, row -> row.forEachIndexed { i, ch ->
             val x = left + i; val y = top + j
@@ -83,7 +91,80 @@ private object RadarGhost : NewHero(
     private var tKey = -1
     private var tPing = -99_999L
 
+    override val pastimes = listOf(
+        DrawnPastime("grab_beam", 5600, "хватает луч",
+            "Подлетает к лучу и хватается за него: луч замирает, призрак светится целиком и тащит луч назад. Отпускает, и луч, догоняя, проносится по кругу."),
+        DrawnPastime("play_blip", 5200, "прикидывается точкой",
+            "Сжимается в обычную точку на экране и замирает, будто его тут нет, а потом выскакивает обратно во весь рост и вспыхивает: «бу!»"),
+    )
+
+    /** A blip on the dial: what the ghost pretends to be. */
+    private val BLIP = listOf("##", "##")
+
+    /**
+     * Its pastimes: they take the ghost (and the beam) from where the calm clip has them and give both back where the
+     * calm clip will be by the end.
+     */
+    private fun pastime(c: Cv, col: String, t: Long, st: Int) {
+        val ms = pastimeMs(col); val e = Drawn.PASTIME_EDGE
+        if (t < e || t >= ms - e) { calmNow(c, t, st); return }
+        val c0 = calmAt(e); val c1 = calmAt(ms - e)
+        val b0 = c0 / 700f; val b1 = c1 / 700f
+        val (sx, sy) = drift(c0); val (ex, ey) = drift(c1)
+        // A little more of it shows than the beam alone would light while it plays, so the story reads.
+        val lift = 0.3f * (ease(seg(t, e, e + 400)) - ease(seg(t, ms - e - 400, ms - e)))
+        val shutNow = blink(calmAt(t))
+        when (col) {
+            "grab_beam" -> {
+                // Onto the beam where it will be, a grip (the beam stops, the ghost lights whole), a pull back, let go:
+                // the beam whizzes round to where the calm sweep has got to, the ghost drifts back.
+                val r = 5.5f
+                val tg = e + 800; val th = tg + 700; val tr = th + 1300; val tc = ms - e - 300
+                val ag = b0 + 800 / 700f
+                val gx = 12 + cos(ag) * r; val gy = 12 + sin(ag) * r
+                val ar = ag - 1.6f
+                val beam: Float; val x: Float; val y: Float; var all = lift; var shut = false
+                when {
+                    t < tg -> { val p = ease(seg(t, e, tg)); beam = b0 + (t - e) / 700f; x = mix(sx, gx, p); y = mix(sy, gy, p); shut = shutNow }
+                    t < th -> { beam = ag; x = gx; y = gy; all = 1f }
+                    t < tr -> { val a = mix(ag, ar, ease(seg(t, th, tr))); beam = a; x = 12 + cos(a) * r; y = 12 + sin(a) * r; all = 1f; shut = true }
+                    else -> {
+                        val bc = b1 - (ms - e - tc) / 700f
+                        val d = wrapPi(bc - ar).let { if (it < 0) it + TAU_F else it } + TAU_F
+                        beam = if (t < tc) ar + d * ease(seg(t, tr, tc)) else b1 - (ms - e - t) / 700f
+                        val p = ease(seg(t, tr + 300, ms - e))
+                        x = mix(12 + cos(ar) * r, ex, p); y = mix(12 + sin(ar) * r, ey, p)
+                        all = max(lift, 1f - seg(t, tr, tr + 500))
+                        shut = t < tr + 900 || shutNow
+                    }
+                }
+                scope(c, beam)
+                ghost(c, st, x, y, beam, all, shut)
+            }
+            "play_blip" -> {
+                // Smaller form by form down to a plain blip, a still wait, then out at full size in a flash, and back to
+                // its drift.
+                val pop = ms - e - 1300
+                val adj = wrapPi(b1 - (b0 + (ms - 2 * e) / 700f))
+                val beam = b0 + (t - e) / 700f + adj * ease(seg(t, ms - e - 900, ms - e))
+                scope(c, beam)
+                val step = ((t - e) / 350).toInt()
+                if (t < pop) {
+                    // Each smaller form held long enough to see, lit up a little so the shrinking reads.
+                    val rows = if (step <= st) SHAPES[st - step] else BLIP
+                    val shown = if (rows === BLIP) 0.35f else if (step == 0) max(lift, 0.6f * seg(t, e, e + 250)) else 0.6f
+                    ghost(c, st, sx, sy, beam, shown, shutNow && step == 0, rows = rows)
+                } else {
+                    val p = ease(seg(t, pop + 500, ms - e))
+                    val jump = if (t - pop < 500) hop(t - pop, 500f, 1.5f) else 0f
+                    ghost(c, st, mix(sx, ex, p), mix(sy, ey, p) - jump, beam, max(lift, 1f - seg(t, pop, pop + 800)), shutNow && t > pop + 800)
+                }
+            }
+        }
+    }
+
     override fun draw(c: Cv, col: String, t: Long, st: Int, tilt: Float) {
+        if (pastimes.any { it.id == col }) { pastime(c, col, t, st); return }
         val beam = (t / 700f) % TAU_F
         val (gx, gy) = drift(t)
         when (col) {
@@ -162,8 +243,8 @@ private object Candle : NewHero(
     private val smoke = Fire.field()
     private val TOP = intArrayOf(17, 15, 13)
 
-    /** The candle body with its face; [glow] is how much the flame lights the wax. */
-    private fun body(c: Cv, st: Int, glow: Float, shut: Boolean, mouth: Int = 0) {
+    /** The candle body with its face; [glow] is how much the flame lights the wax, [look] and [up] move its eyes. */
+    private fun body(c: Cv, st: Int, glow: Float, shut: Boolean, mouth: Int = 0, look: Int = 0, up: Int = 0) {
         val top = TOP[st]; val w = 3 + st
         for (y in top..22) for (x in 12 - w..12 + w) {
             val edge = x == 12 - w || x == 12 + w || y == top
@@ -172,14 +253,15 @@ private object Candle : NewHero(
         }
         for (x in 12 - w - 1..12 + w + 1) c.set(x, 23, 0.45f)
         val ey = top + 3
-        if (shut) { c.cut(10, ey); c.cut(11, ey); c.cut(13, ey); c.cut(14, ey) } else { c.cut(10, ey); c.cut(14, ey); c.cut(10, ey - 1); c.cut(14, ey - 1) }
+        val l = 10 + look; val r = 14 + look; val y = ey - up
+        if (shut) { c.cut(l, y); c.cut(l + 1, y); c.cut(r - 1, y); c.cut(r, y) } else { c.cut(l, y); c.cut(r, y); c.cut(l, y - 1); c.cut(r, y - 1) }
         when (mouth) { 0 -> { c.cut(11, ey + 2); c.cut(12, ey + 3); c.cut(13, ey + 2) }; 1 -> { c.cut(11, ey + 3); c.cut(12, ey + 2); c.cut(13, ey + 3) }; else -> { c.cut(12, ey + 2); c.cut(12, ey + 3) } }
         c.set(12, top - 1, 0.25f)
     }
 
-    private fun burn(c: Cv, st: Int, t: Long, size: Float = 1f, power: Float = 1f, ux: Float = 0f, uy: Float = -1f, smokeAmt: Float = 0f) {
+    private fun burn(c: Cv, st: Int, t: Long, size: Float = 1f, power: Float = 1f, ux: Float = 0f, uy: Float = -1f, smokeAmt: Float = 0f, lift: Float = 0f) {
         heat.fill(0f); smoke.fill(0f)
-        val wy = TOP[st] - 1.3f
+        val wy = TOP[st] - 1.3f - lift
         if (power > 0f) Fire.flame(heat, 12f, wy, t, size * (0.8f + st * 0.1f), ux, uy, power)
         if (smokeAmt > 0f) Fire.smoke(smoke, 12f, wy, t, smokeAmt)
         Fire.renderSmoke(c, smoke); Fire.render(c, heat)
@@ -188,7 +270,61 @@ private object Candle : NewHero(
     private var tKey = -1
     private var tFlare = -99_999L
 
+    override val pastimes = listOf(
+        DrawnPastime("toss_flame", 4800, "подбрасывает огонёк",
+            "Подкидывает своё пламя, как мячик: огонёк трижды отрывается от фитиля, взлетает и садится обратно, а свеча следит за ним глазами."),
+        DrawnPastime("moth", 5600, "мотылёк в гостях",
+            "Из темноты на свет прилетает мотылёк и порхает вокруг пламени; свеча водит за ним глазами, пламя тянется к нему, а мотылёк улетает обратно в темноту."),
+    )
+
+    /** A moth, wings open and wings up. */
+    private val MOTH = listOf(listOf("##.##", "#####", "..#.."), listOf(".#.#.", ".###.", "..#.."))
+
+    /** Its pastimes: the candle never moves, so they start and end on its calm flame and face. */
+    private fun pastime(c: Cv, col: String, t: Long, st: Int) {
+        val ms = pastimeMs(col); val e = Drawn.PASTIME_EDGE
+        if (t < e || t >= ms - e) { calmNow(c, t, st); return }
+        val top = TOP[st]
+        val shutNow = blink(calmAt(t))
+        when (col) {
+            "toss_flame" -> {
+                // Three tosses: the flame leaves the wick, flies up, comes down onto it again; the eyes go up after it.
+                val w0 = e + 250; val per = 1080L
+                val k = ((t - w0) / per).toInt(); val p = ((t - w0) % per) / per.toFloat()
+                val h = if (t >= w0 && k in 0..2) 4f * p * (1 - p) * 4f else 0f
+                val away = min(1f, h / 1.5f)
+                body(c, st, 0.8f - 0.3f * away, h < 0.5f && shutNow, if (h > 2.5f) 2 else 0, up = if (h > 1f) 1 else 0)
+                if (h > 0.8f) c.set(12, top - 1, 0.55f)
+                // Up in the air it is a little ball of fire, so the toss shows under the top of the round.
+                burn(c, st, t, size = 1f - 0.42f * away, lift = h)
+            }
+            "moth" -> {
+                // Out of the dark (it shows only as near the flame as its light reaches), round the flame, off again.
+                // In from the dark at the top right, fluttering by the flame on the right, across in front of it, by it on
+                // the left, and off into the dark at the top left; it shows only as near as the candle's light reaches.
+                val keys = listOf(0L to (23f to 1f), 900L to (18f to 6f), 1500L to (19f to 9f), 2100L to (12f to 10f),
+                    2700L to (5f to 8f), 3300L to (6f to 5f), 4100L to (0f to 0f))
+                val tt = t - e - 100
+                val i = keys.indexOfLast { it.first <= tt }.coerceIn(0, keys.size - 2)
+                val (k0, p0) = keys[i]; val (k1, p1) = keys[i + 1]
+                val q = ease(((tt - k0).toFloat() / (k1 - k0)).coerceIn(0f, 1f))
+                val mx = mix(p0.first, p1.first, q)
+                val my = mix(p0.second, p1.second, q) + (if ((t / 180) % 2 == 0L) 0f else 1f)
+                val near = (1f - (hypot(mx - 12f, my - (top - 4f)) - 5f) / 6f).coerceIn(0f, 1f)
+                val seen = near > 0.05f
+                val look = if (!seen) 0 else if (mx < 10.5f) -1 else if (mx > 13.5f) 1 else 0
+                body(c, st, 0.8f, !seen && shutNow, look = look, up = if (seen) 1 else 0)
+                val reach = ((mx - 12f) * 0.08f).coerceIn(-0.5f, 0.5f) * near
+                burn(c, st, t, ux = reach)
+                // Lit by the flame, it shows over it too as it crosses in front.
+                if (seen) { val rows = MOTH[((t / 90) % 2).toInt()]; val x0 = mx.roundToInt() - 2; val y0 = my.roundToInt() - 1
+                    rows.forEachIndexed { j, row -> row.forEachIndexed { ii, ch -> if (ch == '#') c.set(x0 + ii, y0 + j, 0.55f * near) } } }
+            }
+        }
+    }
+
     override fun draw(c: Cv, col: String, t: Long, st: Int, tilt: Float) {
+        if (pastimes.any { it.id == col }) { pastime(c, col, t, st); return }
         when (col) {
             "calm" -> { body(c, st, 0.8f, blink(t)); burn(c, st, t) }
             "happy" -> { body(c, st, 1f, false); burn(c, st, t, size = 1.2f) }
@@ -268,18 +404,84 @@ private object Cocoa : NewHero(
         for (x in l - 2..r + 3) c.set(x, 22 + dy, 0.35f)
     }
 
-    /** Steam from the cup: living smoke, drawn brighter than Fire's grey so it reads as steam. */
-    private fun steamUp(c: Cv, st: Int, t: Long, amount: Float, lean: Float = 0f, dy: Int = 0) {
+    /**
+     * Steam from the cup: living smoke, drawn brighter than Fire's grey so it reads as steam. [shear] blows it to the
+     * left, the more the higher it has risen (a whole cell per row at 1).
+     */
+    private fun steamUp(c: Cv, st: Int, t: Long, amount: Float, lean: Float = 0f, dy: Int = 0, shear: Float = 0f) {
         steam.fill(0f)
         Fire.smoke(steam, 10.5f + lean, TOP[st] - 1f + dy, t, amount, 1)
         Fire.smoke(steam, 13.5f + lean, TOP[st] - 1f + dy, t + 700, amount, 5)
-        for (i in steam.indices) { val v = steam[i]; if (v > 0.1f) c.put(i % 25, i / 25, min(0.55f, 0.08f + 0.6f * (v - 0.1f))) }
+        for (i in steam.indices) { val v = steam[i]
+            if (v > 0.1f) { val y = i / 25; val dx = max(0, (shear * (TOP[st] - 1 + dy - y)).roundToInt()); c.put(i % 25 - dx, y, min(0.55f, 0.08f + 0.6f * (v - 0.1f))) } }
     }
 
     private var tKey = -1
     private var tDrop = -99_999L
 
+    override val pastimes = listOf(
+        DrawnPastime("blow_steam", 4800, "дует на себя",
+            "Остужает сама себя: набирает воздух и трижды дует, пар каждый раз сносит в сторону, и от раза к разу его всё меньше."),
+        DrawnPastime("bubbles", 4800, "пускает пузыри",
+            "На какао надуваются пузыри: два маленьких лопаются один за другим, а третий, большой, растёт и лопается так, что чашка жмурится."),
+    )
+
+    /** A bubble on the cocoa, by size: rows over the surface, bottom row last; '#' the film, '-' dark inside. */
+    private val BUBBLE = listOf(
+        listOf("#"),
+        listOf(".##.", "#--#"),
+        listOf(".###.", "#---#", "#---#"),
+        listOf("..###..", ".#---#.", "#-----#", "#-----#"),
+    )
+
+    /** Its pastimes: the cup never moves, so they start and end on its calm steam and face. */
+    private fun pastime(c: Cv, col: String, t: Long, st: Int) {
+        val ms = pastimeMs(col); val e = Drawn.PASTIME_EDGE
+        if (t < e || t >= ms - e) { calmNow(c, t, st); return }
+        val shutNow = blink(calmAt(t))
+        when (col) {
+            "blow_steam" -> {
+                // Three blows: a breath in (mouth shut), then a puff (eyes squeezed, mouth round) that bends the steam
+                // over; each leaves a little less steam, and it comes back as it settles.
+                val w0 = e + 150; val per = 1100L
+                val k = ((t - w0) / per).toInt(); val q = ((t - w0) % per) / per.toFloat()
+                val puff = if (t >= w0 && k in 0..2 && q >= 0.3f) { val b = (q - 0.3f) / 0.7f; min(1f, b * 5f) * (1f - seg((b * 1000).toLong(), 600, 1000)) } else 0f
+                val done = ((t - w0) / per.toFloat()).coerceIn(0f, 3f)
+                val amount = 1f - 0.12f * done * (1f - ease(seg(t, ms - e - 900, ms - e)))
+                steamUp(c, st, calmAt(t), amount, shear = 0.75f * puff)
+                cup(c, st, shut = if (puff > 0.1f) true else shutNow, mouth = if (puff > 0.1f) 2 else 0)
+            }
+            "bubbles" -> {
+                // The steam thins so the bubbles read; each grows form by form on the surface and pops.
+                val amount = 1f - 0.7f * (ease(seg(t, e, e + 400)) - ease(seg(t, ms - e - 600, ms - e)))
+                steamUp(c, st, calmAt(t), amount)
+                data class B(val x: Int, val from: Long, val steps: LongArray)
+                val bubbles = listOf(B(10, e + 150, longArrayOf(250, 350)), B(14, e + 850, longArrayOf(250, 350)), B(12, e + 1600, longArrayOf(250, 300, 350, 700)))
+                var squint = false
+                val surface = TOP[st]
+                // Drawn after the cup, so the film sits on the cocoa.
+                val draws = ArrayList<() -> Unit>()
+                for (bb in bubbles) {
+                    var at = bb.from
+                    var size = -1
+                    for ((i, d) in bb.steps.withIndex()) { if (t >= at) size = i; at += d }
+                    if (t >= at) { size = -1; if (t < at + 350 && bb.steps.size == 4) squint = true }
+                    if (size >= 0) draws += {
+                        val rows = BUBBLE[size]
+                        rows.forEachIndexed { j, row -> row.forEachIndexed { i, ch ->
+                            val x = bb.x - row.length / 2 + i; val y = surface - rows.size + j
+                            when (ch) { '#' -> c.set(x, y, 1f); '-' -> c.cut(x, y) }
+                        } }
+                    }
+                }
+                cup(c, st, shut = squint || shutNow, mouth = 0)
+                draws.forEach { it() }
+            }
+        }
+    }
+
     override fun draw(c: Cv, col: String, t: Long, st: Int, tilt: Float) {
+        if (pastimes.any { it.id == col }) { pastime(c, col, t, st); return }
         when (col) {
             "calm" -> { steamUp(c, st, t, 1f); cup(c, st, shut = blink(t)) }
             "happy" -> { val h = hop(t, 400f, 2f).roundToInt(); steamUp(c, st, t, 1f, dy = -h); cup(c, st, -h) }
@@ -373,7 +575,89 @@ private object Wisp : NewHero(
     private var tKey = -1
     private var tFlare = -99_999L
 
+    override val pastimes = listOf(
+        DrawnPastime("raindrop", 5200, "на него капнуло",
+            "Сверху падает капля прямо на огонёк: он шипит, съёживается и дымит, потом отряхивается и разгорается ярче прежнего."),
+        DrawnPastime("bounce", 4800, "скачет мячиком",
+            "Падает вниз и скачет, как мячик, всё ниже и ниже, на каждом ударе сплющивается и подсвечивает землю, а потом взлетает обратно."),
+    )
+
+    private val smokeF = Fire.field()
+
+    /** A drop of water: a point on top, round below. */
+    private val DROP = listOf(".#.", "###")
+
+    /**
+     * Its pastimes: they take the wisp from where its calm flight has it ([path]) to a place of its own and hand it back
+     * to the flight where that will be by the end.
+     */
+    private fun pastime(c: Cv, col: String, t: Long, st: Int) {
+        val ms = pastimeMs(col); val e = Drawn.PASTIME_EDGE
+        if (t < e || t >= ms - e) { calmNow(c, t, st); return }
+        val ps = path(calmAt(e)); val pe = path(calmAt(ms - e))
+        val shutNow = blink(calmAt(t))
+        val back = ease(seg(t, ms - e - 900, ms - e))
+        when (col) {
+            "raindrop" -> {
+                // It stops to hover; a drop falls onto it: a hiss (it shrinks, eyes wide, smoke), a shake, a proud flare.
+                val hx = 12f; val hy = 13f
+                val go = ease(seg(t, e, e + 700))
+                val hit = e + 1500
+                var x = mix(ps[0], hx, go); var y = mix(ps[1], hy, go)
+                var vx = ps[2] * (1 - go); var vy = ps[3] * (1 - go)
+                var size = 1f; var shut = shutNow
+                if (t >= hit && t < hit + 800) { size = 0.72f; shut = false }
+                if (t >= hit + 800 && t < hit + 1500) { size = mix(0.72f, 0.9f, seg(t, hit + 800, hit + 1500)); val side = if ((t / 90) % 2 == 0L) -1f else 1f; x = hx + side; vx = side * 8f; shut = false }
+                if (t >= hit + 1500) size = 0.9f + 0.3f * sin(seg(t, hit + 1500, hit + 2200) * PIF) + 0.1f * seg(t, hit + 1500, hit + 1800)
+                if (back > 0f) { x = mix(hx, pe[0], back); y = mix(hy, pe[1], back); vx = pe[2] * back; vy = pe[3] * back }
+                // Smoke while it hisses, rising from the moment of the hiss and thinning away after.
+                val fume = if (t < hit) 0f else 1f - seg(t, hit + 500, hit + 1400)
+                if (fume > 0f) {
+                    smokeF.fill(0f); Fire.smoke(smokeF, x, y - 1f, t, 0.7f * fume)
+                    val front = (y - 3f - 6.5f * (t - hit) / 1000f).roundToInt()
+                    for (i in smokeF.indices) if (i / 25 < front) smokeF[i] = 0f
+                    Fire.renderSmoke(c, smokeF)
+                }
+                wisp(c, st, t, x, y, vx, vy, size, shut = shut, salt = 0)
+                if (t in (e + 700) until hit) {
+                    val q = seg(t, e + 700, hit)
+                    val dy = mix(3f, 9f, q * q)
+                    c.rows(DROP, 11, dy.roundToInt() - 1, 0.15f + 0.5f * q)
+                }
+            }
+            "bounce" -> {
+                // Down to an unseen floor, three bounces lower each time (squashed on each landing, the ground lit under
+                // it), a rest, and up into its flight again.
+                val floor = 16f
+                val tb = e + 450
+                val durs = longArrayOf(800, 620, 440); val hs = floatArrayOf(5.5f, 3.2f, 1.4f)
+                val tr = ms - e - 900
+                fun height(tt: Long): Float {
+                    if (tt < tb) { val q = seg(tt, e, tb); return (floor - mix(ps[1], floor, q * q)) }
+                    var at = tb
+                    for (i in durs.indices) { if (tt < at + durs[i]) { val q = (tt - at) / durs[i].toFloat(); return 4f * q * (1 - q) * hs[i] }; at += durs[i] }
+                    return if (tt < tr) 0f else (floor - mix(floor, pe[1], ease(seg(tt, tr, ms - e))))
+                }
+                val h = height(t)
+                val vy = ((height(t - 20) - height(t + 20)) / 40f * 1000f).coerceIn(-6f, 6f)
+                val x = mix(ps[0], pe[0], ease(seg(t, e, ms - e)))
+                var landed = false
+                var at = tb
+                for (d in durs) { at += d; if (t in at - 40 until at + 120) landed = true }
+                if (t in tb - 40 until tb + 120) landed = true
+                val vx = mix(ps[2], 0f, ease(seg(t, e, e + 400))) + pe[2] * back
+                val vyy = if (t < e + 400) mix(ps[3], vy, seg(t, e, e + 400)) else if (back > 0f) mix(vy, pe[3], back) else vy
+                // The ground lit by its glow, the brighter the nearer it is.
+                val on = ease(seg(t, e, e + 300)) * (1f - ease(seg(t, tr, tr + 500)))
+                if (on > 0f) { val gx = x.roundToInt(); val g = (0.1f + 0.25f * (1f - h / 6f).coerceIn(0f, 1f) + (if (landed) 0.15f else 0f)) * on
+                    for (k in -3..3) c.put(gx + k, 20, g * (if (abs(k) == 3) 0.6f else 1f)) }
+                wisp(c, st, t, x, floor - h, vx, vyy, if (landed) 0.82f else 1f, shut = landed || shutNow)
+            }
+        }
+    }
+
     override fun draw(c: Cv, col: String, t: Long, st: Int, tilt: Float) {
+        if (pastimes.any { it.id == col }) { pastime(c, col, t, st); return }
         heat.fill(0f)
         val p = path(t)
         when (col) {
@@ -465,8 +749,8 @@ private object Sonar : NewHero(
         return exp(-(reach - d) / speed * 2.4f)
     }
 
-    private fun fish(c: Cv, st: Int, fx: Float, fy: Float, right: Boolean, lit: (Int, Int) -> Float, shut: Boolean = false) {
-        val rows = SHAPES[st].let { if (right) it else it.map { r -> r.reversed() } }
+    private fun fish(c: Cv, st: Int, fx: Float, fy: Float, right: Boolean, lit: (Int, Int) -> Float, shut: Boolean = false, turned: List<String>? = null) {
+        val rows = turned ?: SHAPES[st].let { if (right) it else it.map { r -> r.reversed() } }
         val left = (fx - rows[0].length / 2f).roundToInt(); val top = (fy - rows.size / 2f).roundToInt()
         rows.forEachIndexed { j, row -> row.forEachIndexed { i, ch ->
             val x = left + i; val y = top + j; val v = lit(x, y)
@@ -493,7 +777,91 @@ private object Sonar : NewHero(
     private var tKey = -1
     private var tPing = -99_999L
 
+    override val pastimes = listOf(
+        DrawnPastime("somersault", 4400, "кувыркается",
+            "Выплывает на середину и делает сальто: петлю целиком, переворачиваясь на каждой четверти круга, и плывёт дальше."),
+        DrawnPastime("school", 5600, "плавает со стайкой",
+            "Из темноты появляются две рыбки-мальки и плывут с ней стайкой, сверху и снизу, повторяя каждый её поворот, а потом уплывают вперёд и пропадают в темноте."),
+    )
+
+    /** [rows] turned [q] quarter turns anticlockwise on the screen (clockwise when negative). */
+    private fun turn(rows: List<String>, q: Int): List<String> {
+        var r = rows
+        repeat(Math.floorMod(q, 4)) { val w = r[0].length; val src = r; r = List(w) { y -> String(CharArray(src.size) { x -> src[x][w - 1 - y] }) } }
+        return r
+    }
+
+    /**
+     * Its pastimes: they pick the fish up where its calm swim has it, ping for ping with the calm clip, and give it back
+     * where the calm swim will be by the end.
+     */
+    private fun pastime(c: Cv, col: String, t: Long, st: Int) {
+        val ms = pastimeMs(col); val e = Drawn.PASTIME_EDGE
+        if (t < e || t >= ms - e) { calmNow(c, t, st); return }
+        val c0 = calmAt(e); val c1 = calmAt(ms - e)
+        val (sx, sy, sr) = swim(c0); val (ex, ey, er) = swim(c1)
+        val ph = (calmAt(t) % 1600) / 1000f; val sp = 9f
+        ping(c, ph, sp)
+        // A little more of it shows than the ping alone would light while it plays, so the story reads.
+        val lift = 0.3f * (ease(seg(t, e, e + 400)) - ease(seg(t, ms - e - 400, ms - e)))
+        val lit = { x: Int, y: Int -> max(lift, echoAt(x.toFloat(), y.toFloat(), ph, sp)) }
+        val shutNow = blink(calmAt(t))
+        when (col) {
+            "somersault" -> {
+                // To the middle, one whole loop (up when it swims low, down when high) turning a quarter at a time, and on
+                // to where the calm swim goes on.
+                val mx = 12f; val my = sy.coerceIn(10f, 14f)
+                val a = e + 900; val l1 = a + 1600; val r = 3f
+                when {
+                    t < a -> { val q = ease(seg(t, e, a)); val right = if (abs(mx - sx) < 1f) sr else mx > sx
+                        fish(c, st, mix(sx, mx, q), mix(sy, my, q), right, lit, shutNow) }
+                    t < l1 -> {
+                        val right = if (abs(mx - sx) < 1f) sr else mx > sx
+                        val dx = if (right) 1 else -1; val ys = if (my >= 12f) -1 else 1
+                        val th = seg(t, a, l1) * TAU_F
+                        val q = Math.floorMod((th / (PIF / 2)).roundToInt(), 4)
+                        val rows = turn(SHAPES[st].let { if (right) it else it.map { rr -> rr.reversed() } }, q * dx * -ys)
+                        fish(c, st, mx + dx * r * sin(th), my + ys * r * (1 - cos(th)), right, lit, turned = rows)
+                    }
+                    else -> { val q = ease(seg(t, l1, ms - e)); val right = if (t < ms - e - 250 && abs(ex - mx) >= 1f) ex > mx else er
+                        fish(c, st, mix(mx, ex, q), mix(my, ey, q), right, lit, shutNow) }
+                }
+            }
+            "school" -> {
+                // Its own swim, carried over from where it was to where the calm swim will be; two little fish come in
+                // from behind, follow it (each a moment later, so they copy its turns) and dart off ahead before the end.
+                fun hero(tt: Long): Triple<Float, Float, Boolean> {
+                    val a = swim(c0 + (tt - e)); val b = swim(c1 - (ms - e - tt))
+                    val k = ease(seg(tt, e + 1200, ms - e - 1200))
+                    if (k <= 0f) return a
+                    if (k >= 1f) return b
+                    val x = mix(a.first, b.first, k)
+                    val x2 = mix(swim(c0 + (tt + 40 - e)).first, swim(c1 - (ms - e - tt - 40)).first, ease(seg(tt + 40, e + 1200, ms - e - 1200)))
+                    return Triple(x, mix(a.second, b.second, k), if (abs(x2 - x) < 0.01f) a.third else x2 > x)
+                }
+                val (hx, hy, hr) = hero(t)
+                for (k in 0..1) {
+                    // Each keeps its row over or under it (never touching it) and swims where it was a moment ago.
+                    val (fx, _, right) = hero(t - 450L * (k + 1))
+                    val dir = if (right) 1f else -1f
+                    val inn = ease(seg(t, e + 100 + k * 300, e + 900 + k * 300))
+                    val out = ease(seg(t, ms - e - 1300 + k * 200, ms - e - 600 + k * 200))
+                    // Out of the dark as the sonar finds it, and back into it: the whole little fish at once.
+                    val here = inn * (1 - out)
+                    if (here < 0.2f) continue
+                    val x = fx - dir * 2f - dir * 4f * (1 - inn) + dir * 4f * out
+                    // A whole dark row between it and the hero, counted in rows so rounding never lets them touch.
+                    val heroTop = (hy - SHAPES[st].size / 2f).roundToInt()
+                    val y = if (k == 0) heroTop - 4 + 1.5f else heroTop + SHAPES[st].size + 1 + 1.5f
+                    fish(c, 0, x, y, right, { xx, yy -> max(0.3f * here, echoAt(xx.toFloat(), yy.toFloat(), ph, sp) * here) })
+                }
+                fish(c, st, hx, hy, hr, lit, shutNow)
+            }
+        }
+    }
+
     override fun draw(c: Cv, col: String, t: Long, st: Int, tilt: Float) {
+        if (pastimes.any { it.id == col }) { pastime(c, col, t, st); return }
         val (fx, fy, right) = swim(t)
         val per = 1600L
         val ph = (t % per) / 1000f
@@ -606,7 +974,105 @@ private object Scope : NewHero(
     private var tKey = -1
     private var tSpike = -99_999L
 
+    override val pastimes = listOf(
+        DrawnPastime("top_hat", 5600, "примеряет цилиндр",
+            "Луч штрих за штрихом дорисовывает себе цилиндр, лицо дважды приподнимает его, здороваясь, и жмурится от удовольствия; потом луч так же стирает шляпу."),
+        DrawnPastime("funny_faces", 4800, "корчит рожицы",
+            "Луч рисует рожицу за рожицей: подмигивает, показывает язык, жмурится в улыбке до ушей, и снова своё лицо."),
+    )
+
+    /** The point [w] (0..1) of the way along the line through [pts]. */
+    private fun along(pts: List<Pair<Float, Float>>, w: Float): Pair<Float, Float> {
+        val lens = pts.zipWithNext { a, b -> hypot(b.first - a.first, b.second - a.second) }
+        var d = w.coerceIn(0f, 1f) * lens.sum()
+        for ((i, l) in lens.withIndex()) {
+            if (d <= l || i == lens.size - 1) { val q = (d / l).coerceIn(0f, 1f); return mix(pts[i].first, pts[i + 1].first, q) to mix(pts[i].second, pts[i + 1].second, q) }
+            d -= l
+        }
+        return pts.last()
+    }
+
+    /**
+     * The point [w] of a top hat on the head drawn as far as [k] (0..1, w < k): the brim out from the middle of the head
+     * each way, then the crown. Each half of the brim grows outward but is traced from its tip in to the head, and the
+     * crown runs from the brim round to the brim, so the freshest end of every stroke sits on the drawing and the part
+     * of the trace that has faded never leaves a loose bit behind. [lift] raises the hat off the head.
+     */
+    private fun hat(w: Float, k: Float, r: Float, cx: Float, cy: Float, lift: Float = 0f): Pair<Float, Float>? {
+        val top = (cy - r).roundToInt() - lift
+        val left = (k / 0.2f).coerceIn(0f, 1f) * 5f
+        val right = ((k - 0.22f) / 0.2f).coerceIn(0f, 1f) * 5f
+        return when {
+            w < 0.2f -> (cx - left + w / 0.2f * 5f) to (top - 1f)
+            w < 0.22f -> null
+            w < 0.42f -> (cx + right - (w - 0.22f) / 0.2f * 5f) to (top - 1f)
+            w < 0.46f -> null
+            else -> along(listOf((cx - 3f) to (top - 1f), (cx - 3f) to (top - 3f), (cx + 3f) to (top - 3f), (cx + 3f) to (top - 1f)), (w - 0.46f) / 0.54f)
+        }
+    }
+
+    /**
+     * A pulled face at [u]: the head round, the eyes ([eyeL], [eyeR]: 0 open, 1 shut, 2 squeezed into arches),
+     * then the mouth ([mouth]: 0 a wide smile, 1 a tongue out, 2 a grin from ear to ear).
+     */
+    private fun pulled(u: Float, st: Int, eyeL: Int, eyeR: Int, mouth: Int, cx: Float, cy: Float): Pair<Float, Float>? {
+        val r = R[st]
+        fun eye(k: Float, side: Float, kind: Int): Pair<Float, Float> = when (kind) {
+            1 -> (cx + side * r * 0.55f - (if (side < 0) 0f else 2.4f) + k * 2.4f) to (cy - r * 0.2f)
+            2 -> (cx + side * r * 0.4f - 1.4f + k * 2.8f) to (cy - r * 0.2f + 0.6f - sin(k * PIF) * 1.6f)
+            else -> { val a = k * TAU_F; (cx + side * r * 0.4f + cos(a) * 1.2f) to (cy - r * 0.2f + sin(a) * 1.2f) }
+        }
+        return when {
+            u < 0.55f -> { val a = u / 0.55f * TAU_F; (cx + cos(a) * r) to (cy + sin(a) * r) }
+            u < 0.58f -> null
+            u < 0.68f -> eye((u - 0.58f) / 0.1f, -1f, eyeL)
+            u < 0.71f -> null
+            u < 0.81f -> eye((u - 0.71f) / 0.1f, 1f, eyeR)
+            u < 0.84f -> null
+            else -> { val k = (u - 0.84f) / 0.16f; val my = cy + r * 0.38f
+                when (mouth) {
+                    1 -> if (k < 0.5f) (cx - r * 0.45f + k / 0.5f * r * 0.9f) to (my + 0.3f) else { val a = (k - 0.5f) / 0.5f * PIF; (cx - 1.6f * cos(a)) to (my + 0.3f + 2.8f * sin(a)) }
+                    2 -> if (k < 0.35f) (cx - r * 0.45f + k / 0.35f * r * 0.9f) to (my - 0.3f) else { val a = (k - 0.35f) / 0.65f * PIF; (cx + r * 0.45f * cos(a)) to (my - 0.3f + 2.8f * sin(a)) }
+                    else -> (cx - r * 0.45f + k * r * 0.9f) to (my + sin(k * PIF) * 1.4f * r * 0.22f)
+                }
+            }
+        }
+    }
+
+    /** Its pastimes: the face never moves, the beam keeps the calm clip's clock, so they start and end on its calm trace. */
+    private fun pastime(c: Cv, col: String, t: Long, st: Int) {
+        val ms = pastimeMs(col); val e = Drawn.PASTIME_EDGE
+        if (t < e || t >= ms - e) { calmNow(c, t, st); return }
+        val tc = calmAt(t)
+        val shut = blink(tc, 3200, 2200)
+        val cx = 12f; val cy = 12.5f; val r = R[st]
+        grid(c)
+        when (col) {
+            "top_hat" -> {
+                // The beam's round grows a stroke at a time into a top hat; the hat is raised twice in greeting, the face
+                // beams with its eyes shut; then the strokes unwind from their ends.
+                val kh = ease(seg(t, e + 100, e + 1300)) - ease(seg(t, ms - e - 1100, ms - e - 150))
+                val tip = t in (e + 1600) until (e + 1900) || t in (e + 2150) until (e + 2450)
+                val proud = t in (e + 2700) until (e + 3500)
+                val fh = 0.25f * kh; val end = 1f - fh
+                trace(c, tc, 1100f) { u ->
+                    if (u < end) face(u / end, st, 1f, proud || shut, cx, cy)
+                    else hat((u - end) / 0.25f, kh, r, cx, cy, if (tip) 1f else 0f)
+                }
+            }
+            "funny_faces" -> {
+                // A wink, a tongue (eyes shut, teasing), a grin from ear to ear with the eyes squeezed, its own face again.
+                val k = ((t - e - 150) / 1150).toInt()
+                if (t < e + 150 || k > 2) trace(c, tc, 1100f) { u -> face(u, st, 1f, shut, cx, cy) }
+                else trace(c, tc, 1100f) { u ->
+                    when (k) { 0 -> pulled(u, st, 1, 0, 0, cx, cy); 1 -> pulled(u, st, 1, 1, 1, cx, cy); else -> pulled(u, st, 2, 2, 2, cx, cy) }
+                }
+            }
+        }
+    }
+
     override fun draw(c: Cv, col: String, t: Long, st: Int, tilt: Float) {
+        if (pastimes.any { it.id == col }) { pastime(c, col, t, st); return }
         grid(c)
         when (col) {
             "calm" -> trace(c, t, 1100f) { u -> face(u, st, 1f, blink(t, 3200, 2200), 12f, 12.5f) }

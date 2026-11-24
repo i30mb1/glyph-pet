@@ -1177,8 +1177,11 @@ class PetEngine(
             (startle?.let { Startles.dx(it, startleMs, startleDir) } ?: 0)
         cover.fill(SpeciesRenderer.COVER_NONE)
         // Legendary and mythic pets are drawn in 3D, turning a little with the phone ([Living3D]).
+        // A pastime is not the habit: the 3D body does not play the habit's own motion (the gem's extra turn, the
+        // planet's rocking ring and racing moon) under it.
+        val inPastime = own != null && habitOf(species) !== species.habit
         val painter = if (Living3D.handles(species)) {
-            val progress = if (own != null) habitMs / habitOf(species).durationMs.coerceAtLeast(1).toFloat() else -1f
+            val progress = if (own != null && !inPastime) habitMs / habitOf(species).durationMs.coerceAtLeast(1).toFloat() else -1f
             runCatching { living.live(species, dtMs, scene.tilt, scene.tiltY, time, progress, scene.yaw) }.getOrNull()
         } else {
             null
@@ -1186,7 +1189,7 @@ class PetEngine(
         SpeciesRenderer.render(
             species, face, blink = blinkLeftMs > 0, dx = dx, frame = frame, timeMs = time, lift = lift + (cuddle?.let { Cuddles.lift(it, cuddleMs) } ?: 0),
             eyesShut = faceBlinkMs > 0,
-            habit = if (painter != null) living.habitFor(species, own) else own,
+            habit = if (painter != null) living.habitFor(species, own, inPastime) else own,
             eyeDx = if (way?.move == Blows.Move.LOOK && blown) -windDir else look(centerX, scene, asleep), shadow = true, cover = cover, painter = painter,
             badges = (!(sliding && own == null) || tiltStyle == TiltStyle.STICK) && cuddle == null,
             spout = own == null && !sliding,

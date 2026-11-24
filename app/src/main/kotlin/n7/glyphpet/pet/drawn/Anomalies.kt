@@ -252,6 +252,47 @@ internal fun sparks(c: Cv, cx: Float, top: Float, t: Long, n: Int, spread: Float
     }
 }
 
+// --- the anomalies' pastimes: what they share --------------------------------------------------------------------------
+
+/**
+ * The calm clip's own clock at pastime time [t], looped as [Anomaly.calmNow] draws it. A pastime [Drawn.PASTIME_EDGE]
+ * + 3200 ms + edge long ends on the very calm pose it began from, so a hero can stop where it is and carry on from there.
+ */
+private fun Anomaly.anomCalmClock(t: Long): Long = Math.floorMod(calmT(t), Drawn.length("calm"))
+
+/** 0 at a pastime's calm edges, 1 in its middle: eases in over [inMs] after the first edge and out over [outMs] before the last. */
+private fun anomAway(t: Long, ms: Long, inMs: Long = 600, outMs: Long = 600): Float {
+    val e = Drawn.PASTIME_EDGE
+    return min(ease(seg(t, e, e + inMs)), 1f - ease(seg(t, ms - e - outMs, ms - e)))
+}
+
+/** A smooth 0 -> 1 -> 0 between [from] and [to]: up over [up] ms, held, down over [down] ms. */
+private fun anomBump(t: Long, from: Long, to: Long, up: Long = 250, down: Long = up): Float =
+    min(ease(seg(t, from, from + up)), 1f - ease(seg(t, to - down, to)))
+
+/** [layer] onto [c] without its loose bits, connected groups under [least] LEDs: a torn-off wisp of fire reads as a stray speck. */
+private fun anomPutWhole(c: Cv, layer: Cv, least: Int = 4) {
+    val lit = layer.ints()
+    val seen = BooleanArray(625)
+    for (i in 0 until 625) {
+        if (lit[i] <= 0 || seen[i]) continue
+        val group = ArrayList<Int>()
+        val stack = ArrayDeque(listOf(i))
+        seen[i] = true
+        while (stack.isNotEmpty()) {
+            val g = stack.removeLast()
+            group += g
+            for (dy in -1..1) for (dx in -1..1) {
+                val nx = g % 25 + dx; val ny = g / 25 + dy
+                if (nx !in 0..24 || ny !in 0..24) continue
+                val n = ny * 25 + nx
+                if (!seen[n] && lit[n] > 0) { seen[n] = true; stack += n }
+            }
+        }
+        if (group.size >= least) for (g in group) c.put(g % 25, g / 25, layer.v[g])
+    }
+}
+
 // --- the phoenix: a flame that is a bird ---------------------------------------------------------------------------------
 
 private object Phoenix : Anomaly(
@@ -324,6 +365,7 @@ private object Phoenix : Anomaly(
     fun bird(
         c: Cv, st: Int, t: Long, cx: Float = 12f, dy: Float = 0f, h: Float = H[st], b: Float = 1f, sway: Float = 0f,
         flap: Float = 0f, wing: Boolean = true, eyes: Int = 0, flick: Float = 1f, look: Float = 0f,
+        lookFill: Boolean = false, crest: Float = 1f,
     ) {
         val ratio = (h / H[st]).coerceIn(0f, 2f)
         val shape = SHAPE[st]
@@ -366,12 +408,72 @@ private object Phoenix : Anomaly(
             Fire.flame(heat, (x0 + col).toFloat(), (y0 + top - lift(col)).toFloat(), t, size * (1f - 0.18f * k), ux + sd * 0.3f, uy, power = 0.9f, salt = 11 + k + (if (sd > 0) 5 else 0))
         }
         val headTop = shape.indexOfFirst { it[mid.roundToInt()] == '#' }
-        Fire.flame(heat, cx + lean * 2, (y0 + headTop).toFloat(), t, size * 1.1f, ux, uy, power = 0.9f, salt = 21)
+        Fire.flame(heat, cx + lean * 2, (y0 + headTop).toFloat(), t, size * 1.1f * crest, ux, uy, power = 0.9f, salt = 21)
         Fire.render(c, heat, b * 0.95f)
+        // Eyes looking aside: with [lookFill] the cell an eye leaves is feathered over, so it stays one dark LED, not two.
+        if (eyes == 0 && lookFill && look.roundToInt() != 0) shape.forEachIndexed { y, row -> row.forEachIndexed { x, ch -> if (ch == '-') c.put(x0 + x, y0 + y, b * 0.3f) } }
         if (eyes == 0) shape.forEachIndexed { y, row -> row.forEachIndexed { x, ch -> if (ch == '-') c.cut(x0 + x + look.roundToInt(), y0 + y) } }
     }
 
+    override val pastimes = listOf(
+        DrawnPastime("moth", 4800, "мотылёк у огня",
+            "К огню прилетает мотылёк и облетает птицу снизу, она следит за ним глазами; он садится на хохолок, пламя вспыхивает, и мотылёк удирает."),
+        DrawnPastime("hiccup", 4000, "икает огоньком",
+            "Птица икает: от каждого «ик» она подскакивает, жмурится, и пламя на хохолке выстреливает вверх; между иками растерянно косится по сторонам."),
+    )
+
+    /** A moth's two wing beats (from its middle, its top row first): five LEDs each, so it never reads as a stray speck. */
+    private val MOTH = listOf(
+        listOf(-2 to 0, -1 to 0, 1 to 0, 2 to 0, 0 to 1),
+        listOf(-2 to 0, 2 to 0, -1 to 1, 0 to 1, 1 to 1),
+    )
+
+    /** Its pastimes: the calm firebird ([calmNow]) at either end, and in between it watches a moth or has the hiccups. */
+    private fun pastime(c: Cv, col: String, t: Long, st: Int) {
+        val ms = pastimes.first { it.id == col }.ms
+        val e = Drawn.PASTIME_EDGE
+        if (t < e || t >= ms - e) { calmNow(c, t, st); return }
+        val tc = anomCalmClock(t)
+        val calmFlap = 0.2f * sin(tc / 600f)
+        val h = H[st]; val by = BY[st]
+        when (col) {
+            "moth" -> {
+                // It flutters in low on the right, sweeps round under the bird and up its left side to the crest's flame.
+                val u = ease(seg(t, 1000, 3200))
+                val th = mix(0.75f, 3 * PI.toFloat() / 2, u)
+                val rr = mix(11f, 7f, ease(u * 2f))
+                var mx = 12f + cos(th) * rr * 1.05f; var my = 10f + sin(th) * rr * 0.9f
+                val flee = seg(t, 3300, 3900)
+                if (flee > 0f) { mx = mix(mx, 19f, ease(flee)); my = mix(my, 6f, ease(flee)) }
+                val seen = min(seg(t, 1000, 1250), 1f - flee)
+                val flare = anomBump(t, 3150, 3650, 120, 300)
+                val look = if (seen > 0f && flare < 0.3f) ((mx - 12f) / 4f).coerceIn(-1f, 1f) * min(1f, seen * 3f) else 0f
+                bird(c, st, tc, h = h * (1f + 0.35f * flare), flap = calmFlap + 0.4f * flare, eyes = if (flare > 0.3f) 1 else 0, look = look, lookFill = true)
+                sparks(c, 12f, by - h, tc, 2 + st, 1.5f)
+                if (seen > 0f) {
+                    val beat = MOTH[((t / 90) % 2).toInt()]
+                    val x = mx.roundToInt(); val y = my.roundToInt()
+                    for ((dx, dy) in beat) c.put(x + dx, y + dy, 0.9f * seen)
+                }
+            }
+            "hiccup" -> {
+                // Three hiccups: each a jolt up with its eyes squeezed shut and the crest's flame shooting up; between them
+                // it glances left, then right, puzzled.
+                var jolt = 0f; var crest = 1f; var kick = 0f
+                for (hk in longArrayOf(1000, 1900, 2800)) if (t >= hk) {
+                    val since = t - hk
+                    if (since < 150) { jolt = -1f; kick = 0.6f }
+                    crest = max(crest, 1f + 0.3f * (1f - seg(t, hk, hk + 300)))
+                }
+                val look = when (t) { in 1300L until 1700L -> -1f; in 2200L until 2600L -> 1f; else -> 0f }
+                bird(c, st, tc, dy = jolt, flap = calmFlap + kick, eyes = if (jolt < 0f) 1 else 0, look = look, lookFill = true, crest = crest)
+                sparks(c, 12f, by - h, tc, 2 + st, 1.5f)
+            }
+        }
+    }
+
     override fun draw(c: Cv, col: String, t: Long, st: Int, tilt: Float) {
+        if (pastimes.any { it.id == col }) { pastime(c, col, t, st); return }
         val h = H[st]; val by = BY[st]; val w = W[st]
         when (col) {
             "calm" -> { bird(c, st, t, flap = 0.2f * sin(t / 600f)); sparks(c, 12f, by - h, t, 2 + st, 1.5f) }
@@ -563,7 +665,81 @@ private object BlackHole : Anomaly(
         c.put(x, y, b); for ((dx, dy) in listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1)) c.put(x + dx, y + dy, 0.3f * b)
     }
 
+    override val pastimes = listOf(
+        DrawnPastime("lens", 4800, "линза для звезды",
+            "За дырой проплывает звезда; у самого края она растекается в светлое кольцо вокруг дыры (дыра довольно жмурится) и выходит с другой стороны."),
+        DrawnPastime("comet", 5200, "раскручивает комету",
+            "Прилетает комета, хвостом всегда от дыры; дыра раскручивает её вокруг себя полтора оборота и, довольная, отпускает дальше."),
+    )
+
+    /** Where a point [r] out at angle [th] in a plane leaned [incl] (and turned like the disc) is on the matrix. */
+    private fun orbit(r: Float, th: Float, incl: Float, phi: Float = -0.12f): Pair<Float, Float> {
+        val dx = r * cos(th); val dy = r * sin(th) * incl
+        return (12 + dx * cos(phi) - dy * sin(phi)) to (12 + dx * sin(phi) + dy * cos(phi))
+    }
+
+    /** Its pastimes: the calm hole ([calmNow]) at either end; in between a star passes behind it or a comet swings round it. */
+    private fun pastime(c: Cv, col: String, t: Long, st: Int) {
+        val ms = pastimes.first { it.id == col }.ms
+        val e = Drawn.PASTIME_EDGE
+        if (t < e || t >= ms - e) { calmNow(c, t, st); return }
+        val tc = anomCalmClock(t)
+        val rc = RC[st]
+        val blinkNow = tc % 2600 < 160
+        when (col) {
+            "lens" -> {
+                // A star drifts behind it corner to corner; near the core it smears into two arcs that close into a ring.
+                val on = t in 900 until 4000
+                val u = seg(t, 900, 4000)
+                val sx = mix(4f, 20f, u); val sy = mix(6f, 18f, u)
+                val d = hypot(sx - 12f, sy - 12f)
+                val ring = if (on) (1f - d / (rc + 5f)).coerceIn(0f, 1f) else 0f
+                // (Its eyes stay put: two dim LEDs in the dark core, moved they would read as loose specks.)
+                hole(c, st, tc, eyes = if (ring > 0.8f) 1 else if (blinkNow) 2 else 0)
+                if (!on) return
+                val glow = 0.5f + 0.5f * seg(t, 900, 1200)
+                if (d > rc + 1.5f) for ((dx, dy, b) in listOf(Triple(0, 0, 1f), Triple(1, 0, 0.4f), Triple(-1, 0, 0.4f), Triple(0, 1, 0.4f), Triple(0, -1, 0.4f))) {
+                    val x = sx.roundToInt() + dx; val y = sy.roundToInt() + dy
+                    if (hypot(x - 12f, y - 12f) > rc + 0.6f) c.put(x, y, b * glow)
+                }
+                if (ring > 0f) {
+                    val th = atan2(sy - 12f, sx - 12f)
+                    val re = rc + 3.2f
+                    val hw = mix(0.45f, PI.toFloat() / 2 + 0.05f, ring)
+                    val b = 0.5f + 0.45f * ring
+                    c.ring(12f, 12f, re, b, 0.5f, th - hw, th + hw)
+                    if (ring > 0.3f) { val hw2 = mix(0.45f, PI.toFloat() / 2 + 0.05f, (ring - 0.3f) / 0.7f); c.ring(12f, 12f, re, b, 0.5f, th + PI.toFloat() - hw2, th + PI.toFloat() + hw2) }
+                }
+            }
+            "comet" -> {
+                // In along the disc from the left, a turn and a half round the core, out to the right; its tail points away.
+                val on = t in 900 until 4300
+                val u = seg(t, 900, 4300)
+                // From 11.5 out, so it comes and goes whole at the rim, not a lone LED of it.
+                val r = 5f + 6.5f * (1f - sin(u * PI.toFloat()))
+                val th = PI.toFloat() + 3 * PI.toFloat() * u
+                val (hx, hy) = orbit(r, th, 0.5f)
+                val close = on && r < 6.5f
+                hole(c, st, tc, eyes = if (close) 1 else if (blinkNow) 2 else 0)
+                if (!on) return
+                val dd = max(0.01f, hypot(hx - 12f, hy - 12f))
+                val ux = (hx - 12f) / dd; val uy = (hy - 12f) / dd
+                val behind = sin(th) < 0f
+                val len = 3 + (2f * (1f - (r - 5f) / 6.5f)).roundToInt()
+                for (k in len downTo 1) {
+                    val x = hx + ux * k * 0.8f; val y = hy + uy * k * 0.8f
+                    if (behind && hypot(x - 12f, y - 12f) < rc + 0.6f) continue
+                    c.put(x, y, 0.75f - k * 0.1f)
+                }
+                // its head: a bright 2x2 knot, brighter than any grain of the disc
+                val x0 = floor(hx).toInt(); val y0 = floor(hy).toInt()
+                for (dy in 0..1) for (dx in 0..1) if (!behind || hypot(x0 + dx - 12f, y0 + dy - 12f) >= rc + 0.6f) c.set(x0 + dx, y0 + dy, 1f)
+            }
+        }
+    }
+
     override fun draw(c: Cv, col: String, t: Long, st: Int, tilt: Float) {
+        if (pastimes.any { it.id == col }) { pastime(c, col, t, st); return }
         val rc = RC[st]
         when (col) {
             "calm" -> hole(c, st, t, eyes = if (t % 2600 < 160) 2 else 0)
@@ -745,7 +921,121 @@ private object Swarm : Anomaly(
     private var flock: Flock? = null
     private var flockT = 0L
 
+    override val pastimes = listOf(
+        DrawnPastime("ball", 4400, "скачет мячиком",
+            "Светлячки сбиваются в тугой мячик; он падает, трижды отскакивает от дна, всё ниже, и снова рассыпается облаком."),
+        DrawnPastime("fish", 5200, "плывёт рыбкой",
+            "Стая выстраивается рыбкой с глазом и виляющим хвостом, проплывает вправо, разворачивается, плывёт влево и обратно, потом рассыпается."),
+    )
+
+    /** Firefly [i] of [n] in a ball of radius 3 (a rim, an inner ring and a heart), turned by [spin]. */
+    private fun ballAt(i: Int, n: Int, spin: Float): Pair<Float, Float> {
+        val outer = (n * 0.6f).toInt().coerceAtLeast(1); val inner = (n * 0.3f).toInt().coerceAtLeast(1)
+        val (r, a) = when {
+            i < outer -> 3f to (i.toFloat() / outer * TAU)
+            i < outer + inner -> 1.7f to ((i - outer).toFloat() / inner * TAU + 0.3f)
+            else -> 0.6f to ((i - outer - inner).toFloat() / max(1, n - outer - inner) * TAU)
+        }
+        return cos(a + spin) * r to sin(a + spin) * r
+    }
+
+    /** The fish drawn with 34 fireflies, facing right: the body's outline, a forked tail, an eye. */
+    private val FISH: List<Pair<Float, Float>> = run {
+        val out = ArrayList<Pair<Float, Float>>()
+        for (k in 0 until 22) { val a = k / 22f * TAU; out += cos(a) * 3.6f to sin(a) * 2.3f }
+        for (k in 1..4) { val q = k / 4f; out += mix(-3.4f, -6.2f, q) to mix(0f, -2.3f, q); out += mix(-3.4f, -6.2f, q) to mix(0f, 2.3f, q) }
+        for (y in listOf(-1.1f, 0f, 1.1f)) out += -6.2f to y
+        out += 1.7f to -0.7f
+        out
+    }
+
+    /**
+     * Fireflies at [pts], [bs] bright, flying between their calm places [home] and a figure: one that is off its place
+     * and would glow alone (or in a speck of two or three) winks out for that frame, as fireflies do, rather than read
+     * as a stray dot away from the swarm.
+     */
+    private fun flight(c: Cv, pts: List<Pair<Float, Float>>, bs: List<Float>, home: List<Pair<Float, Float>>) {
+        val cells = pts.map { it.first.roundToInt() to it.second.roundToInt() }
+        val lit = cells.toHashSet()
+        val group = HashMap<Pair<Int, Int>, Int>()
+        val sizes = ArrayList<Int>()
+        for (cell in lit) {
+            if (cell in group) continue
+            val id = sizes.size
+            var n = 0
+            val stack = ArrayDeque(listOf(cell)); group[cell] = id
+            while (stack.isNotEmpty()) {
+                val (x, y) = stack.removeLast(); n++
+                for (dy in -1..1) for (dx in -1..1) { val nb = x + dx to y + dy; if (nb in lit && nb !in group) { group[nb] = id; stack += nb } }
+            }
+            sizes += n
+        }
+        for (i in pts.indices) {
+            val off = hypot(pts[i].first - home[i].first, pts[i].second - home[i].second) > 1f
+            if (off && sizes[group.getValue(cells[i])] <= 3) continue
+            dot(c, pts[i], bs[i])
+        }
+    }
+
+    /** Its pastimes: the calm cloud ([calmNow]) at either end; between, its fireflies gather into a ball or a fish. */
+    private fun pastime(c: Cv, col: String, t: Long, st: Int) {
+        val ms = pastimes.first { it.id == col }.ms
+        val e = Drawn.PASTIME_EDGE
+        if (t < e || t >= ms - e) { calmNow(c, t, st); return }
+        val tc = anomCalmClock(t)
+        val n = N[st]
+        val k = anomAway(t, ms, 600, 650)
+        when (col) {
+            "ball" -> {
+                // Gathered in the middle, it drops to the floor, bounces three times lower and lower, floats up and scatters.
+                val floor = 17f
+                var cy = 12f; var squash = 0f
+                val hops = listOf(Triple(1100L, 1550L, 5f), Triple(1550L, 2150L, 3.5f), Triple(2150L, 2600L, 2f), Triple(2600L, 2900L, 0.8f))
+                for ((i, hp) in hops.withIndex()) {
+                    val (a, b, hgt) = hp
+                    if (t in a until b) {
+                        val q = seg(t, a, b)
+                        // the first is half a hop: a drop from the middle onto the floor
+                        cy = if (i == 0) floor - hgt * (1f - q * q) else floor - hgt * 4f * q * (1f - q)
+                    }
+                }
+                if (t in 2900 until 3300) cy = floor
+                if (t >= 3300) cy = mix(floor, 12f, ease(seg(t, 3300, 3800)))
+                for (land in longArrayOf(1550, 2150, 2600, 2900)) if (abs(t - land) < 90) squash = 1f - abs(t - land) / 90f
+                val sx = 1f + 0.3f * squash; val sy = 1f - 0.3f * squash
+                val spin = t / 260f
+                val home = List(n) { cloud(it, n, tc, st) }
+                val pts = List(n) { i -> val (ox, oy) = ballAt(i, n, spin); lerp(home[i], (12f + ox * sx) to (cy + 0.9f * squash + oy * sy), k) }
+                val bs = List(n) { i -> mix(blink(i, tc), 0.7f + 0.3f * blink(i, tc), k) }
+                if (k < 1f) flight(c, pts, bs, home) else for (i in 0 until n) dot(c, pts[i], bs[i])
+            }
+            "fish" -> {
+                // A fish of fireflies swims right, turns (narrowing as it turns), swims left, turns back and swims home.
+                var fx = 12f; var face = 1f
+                when {
+                    t < 1080 -> {}
+                    t < 1900 -> fx = mix(12f, 15.5f, ease(seg(t, 1080, 1900)))
+                    t < 2300 -> { fx = 15.5f; face = cos(seg(t, 1900, 2300) * PI.toFloat()) }
+                    t < 3300 -> { fx = mix(15.5f, 8.5f, ease(seg(t, 2300, 3300))); face = -1f }
+                    t < 3700 -> { fx = 8.5f; face = -cos(seg(t, 3300, 3700) * PI.toFloat()) }
+                    else -> fx = mix(8.5f, 12f, ease(seg(t, 3700, 4100)))
+                }
+                val fy = 12f + sin(t / 300f) * 0.7f
+                val wag = sin(t / 110f)
+                val home = List(n) { cloud(it, n, tc, st) }
+                val pts = List(n) { i ->
+                    val (ox, oy0) = FISH[i * FISH.size / n]
+                    val oy = oy0 + if (ox < -3f) wag * 0.9f * (-ox - 3f) / 3f else 0f
+                    lerp(home[i], (fx + ox * face) to (fy + oy), k)
+                }
+                val bs = List(n) { i -> mix(blink(i, tc), if (i * FISH.size / n == FISH.size - 1) 1f else 0.45f + 0.25f * blink(i, tc), k) }
+                if (k < 1f) flight(c, pts, bs, home) else for (i in 0 until n) dot(c, pts[i], bs[i])
+            }
+        }
+    }
+
     override fun draw(c: Cv, col: String, t: Long, st: Int, tilt: Float) {
+        if (pastimes.any { it.id == col }) { pastime(c, col, t, st); return }
         val n = N[st]; val s = 3f + 2.4f * st
         when (col) {
             "calm" -> for (i in 0 until n) dot(c, cloud(i, n, t, st), blink(i, t))
@@ -882,7 +1172,7 @@ private object Dragon : Anomaly(
     fun body(
         c: Cv, st: Int, t: Long, a: Float, dir: Int = 1, r: Float = R[st], len: Float = L[st], wave: Float = 0.5f,
         inward: Float = 0f, mouth: Float = 0f, eye: Boolean = true, b: Float = 1f, lit: Float = 1f, shimmer: Float = -1f,
-        coil: Float = 0f, bulge: Float = -1f, wing: Float = 0.6f + 0.4f * sin(t / 500f),
+        coil: Float = 0f, bulge: Float = -1f, wing: Float = 0.6f + 0.4f * sin(t / 500f), web: Float = 0f,
     ): Pair<Float, Float> {
         val n = (len * r * 2.2f).toInt()
         for (i in n downTo 1) {
@@ -913,9 +1203,21 @@ private object Dragon : Anomaly(
             val wa = a - dir * len * 0.3f
             val bx = 12 + r * cos(wa); val by = 12 + r * sin(wa)
             val reach = (2.5f + st * 1.3f) * wing
+            // Bone [q] (0..3, fractions between) ends here. With [web] the bones fan out from the shoulder instead of
+            // meeting towards the middle, and the skin between them is filled in faintly: a wing spread wide as a sail.
+            val inAng = atan2(12f - by, 12f - bx)
+            fun tip(q: Float, len: Float): Pair<Float, Float> {
+                val spread = (q - 1.5f) * 0.32f * dir
+                val ox = 12 + (r - len) * cos(wa + spread); val oy = 12 + (r - len) * sin(wa + spread)
+                val fan = inAng + (q - 1.5f) * 0.42f * dir
+                return mix(ox, bx + cos(fan) * len, web) to mix(oy, by + sin(fan) * len, web)
+            }
+            if (web > 0f) for (k in 0..2) for (s in 1..3) {
+                val (tx, ty) = tip(k + s / 4f, reach * 0.92f)
+                c.line(bx, by, tx, ty, 0.14f * b * web)
+            }
             for (k in 0..3) {
-                val spread = (k - 1.5f) * 0.32f * dir
-                val tx = 12 + (r - reach) * cos(wa + spread); val ty = 12 + (r - reach) * sin(wa + spread)
+                val (tx, ty) = tip(k.toFloat(), reach)
                 c.line(bx, by, tx, ty, if (k == 0 || k == 3) 0.45f * b else 0.2f * b)
                 c.put(tx, ty, 0.7f * b)
             }
@@ -954,7 +1256,63 @@ private object Dragon : Anomaly(
         }
     }
 
+    override val pastimes = listOf(
+        DrawnPastime("campfire", 4160, "разводит костёр",
+            "Останавливается, складывает крыло и дышит огнём на кучку поленьев посередине; греется у костра, прикрыв глаза, пока тот не прогорит, и ползёт дальше."),
+        DrawnPastime("wing_beat", 4160, "машет крылом",
+            "Замирает на ободе и раскрывает крыло во всю матрицу: три мощных взмаха, на последнем разевает пасть, и крыло снова складывается."),
+    )
+
+    /**
+     * Its pastimes, both 4160 ms: the calm clip's clock then ends where it began ([anomCalmClock]), so the dragon stops
+     * right where its crawl had it and carries on from there, its body still rippling meanwhile.
+     */
+    private fun pastime(c: Cv, col: String, t: Long, st: Int) {
+        val ms = pastimes.first { it.id == col }.ms
+        val e = Drawn.PASTIME_EDGE
+        if (t < e || t >= ms - e) { calmNow(c, t, st); return }
+        val tc = anomCalmClock(t)
+        val a = anomCalmClock(e) / 900f
+        val calmWing = 0.6f + 0.4f * sin(tc / 500f)
+        val calmEye = tc % 2800 > 160
+        when (col) {
+            "campfire" -> {
+                // A pile of logs across the middle from its head; a breath lights them, it warms itself, the fire burns down.
+                val fold = anomBump(t, e, 3500, 350, 450)
+                val logs = t in 700 until 3150
+                val breath = anomBump(t, 900, 1450, 120, 200)
+                val power = anomBump(t, 1200, 3100, 300, 450)
+                val warm = t in 1550 until 2750
+                body(c, st, tc, a, eye = if (warm) false else calmEye, wing = calmWing * (1f - fold), inward = fold, wave = mix(0.5f, 0.3f, fold))
+                val fx = (12f - 4.5f * cos(a)).roundToInt().toFloat(); val fy = (12f - 4.5f * sin(a)).roundToInt().toFloat()
+                if (logs) c.rows(listOf(".#.#.", "#####"), fx.roundToInt() - 2, fy.roundToInt() + 1, if (power > 0f) 0.45f else 0.3f)
+                val heat = Fire.field()
+                if (power > 0f) Fire.flame(heat, fx, fy + 0.5f, tc, 0.38f, power = power, salt = 31)
+                if (breath > 0f) {
+                    // From the edge of its head that faces the logs.
+                    val hr = R[st] - fold
+                    val hh = HEADS[st].size
+                    val hx = 12 + (hr - hh / 2f) * cos(a); val hy = 12 + (hr - hh / 2f) * sin(a)
+                    val dx = fx - hx; val dy = fy + 1f - hy; val d = max(0.01f, hypot(dx, dy))
+                    Fire.flame(heat, hx + dx / d * (hh / 2f + 0.5f), hy + dy / d * (hh / 2f + 0.5f), tc, 0.42f, dx / d, dy / d, power = breath, salt = 37)
+                }
+                val layer = Cv()
+                Fire.render(layer, heat)
+                anomPutWhole(c, layer)
+            }
+            "wing_beat" -> {
+                // The wing opens over the whole matrix and beats three times; on the last beat the jaws open.
+                val beat = anomBump(t, 900, 3150, 300, 450)
+                val flap = 1.15f - 0.65f * cos((t - 900) / 700f * TAU)
+                val wing = calmWing + beat * (flap - calmWing)
+                val down = beat * (0.5f - 0.5f * cos((t - 900) / 700f * TAU))
+                body(c, st, tc, a, eye = calmEye, wing = wing, inward = 1.2f * down, mouth = if (t in 2300 until 2800) 1f else 0f, web = beat)
+            }
+        }
+    }
+
     override fun draw(c: Cv, col: String, t: Long, st: Int, tilt: Float) {
+        if (pastimes.any { it.id == col }) { pastime(c, col, t, st); return }
         val r = R[st]
         val bottom = PI.toFloat() / 2
         when (col) {
@@ -1065,6 +1423,7 @@ private object Mimic : Anomaly(
     fun chest(
         c: Cv, st: Int, x0: Float = 12f, bottom: Int = 18, open: Float = 0f, eyes: Int = 0, teeth: Boolean = true,
         tongue: Float = 0f, b: Float = 1f, glow: Float = 0f, w: Int = W[st], lid: Int = LID[st], base: Int = BASE[st], tilt: Int = 0,
+        look: Int = 0,
     ) {
         val l = (x0 - w / 2f).roundToInt(); val r = l + w - 1
         val baseTop = bottom - base + 1
@@ -1088,7 +1447,7 @@ private object Mimic : Anomaly(
             for (y in lidBottom + 1 until baseTop) for (x in l + 1 until r) c.put(x, y, glow)
             if (teeth) for (x in l + 1 until r step 2) { c.put(x, lidBottom + 1, 0.75f); if (o >= 2) c.put(x + 1, baseTop - 1, 0.75f) }
             val ey = lidBottom + 1 + (if (o >= 2) 1 else 0)
-            val ex = l + w / 2
+            val ex = l + w / 2 + look
             when (eyes) {
                 0 -> { c.put(ex - 2, ey, 1f); c.put(ex + 2, ey, 1f) }
                 1 -> { c.put(ex - 2, ey, 0.25f); c.put(ex + 2, ey, 0.25f) }
@@ -1122,7 +1481,70 @@ private object Mimic : Anomaly(
         }
     }
 
+    override val pastimes = listOf(
+        DrawnPastime("tiptoe", 5200, "крадётся на ножках",
+            "У сундука вырастают ножки, и он на цыпочках крадётся влево; приоткрывает крышку, зыркает по сторонам и бегом возвращается на место."),
+        DrawnPastime("coin_flip", 4400, "подкидывает монетку",
+            "Разевает пасть и подбрасывает монетку: она крутится в воздухе, падает обратно, и крышка щёлкает так, что сундук подпрыгивает."),
+    )
+
+    /** A spinning coin seen at each turn: four rows tall, never fewer than four LEDs. */
+    private val COIN = listOf(
+        listOf(".##.", "####", "####", ".##."),
+        listOf(".##.", ".##.", ".##.", ".##."),
+        listOf("..#.", "..#.", "..#.", "..#."),
+        listOf(".##.", ".##.", ".##.", ".##."),
+    )
+
+    /** Its pastimes: the calm chest ([calmNow]) at either end; between, it sneaks off on little legs or flips a coin. */
+    private fun pastime(c: Cv, col: String, t: Long, st: Int) {
+        val ms = pastimes.first { it.id == col }.ms
+        val e = Drawn.PASTIME_EDGE
+        if (t < e || t >= ms - e) { calmNow(c, t, st); return }
+        val tc = anomCalmClock(t)
+        val calmOpen = if (tc in 1200..2600) 1f else 0f
+        val calmEyes = if (tc in 1900..2050) 1 else 0
+        when (col) {
+            "tiptoe" -> {
+                // Legs grow, it tiptoes left, peeks out both ways, scurries home and sits back down on its bottom.
+                val legLen = (2f * anomBump(t, 700, 4300, 300, 300)).roundToInt()
+                var x = 12f; var open = calmOpen; var eyes = calmEyes; var look = 0; var pace = 0L
+                when {
+                    t < 900 -> {}
+                    t < 2300 -> { x = mix(12f, 8f, seg(t, 1000, 2300)); open = 0f; pace = 170L }
+                    t < 3200 -> { x = 8f; open = 1f; eyes = 0; look = if (t < 2750) -1 else 1 }
+                    t < 3700 -> { x = mix(8f, 12f, ease(seg(t, 3200, 3700))); open = 0f; pace = 70L }
+                    t < 3900 -> open = 0f
+                }
+                val bottom = 18 - legLen
+                chest(c, st, x0 = x, bottom = bottom, open = open, eyes = eyes, teeth = false, look = look)
+                if (legLen > 0) {
+                    val l = (x - W[st] / 2f).roundToInt(); val r = l + W[st] - 1
+                    for ((j, lx) in listOf(l + 1, l + 3, r - 3, r - 1).withIndex()) {
+                        val up = if (pace > 0 && ((t / pace) + j) % 2 == 0L) 1 else 0
+                        for (y in bottom + 1..18 - up) c.put(lx, y, 0.42f)
+                    }
+                }
+            }
+            "coin_flip" -> {
+                // Jaws open, a coin goes up spinning and falls back in; the lid snaps shut and the chest jumps.
+                val wide = t in 900 until 2450
+                val snap = if (t in 2450 until 2800) sin(t / 35f) * 0.8f else 0f
+                val jump = if (t in 2450 until 2650) 1 else 0
+                chest(c, st, x0 = 12f + snap, bottom = 18 - jump, open = if (wide) 2f else if (t < 900 || t >= 2900) calmOpen else 0f,
+                    eyes = if (wide) 3 else calmEyes, teeth = wide)
+                if (t in 1000 until 2450) {
+                    val u = seg(t, 1000, 2450)
+                    val cy = 12.5f - 9f * 4f * u * (1f - u)
+                    val face = COIN[((t / 110) % COIN.size).toInt()]
+                    c.rows(face, 10, (cy - 1.5f).roundToInt(), 0.85f)
+                }
+            }
+        }
+    }
+
     override fun draw(c: Cv, col: String, t: Long, st: Int, tilt: Float) {
+        if (pastimes.any { it.id == col }) { pastime(c, col, t, st); return }
         when (col) {
             "calm" -> { val o = if ((t % 3200) in 1200..2600) 1f else 0f; chest(c, st, open = o, eyes = if (t % 3200 in 1900..2050) 1 else 0, teeth = false) }
             "happy" -> { val hop = abs(sin(t / 300f * PI.toFloat())) * 2f; chest(c, st, bottom = (18 - hop).toInt(), open = if ((t / 160) % 2 == 0L) 2f else 0f, tongue = 0.6f) }
@@ -1301,7 +1723,62 @@ private object MoonRabbit : Anomaly(
         for (i in 0 until n) { val x = 2 + rnd(i, 71) * 12; val y = 3 + rnd(i, 72) * 7; val tw = sin(t / (300f + rnd(i, 73) * 400) + i); if (tw > 0.2f) c.put(x, y, 0.2f + 0.5f * tw) }
     }
 
+    override val pastimes = listOf(
+        DrawnPastime("moon_visit", 5200, "луна в гостях",
+            "Луна спускается с неба к самому зайцу; он тянется её обнюхать и тычется носом, луна вспыхивает, подпрыгивает и уплывает обратно на небо."),
+        DrawnPastime("flower", 4800, "нюхает цветок",
+            "Рядом прорастает цветок; заяц наклоняется понюхать, шевелит носом и чихает так, что подпрыгивает, а цветок качается и прячется обратно."),
+    )
+
+    /** A flower coming up beside the rabbit, at each step, from the ground up (row 0 its top): never fewer than four LEDs. */
+    private val SPROUT = listOf(
+        listOf(".#.#.", "..#..", "..#.."),
+        listOf("..#..", ".#.#.", "..#..", "..#.."),
+        listOf("#.#.#", "##o##", ".###.", "..#..", ".##..", "..#..", "..#.."),
+    )
+
+    /** Its pastimes: the calm night ([calmNow]) at either end; between, the moon comes down to visit or a flower makes it sneeze. */
+    private fun pastime(c: Cv, col: String, t: Long, st: Int) {
+        val ms = pastimes.first { it.id == col }.ms
+        val e = Drawn.PASTIME_EDGE
+        if (t < e || t >= ms - e) { calmNow(c, t, st); return }
+        val tc = anomCalmClock(t)
+        val ph = today
+        val calmEars = if (tc % 2400 < 300) 1 else 0
+        val calmEyes = if (tc % 3200 in 2000..2160) 1 else 0
+        stars(c, tc)
+        when (col) {
+            "moon_visit" -> {
+                // Down beside the rabbit, a sniff, a boop (the moon flares and bounces), and back up to its place.
+                val down = ease(seg(t, 900, 1900)); val up = ease(seg(t, 3400, 4400))
+                val boop = anomBump(t, 2600, 3100, 80, 300)
+                var mx = mix(18f, 19f, down); var my = mix(6f, 14f, down)
+                if (up > 0f) { mx = mix(19f, 18f, up); my = mix(14f, 6f, up) }
+                mx += boop; my -= boop
+                moon(c, st, ph, cx = mx.roundToInt().toFloat(), cy = my.roundToInt().toFloat(), b = 1f + 0.3f * boop)
+                val sniff = t in 1900 until 2600
+                rabbit(c, st, cx = if (t in 1900 until 3000) 10f else 9f, ears = if (boop > 0.2f) 1 else calmEars,
+                    eyes = if (boop > 0.3f) 1 else calmEyes, mouth = sniff && (t / 150) % 2 == 0L)
+            }
+            "flower" -> {
+                // A flower comes up; it leans in, sniffs, sneezes (a hop, ears back), the flower sways and goes back down.
+                moon(c, st, ph)
+                val stage = when { t < 900 -> -1; t < 1050 -> 0; t < 1200 -> 1; t < 3550 -> 2; t < 3700 -> 1; t < 3850 -> 0; else -> -1 }
+                val sneeze = anomBump(t, 2400, 2800, 100, 250)
+                val sniff = t in 1500 until 2400
+                if (stage >= 0) {
+                    val rows = SPROUT[stage]
+                    val sway = if (stage == 2 && t in 2450 until 2750) 1 else 0
+                    rows.forEachIndexed { i, row -> c.rows(listOf(row), 16 + (if (i < 3) sway else 0), 21 - rows.size + i, 0.35f) }
+                }
+                rabbit(c, st, cx = if (sniff) 10f else 9f, bottom = 20f - 2f * sneeze, ears = if (sneeze > 0.2f) 3 else calmEars,
+                    eyes = if (sneeze > 0.2f) 1 else calmEyes, mouth = sniff && (t / 120) % 2 == 0L)
+            }
+        }
+    }
+
     override fun draw(c: Cv, col: String, t: Long, st: Int, tilt: Float) {
+        if (pastimes.any { it.id == col }) { pastime(c, col, t, st); return }
         val ph = today
         when (col) {
             "calm" -> { stars(c, t); moon(c, st, ph); rabbit(c, st, ears = if (t % 2400 < 300) 1 else 0, eyes = if (t % 3200 in 2000..2160) 1 else 0) }
@@ -1461,7 +1938,75 @@ private object Schrodinger : Anomaly(
         c.put(x0 + 1, top, 0.6f * k); c.put(x0 + w - 2, top, 0.6f * k)
     }
 
+    override val pastimes = listOf(
+        DrawnPastime("two_places", 5200, "в двух местах сразу",
+            "Ныряет в коробку и выглядывает из обоих углов сразу: слева кот не спит, справа спит; они меняются, ныряют обратно, и вылезает снова один кот."),
+        DrawnPastime("tail", 4800, "ловит свой хвост",
+            "Из-за коробки вылезает хвост и виляет; кот, увидев его, становится просто неспящим, бросается — хвост прячется и дразнит с другой стороны; кот сдаётся."),
+    )
+
+    /** A tail rising [len] LEDs from ([x], 15) beside the box, swishing to [side]. */
+    private fun tail(c: Cv, x: Float, len: Int, t: Long, side: Int) {
+        for (k in 0 until len) c.put(x + sin(t / 170f + k * 0.8f) * k * 0.3f * side, 15f - k, 0.35f)
+    }
+
+    /** Its pastimes: the calm cat ([calmNow]) at either end; between, it is in two places at once or after its own tail. */
+    private fun pastime(c: Cv, col: String, t: Long, st: Int) {
+        val ms = pastimes.first { it.id == col }.ms
+        val e = Drawn.PASTIME_EDGE
+        if (t < e || t >= ms - e) { calmNow(c, t, st); return }
+        val tc = anomCalmClock(t)
+        val h = hh(st); val w = hw(st)
+        val top = 21 - BH[st]
+        val x0 = (12f - w / 2f).roundToInt()
+        when (col) {
+            "two_places" -> {
+                // Down into the box a row at a time; two small heads come up at its corners, swap states, go down; the one cat is back.
+                val sink = when {
+                    t < 900 -> 0
+                    t < 1380 -> ((t - 900) / 60 + 1).toInt()
+                    t < 3700 -> 8
+                    t < 4180 -> 8 - ((t - 3700) / 60 + 1).toInt()
+                    else -> 0
+                }.coerceIn(0, 8)
+                if (sink < 8) both(c, st, tc, lowA = 2 * sink)
+                // What has sunk below the box's floor is inside the box, not hanging out under it.
+                for (y in 22..24) for (x in 0..24) c.cut(x, y)
+                if (sink >= 7) { c.cut(x0 + 1, top); c.cut(x0 + w - 2, top) }
+                val rise = when {
+                    t < 1500 -> 0
+                    t < 1750 -> ((t - 1500) / 50 + 1).toInt()
+                    t < 3300 -> 5
+                    t < 3550 -> 5 - ((t - 3300) / 50 + 1).toInt()
+                    else -> 0
+                }.coerceIn(0, 5)
+                if (rise > 0) {
+                    val swapped = t >= 2700
+                    cat(c, 0, 5, top + 1 - rise, BODY, if (swapped) Face.SLEEP else Face.IDLE)
+                    cat(c, 0, 13, top + 1 - rise, BODY, if (swapped) Face.IDLE else Face.SLEEP)
+                }
+                box(c, st)
+            }
+            "tail" -> {
+                // A tail comes up on the right and swishes; seen, the cat is just awake; it pounces, the tail ducks and
+                // teases on the left; it gives up and is both again.
+                val right = when { t < 900 -> 0; t < 1300 -> ((t - 900) / 80 + 1).toInt(); t < 2400 -> 5; t < 2560 -> 5 - ((t - 2400) / 40 + 1).toInt(); else -> 0 }.coerceIn(0, 5)
+                val left = when { t < 2800 -> 0; t < 3040 -> ((t - 2800) / 60 + 1).toInt(); t < 3300 -> 4; t < 3460 -> 4 - ((t - 3300) / 40 + 1).toInt(); else -> 0 }.coerceIn(0, 4)
+                val awake = t in 1300 until 3500
+                if (awake) {
+                    val jump = if (t in 2400 until 2650) 2 else 0
+                    cat(c, st, x0, top - h + 2 - jump, BODY, Face.IDLE)
+                    c.put(x0 + 1, top, 0.6f); c.put(x0 + w - 2, top, 0.6f)
+                } else both(c, st, tc)
+                if (right > 0) tail(c, 20f, right, t, 1)
+                if (left > 0) tail(c, 4f, left, t, -1)
+                box(c, st)
+            }
+        }
+    }
+
     override fun draw(c: Cv, col: String, t: Long, st: Int, tilt: Float) {
+        if (pastimes.any { it.id == col }) { pastime(c, col, t, st); return }
         val h = hh(st)
         val w = hw(st)
         val top = 21 - BH[st]
@@ -1609,7 +2154,99 @@ private object LavaLamp : Anomaly(
 
     private var bx = 12f; private var bv = 0f; private var blobT = 0L
 
+    override val pastimes = listOf(
+        DrawnPastime("tower", 5200, "строит башню",
+            "Капли складываются друг на друга в башенку, большая с глазами внизу смотрит вверх; башня качается всё сильнее, валится набок, и капли расплываются обратно."),
+        DrawnPastime("faces", 4400, "корчит рожицы",
+            "Большая капля выплывает в середину и корчит рожицы: расплывается вширь с улыбкой, вытягивается столбиком с «о», надувается, зажмурившись, и трясётся."),
+    )
+
+    /**
+     * The tower's three beads (radius, height), biggest at the bottom on the floor of the lamp, far enough apart that the
+     * liquid between them thins to a dim neck: three drops stacked, not one column.
+     */
+    private fun tower(st: Int): List<Pair<Float, Float>> {
+        val rs = listOf(RB[st] * 1.08f, RB[st] * 0.78f, RB[st] * 0.55f)
+        val y0 = 21f - rs[0]
+        val y1 = y0 - (rs[0] + rs[1]) * 1.5f
+        val y2 = y1 - (rs[1] + rs[2]) * 1.6f
+        return listOf(rs[0] to y0, rs[1] to y1, rs[2] to y2)
+    }
+
+    /** Eyes squeezed shut on blob [m]: a dark dash for each, where [lava]'s eyes would be (its dim closed eyes vanish in a bright blob). */
+    private fun shut(c: Cv, m: Blob) {
+        val d = max(1f, m.r * 0.45f * m.sx).roundToInt()
+        val x = m.x.roundToInt(); val y = (m.y - m.r * 0.25f * m.sy).roundToInt()
+        for (dx in 0..1) { c.cut(x - d - dx, y); c.cut(x + d + dx, y) }
+    }
+
+    /** Its pastimes: the calm blobs ([calmNow]) at either end; between, they build a tower or the big one pulls faces. */
+    private fun pastime(c: Cv, col: String, t: Long, st: Int) {
+        val ms = pastimes.first { it.id == col }.ms
+        val e = Drawn.PASTIME_EDGE
+        if (t < e || t >= ms - e) { calmNow(c, t, st); return }
+        val tc = anomCalmClock(t)
+        val bl = drift(st, tc)
+        val calmEyes = if (tc % 2800 < 160) 1 else 0
+        when (col) {
+            "tower" -> {
+                // Three beads stacked up (the other drops melt into the bottom one), swaying more and more, it falls over
+                // to the right; the beads roll to the glass and float back as drops.
+                val tw = tower(st)
+                val base = tw[0].second
+                val gather = ease(seg(t, e, 1300))
+                val sw = seg(t, 1300, 2700)
+                val fall = seg(t, 2700, 3250).let { it * it } * 1.45f
+                val back = ease(seg(t, 3650, ms - e))
+                val out = bl.mapIndexed { i, b ->
+                    val (tr, ty) = tw.getOrNull(i) ?: (0.5f to base)
+                    val hgt = base - ty
+                    val ang = sin(t / 240f) * 0.09f * sw + fall
+                    var x = 12f + hgt * sin(ang); var y = base - hgt * cos(ang)
+                    val lim = 10.6f - tr
+                    val d = hypot(x - 12f, y - 12f)
+                    if (d > lim) { x = 12f + (x - 12f) / d * lim; y = 12f + (y - 12f) / d * lim }
+                    val k = if (back > 0f) 1f - back else gather
+                    Blob(mix(b.x, x, k), mix(b.y, y, k), mix(b.r, tr, k))
+                }
+                val oops = back <= 0.5f && fall > 0.2f
+                lava(c, out, eyes = when { back > 0.5f -> calmEyes; oops -> 2; gather > 0.5f -> 3; else -> calmEyes })
+                if (oops) shut(c, out[0])
+            }
+            "faces" -> {
+                // Out into the middle, the others below as its audience: wide with a grin, tall with an "o", puffed up eyes shut, a shiver.
+                val k = anomAway(t, ms, 600, 600)
+                val keys = listOf(1080L to (1f to 1f), 1300L to (1.55f to 0.7f), 1650L to (1.55f to 0.7f), 1850L to (0.72f to 1.45f),
+                    2250L to (0.72f to 1.45f), 2450L to (1.2f to 1.2f), 2900L to (1.2f to 1.2f), 3100L to (1f to 1f))
+                var sx = 1f; var sy = 1f
+                for ((a, b) in keys.zipWithNext()) if (t >= a.first && t < b.first) {
+                    val q = ease(seg(t, a.first, b.first))
+                    sx = mix(a.second.first, b.second.first, q); sy = mix(a.second.second, b.second.second, q)
+                }
+                if (t in 3000 until 3300) { sx = 1f + 0.13f * sin(t / 45f); sy = 2f - sx }
+                val m0 = bl[0]
+                val m = Blob(mix(m0.x, 12f, k), mix(m0.y, 10f, k), m0.r * mix(1f, 1.25f, k), mix(1f, sx, k), mix(1f, sy, k))
+                val n = bl.size
+                val rest = bl.drop(1).mapIndexed { j, b ->
+                    val ax = if (n > 2) 5.5f + j * 13f / (n - 2) else 12f
+                    Blob(mix(b.x, ax, k), mix(b.y, 20f, k), b.r)
+                }
+                val face = when { k < 0.6f -> -1; sx > 1.3f -> 0; sy > 1.3f -> 1; sx > 1.1f && sy > 1.1f -> 2; else -> -1 }
+                lava(c, listOf(m) + rest, eyes = when (face) { 1 -> 3; 2 -> 2; 0 -> 0; else -> calmEyes })
+                val ey = m.y - m.r * 0.25f * m.sy
+                val my = (ey + max(2f, m.r * 0.5f * m.sy)).roundToInt()
+                val mx = m.x.roundToInt()
+                when (face) {
+                    0 -> { for (dx in -1..1) c.cut(mx + dx, my); c.cut(mx - 2, my - 1); c.cut(mx + 2, my - 1) }
+                    1 -> { c.cut(mx, my); c.cut(mx, my + 1) }
+                    2 -> shut(c, m)
+                }
+            }
+        }
+    }
+
     override fun draw(c: Cv, col: String, t: Long, st: Int, tilt: Float) {
+        if (pastimes.any { it.id == col }) { pastime(c, col, t, st); return }
         val r = RB[st]
         when (col) {
             "calm" -> lava(c, drift(st, t), eyes = if (t % 2800 < 160) 1 else 0)
