@@ -35,7 +35,7 @@
 </head>
 <body>
 <header>
-  <h1>Занятия взрослых героев: партия 1 (10 героев)</h1>
+  <h1 id="title"></h1>
   <p>У каждого взрослого героя появятся свои занятия: раз в несколько минут, подряд не повторяются. Сейчас у него одна привычка, которая крутится по кругу. Первая карточка в ряду для сравнения: то, что герой делает сейчас.</p>
   <p>Всё записано настоящим движком на настоящих взрослых спрайтах, кадр 80 мс. Нажми на матрицу: пауза. Ползунок и кнопки ‹ › листают кадры, номер кадра можно назвать в ответе.</p>
   <div class="speed">Скорость: <button data-s="1">1×</button><button data-s="0.5">0.5×</button><button data-s="0.25">0.25×</button></div>
@@ -44,6 +44,8 @@
 <script>
 const DATA = /*DATA*/null;
 const mask = DATA.mask;
+document.title = DATA.title || document.title;
+document.getElementById('title').textContent = DATA.title || document.title;
 let speed = 1;
 document.querySelectorAll('.speed button').forEach(b => b.onclick = () => { speed = +b.dataset.s; });
 
