@@ -7,6 +7,7 @@ import n7.glyphpet.pet.KindCharge2
 import n7.glyphpet.pet.ChargeWay
 import n7.glyphpet.pet.Living3D
 import n7.glyphpet.pet.Mood
+import n7.glyphpet.pet.Pastimes
 import n7.glyphpet.pet.PetEngine
 import n7.glyphpet.pet.PetState
 import n7.glyphpet.pet.Rarity
@@ -77,7 +78,8 @@ class AtlasExport {
                 if (j > 0) meta.append(',')
                 val habit = s.habit.id
                 meta.append("\"${st.name}\":{\"name\":\"${s.name}\",\"habit\":\"$habit\",\"habitShared\":${habitCount[habit] ?: 1}")
-                meta.append(",\"charge\":").append(js((KindCharge.way(s)?.name ?: KindCharge2.way(s)?.name ?: s.charge.name.takeIf { s.stage != Stage.BABY && s.charge != ChargeWay.WHEEL && s.charge != ChargeWay.FILL }))).append("}")
+                meta.append(",\"charge\":").append(js((KindCharge.way(s)?.name ?: KindCharge2.way(s)?.name ?: s.charge.name.takeIf { s.stage != Stage.BABY && s.charge != ChargeWay.WHEEL && s.charge != ChargeWay.FILL })))
+                meta.append(",\"pastimes\":[").append(Pastimes.of(s).joinToString(",") { "\"${PASTIME_RU[it.id] ?: it.id}\"" }).append("]}")
             }
             meta.append("}}")
         }
@@ -91,7 +93,10 @@ class AtlasExport {
             }
             meta.append(",\"tags\":{").append(a.tags.entries.joinToString(",") { "\"${it.key}\":\"${it.value}\"" }).append("}")
             meta.append(",\"tilt\":\"OWN\",\"sig\":null,\"sigShared\":[],\"trick\":null,\"trickShared\":[],\"feast\":false,\"meal\":null,\"forms\":{")
-            meta.append(Stage.entries.mapIndexed { j, st -> "\"${st.name}\":{\"name\":\"${a.names[j]}\",\"habit\":\"own\",\"habitShared\":1,\"charge\":null}" }.joinToString(","))
+            meta.append(Stage.entries.mapIndexed { j, st ->
+                val past = if (st == Stage.ADULT) a.pastimes.joinToString(",") { "\"${it.tag}\"" } else ""
+                "\"${st.name}\":{\"name\":\"${a.names[j]}\",\"habit\":\"own\",\"habitShared\":1,\"charge\":null,\"pastimes\":[$past]}"
+            }.joinToString(","))
             meta.append("}}")
         }
         meta.append("]}")
@@ -130,6 +135,8 @@ class AtlasExport {
                     clipJson(id, frames)
                 })
                 for ((id, frames) in news(SpeciesForms.of(a.kind, st))) if (frames != null) sb.append(',').append(clipJson(id, frames))
+                // A grown-up's pastimes ([Drawn.pastimes]): its own clips, as the atlas records every clip.
+                if (st == Stage.ADULT) a.pastimes.forEachIndexed { i, p -> sb.append(',').append(clipJson("pastime${i + 1}", Drawn.clip(a, p.id, st.ordinal))) }
                 sb.append('}')
             }
             sb.append('}')
@@ -173,12 +180,35 @@ class AtlasExport {
             "turn" to (if (Living3D.handles(s)) custom(s, 4800) { _, t ->
                 scene(s, yaw = (0.7 * sin(2 * PI * t / 4800.0)).toFloat(), tilt = (0.4 * sin(2 * PI * t / 4800.0 + 1)).toFloat())
             } else null),
-        ) + news(s) + listOf(
+        ) + news(s) + pastimes(s) + listOf(
             "grow" to custom(s, 6400, start = { e ->
                 if (s.stage == Stage.BABY) e.hatchOf(SpeciesForms.of(s.kind, Stage.TEEN), golden = false) else e.evolveInto(s)
             }) { _, _ -> scene(s) },
         )
     }
+
+    /** A grown-up's pastimes ([Pastimes]), played by the engine from a calm moment to a calm moment; none below adult. */
+    private fun pastimes(s: Species): List<Pair<String, List<IntArray>?>> =
+        Pastimes.of(s).mapIndexed { i, h -> "pastime${i + 1}" to custom(s, h.durationMs + 640, start = { it.pastime(h.id) }) { _, _ -> scene(s) } }
+
+    /** The Russian names of the sprites' pastimes, as the owner approved them on the mockup pages (docs/design/hobbies*). */
+    private val PASTIME_RU = mapOf(
+        "mane_shake" to "встряхивает гривой", "paw_wash" to "умывается лапой", "lights_out" to "фонарь гаснет", "lantern_look" to "светит фонарём",
+        "screen_heart" to "сердце на экране", "march" to "марширует", "crown_slip" to "корона съезжает", "croak" to "квакает",
+        "tiny_arms" to "крошечные лапки", "pounce" to "крадётся и прыгает", "glow_wave" to "волна света", "blackout" to "гаснет и вспыхивает",
+        "carrot" to "грызёт морковку", "thump" to "стучит лапой", "wing_flap" to "хлопает крыльями", "scratch" to "роет землю",
+        "spots_glow" to "пятнышки светятся", "sprout" to "вырастает малыш", "snow" to "снег", "sunny" to "дождь кончается",
+        "puff_doze" to "нахохливается", "wink" to "подмигивает", "fox_fire" to "лисий огонёк", "listen" to "прислушивается",
+        "dance" to "танцует", "bristle" to "ощетинивается", "ice_slide" to "скользит по льду", "belly_drum" to "барабанит по пузу",
+        "bubble" to "надувает пузырь", "gulp" to "съедает кубик", "eye_roll" to "закатывает глаз", "stalk_sway" to "стебельки качаются",
+        "burnt" to "подгорает", "sunny_yolk" to "желток-солнышко", "beam" to "луч", "lift_off" to "взлетает",
+        "spiral" to "спираль на раковине", "feelers" to "вытягивает рожки", "huff" to "фыркает и топает", "apple_roll" to "яблоко катается",
+        "burrow" to "норка", "periscope" to "перископ", "heart_spout" to "фонтан-сердце", "tail_slap" to "шлёп хвостом",
+        "honeycomb" to "сота", "waggle" to "виляет брюшком", "echo" to "эхолокация", "wing_stretch" to "потягушки",
+        "tongue" to "язык-выстрел", "tail_unroll" to "хвост в струнку", "bottom_nap" to "на дне", "gill_flare" to "веер жабр",
+        "prism" to "призма", "sunspot" to "солнечный зайчик", "night" to "ночь", "comet" to "комета",
+        "trash_bin" to "мусорка", "peekaboo" to "ку-ку",
+    )
 
     /** The new columns, the same for a sprite and a drawn hero: shiny, the wind, a clap, typing, a ring, a notice. */
     private fun news(s: Species): List<Pair<String, List<IntArray>?>> = listOf(
