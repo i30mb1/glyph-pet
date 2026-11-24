@@ -18,7 +18,7 @@ object Desks {
         "paperboat" to ::OrigamiDesk, "moonrabbit" to ::MochiPongDesk, "capybara" to ::YuzuDesk, "dragon" to ::ForgeDesk,
         "mimic" to ::GluttonDesk, "schrodinger" to ::SlotDesk,
         "fox" to ::FoxToy, "chick" to ::PopcornToy, "owl" to ::OwlToy, "shroom" to ::FairyRingToy,
-        "cactus" to ::BalloonToy, "toast" to ::ToasterToy, "snail" to ::SnailRaceToy, "hedgehog" to ::AppleToy, "crab" to ::CastleToy,
+        "cactus" to ::BalloonToy, "snail" to ::SnailRaceToy, "hedgehog" to ::AppleToy, "crab" to ::CastleToy,
         "whale" to ::FountainToy, "jelly" to ::GlowToy, "axolotl" to ::BubbleCeilingToy, "slime" to ::SlimeSplitToy, "frog" to ::FlyToy,
         "ghost" to ::BooToy, "ufo" to ::AbductToy, "bot" to ::ConveyorToy, "dino" to ::VolcanoToy, "bee" to ::CombToy,
         "bat" to ::EchoToy, "chameleon" to ::DisguiseToy, "eye" to ::HypnoToy, "gem" to ::FacetToy, "planet" to ::MoonsToy,

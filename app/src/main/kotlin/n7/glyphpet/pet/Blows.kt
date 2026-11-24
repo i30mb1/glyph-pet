@@ -119,6 +119,16 @@ object Blows {
         "wisp" to Way(Move.PUSH, Face.IDLE, Debris.EMBERS, push = 4f, speed = 6f),
         "sonar" to Way(Move.LOOK, Face.IDLE, Debris.RIPPLE, push = 1f, speed = 2f),
         "scope" to Way(Move.WRAP, Face.IDLE, Debris.STATIC, speed = 6f),
+        "eclipse" to Way(Move.LIFT, Face.IDLE, Debris.SPARKLE, push = 1f, speed = 3f),
+        "lumen" to Way(Move.LOOK, Face.IDLE, Debris.DUST, push = 1f, speed = 2f),
+        "shadowplay" to Way(Move.PUSH, Face.IDLE, Debris.DUST, push = 3f, speed = 4f),
+        "meadow" to Way(Move.PUSH, Face.IDLE, Debris.POLLEN, push = 2f, speed = 3f),
+        "xray" to Way(Move.PUSH, Face.IDLE, Debris.STATIC, push = 2f, speed = 4f),
+        "pond" to Way(Move.LOOK, Face.IDLE, Debris.FOAM, push = 1f, speed = 3f),
+        "sunny" to Way(Move.ROLL, Face.IDLE, Debris.SPARKLE, push = 3f, speed = 4f),
+        "negcat" to Way(Move.HOLD, Face.IDLE, Debris.FUR),
+        "squid" to Way(Move.LIFT, Face.IDLE, Debris.DROPS, push = 2f, speed = 4f),
+        "kolobok" to Way(Move.ROLL, Face.IDLE, Debris.CRUMBS, push = 4f, speed = 5f),
     )
 
     fun of(kind: String?): Way? = WAYS[kind]

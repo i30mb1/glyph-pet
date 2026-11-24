@@ -318,7 +318,7 @@
     <string name="type_penguin_about">Waddles with a crack of ice at every key, then builds an igloo block by block</string>
     <string name="type_shroom_about">Every key a tiny mushroom pops up; at 20 s the fairy ring glows</string>
     <string name="type_cactus_about">Shoots a needle at the balloons with every key, and at 20 s bursts into flower</string>
-    <string name="type_toast_about">A slice flips out of the toaster with every key onto the stack; at 20 s the butter melts</string>
+    <string name="type_toast_about">Pops up out of its toaster with every key; at 10 s it browns and smokes, at 20 s it naps on the smoking toaster</string>
     <string name="type_snail_about">The race: a step to the flag with every key; at 20 s it gets there and the flag waves</string>
     <string name="type_hedgehog_about">Catches falling apples on its spines, one key one apple; at 20 s a crown of apples</string>
     <string name="type_crab_about">Flings sand onto its castle with every key; at 20 s a flag flies on top</string>
@@ -377,4 +377,14 @@
     <string name="type_wisp_about">Every key it flares; at 10 s little wisps follow it, at 20 s a ring of them circles round</string>
     <string name="type_sonar_about">Every key a ping finds the fish; at 10 s a shoal answers, at 20 s the whole sea glows</string>
     <string name="type_scope_about">Every key a spike runs along the wave; at 10 s its face sings above it</string>
+    <string name="type_eclipse_about">Every key a ray shoots out of the corona; at 10 s the corona doubles, at 20 s flames loop off the sun</string>
+    <string name="type_lumen_about">Every key the light jumps to a new side; at 10 s a second light joins, at 20 s a disco light spins</string>
+    <string name="type_shadowplay_about">Every key the lamp jumps and the big shadow swings; at 20 s the shadow turns into a bird</string>
+    <string name="type_meadow_about">Every key a flower pops up; at 10 s butterflies come, at 20 s fireworks in the sky</string>
+    <string name="type_xray_about">Every key the scanner flashes; at 10 s it sweeps fast, at 20 s the skeleton dances</string>
+    <string name="type_pond_about">Every key a drop rings the water; at 10 s lily pads, at 20 s the moon and fireflies in the water</string>
+    <string name="type_sunny_about">Every key the rays shoot out; at 10 s they double, at 20 s a supernova</string>
+    <string name="type_negcat_about">Every key a wave of light rolls over the sky; at 20 s it strobes like a party</string>
+    <string name="type_squid_about">Every key a puff of ink; at 10 s it glows in the dark sea, at 20 s its glow throbs to the keys</string>
+    <string name="type_kolobok_about">Every key it hops; at 10 s it rolls over hills, at 20 s it bounces high</string>
 </resources>

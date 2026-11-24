@@ -67,6 +67,16 @@ internal object TypingNames {
         "wisp" to R.string.type_wisp_about,
         "sonar" to R.string.type_sonar_about,
         "scope" to R.string.type_scope_about,
+        "eclipse" to R.string.type_eclipse_about,
+        "lumen" to R.string.type_lumen_about,
+        "shadowplay" to R.string.type_shadowplay_about,
+        "meadow" to R.string.type_meadow_about,
+        "xray" to R.string.type_xray_about,
+        "pond" to R.string.type_pond_about,
+        "sunny" to R.string.type_sunny_about,
+        "negcat" to R.string.type_negcat_about,
+        "squid" to R.string.type_squid_about,
+        "kolobok" to R.string.type_kolobok_about,
     )
 
     @StringRes

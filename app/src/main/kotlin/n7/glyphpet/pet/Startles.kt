@@ -102,6 +102,16 @@ object Startles {
         "wisp" to Style(Move.SPIN, Face.IDLE, Mark.SPARK),
         "sonar" to Style(Move.DUCK, Face.IDLE, Mark.RINGS),
         "scope" to Style(Move.JOLT, Face.IDLE, Mark.ZAP),
+        "eclipse" to Style(Move.JUMP, Face.IDLE, Mark.QUESTION),
+        "lumen" to Style(Move.FREEZE, Face.IDLE, Mark.BANG),
+        "shadowplay" to Style(Move.FREEZE, Face.IDLE, Mark.DUST),
+        "meadow" to Style(Move.DUCK, Face.IDLE, Mark.DUST),
+        "xray" to Style(Move.SPIN, Face.IDLE, Mark.ZAP),
+        "pond" to Style(Move.DART, Face.IDLE, Mark.SWEAT),
+        "sunny" to Style(Move.TOPPLE, Face.IDLE, Mark.BANG),
+        "negcat" to Style(Move.TOPPLE, Face.IDLE, Mark.NOTE),
+        "squid" to Style(Move.BOUNCE, Face.IDLE, Mark.SPIKES),
+        "kolobok" to Style(Move.SHRINK, Face.IDLE, Mark.BANG),
     )
 
     private val FALLBACK = Style(Move.JUMP, Face.SCARED, Mark.BANG)

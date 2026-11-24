@@ -34,11 +34,11 @@ class EggRulesTest {
     }
 
     @Test
-    fun `the catalog has 62 pets in five tiers`() {
+    fun `the catalog has 72 pets in five tiers`() {
         assertEquals(29, SpeciesCatalog.sprites.size)
-        assertEquals(62, SpeciesCatalog.all.size)
-        assertEquals(20, SpeciesCatalog.all.count { it.rarity == Rarity.COMMON })
-        assertEquals(25, SpeciesCatalog.all.count { it.rarity == Rarity.RARE })
+        assertEquals(72, SpeciesCatalog.all.size)
+        assertEquals(26, SpeciesCatalog.all.count { it.rarity == Rarity.COMMON })
+        assertEquals(29, SpeciesCatalog.all.count { it.rarity == Rarity.RARE })
         assertEquals(4, SpeciesCatalog.all.count { it.rarity == Rarity.LEGENDARY })
         assertEquals(5, SpeciesCatalog.all.count { it.rarity == Rarity.MYTHIC })
         assertEquals(8, SpeciesCatalog.all.count { it.rarity == Rarity.ANOMALY })

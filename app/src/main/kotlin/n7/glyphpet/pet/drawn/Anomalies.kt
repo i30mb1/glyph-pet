@@ -40,7 +40,7 @@ object Drawn {
     const val STEP = 160L
 
     val anomalies: List<Anomaly> = listOf(Phoenix, BlackHole, Swarm, Dragon, Mimic, MoonRabbit, Schrodinger, LavaLamp)
-    val all: List<Anomaly> = anomalies + IdeaHeroes.all + NewHeroes.all + GlowHeroes.all + GlowHeroes2.all
+    val all: List<Anomaly> = anomalies + IdeaHeroes.all + NewHeroes.all + GlowHeroes.all + GlowHeroes2.all + GlowHeroes3.all
     private val byKind = all.associateBy { it.kind }
 
     fun handles(kind: String?): Boolean = kind != null && kind in byKind

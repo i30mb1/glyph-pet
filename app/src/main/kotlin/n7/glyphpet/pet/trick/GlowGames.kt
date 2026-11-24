@@ -14,6 +14,9 @@ internal object GlowGames {
     val all: Map<String, () -> Trick> = mapOf(
         "firefly" to { DewGame() }, "radar" to { BlipGame() }, "candle" to { WickGame() }, "cocoa" to { MarshmallowGame() },
         "wisp" to { LeafGame() }, "sonar" to { ShrimpGame() }, "scope" to { MarkGame() },
+        "eclipse" to { CoverGame() }, "lumen" to { MothBeamGame() }, "shadowplay" to { ShadowCatchGame() }, "meadow" to { BerryGame() },
+        "xray" to { LuggageGame() }, "pond" to { DragonflyGame() }, "sunny" to { FlowerGame() }, "negcat" to { DarkMothGame() },
+        "squid" to { PlanktonGame() }, "kolobok" to { CrumbGame() },
     )
 }
 
@@ -210,5 +213,193 @@ private class MarkGame : DrawnGame() {
             if (abs(amp - ta) < 0.8f && abs(freq - tf) < 0.45f) held += dt else held = (held - dt).coerceAtLeast(0f)
             if (held > 0.3f) { win(input); next() }
         }
+    }
+}
+
+/** Switches an LED off, for dark eyes and holes in a lit shape. */
+private fun n7.glyphpet.pet.signature.Canvas.off(x: Int, y: Int) { if (x in 0..24 && y in 0..24) v[y * 25 + x] = 0f }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// The games of the last mockup heroes ([n7.glyphpet.pet.drawn.GlowHeroes3]).
+
+/** Eclipse cat: the sun drifts about; keep the cat in front of it with the lean, and each moment it is covered scores. */
+private class CoverGame : DrawnGame() {
+    private var held = 0f
+    override fun play(input: SignatureInput, t: Long, dt: Float, ms: Long, r: Float) {
+        val sx = MID + sin(t / 2600f) * 5f; val sy = MID + cos(t / 3400f) * 4f
+        if (r <= 0f) fly(dt, 8f, room = RIM - 2f)
+        val cx = TrickKit.lerp(x, MID, r); val cy = TrickKit.lerp(y, MID, r)
+        val covered = hypot(sx - cx, sy - cy) < 3.4f
+        if (r <= 0f) { if (covered) held += dt else held = (held - dt * 0.5f).coerceAtLeast(0f); if (held > 0.6f) { win(input); held = 0f } }
+        for (k in 0 until 12) { val a = k * 0.5236f + t / 3000f; for (j in 0..1) canvas.max((sx + cos(a) * (4.5f + j)).toInt(), (sy + sin(a) * (4.5f + j)).toInt(), if (covered) 3600f else 1800f) }
+        disc(sx, sy, 3.2f, 2600f)
+        for (yy in cy.toInt() - 3..cy.toInt() + 3) for (xx in cx.toInt() - 3..cx.toInt() + 3) if (hypot(xx - cx, yy - cy) <= 2.6f) canvas.off(xx, yy)
+        val ex = cx.toInt(); val ey = cy.toInt()
+        canvas.max(ex - 1, ey, 3800f); canvas.max(ex + 1, ey, 3800f)
+    }
+}
+
+/** Lit head: the lean points a beam of light from the middle; moths show only in the beam; hold it on one to catch it. */
+private class MothBeamGame : DrawnGame() {
+    private var beam = 0f; private val mx = FloatArray(2); private val my = FloatArray(2); private var held = 0f
+    override fun begin(input: SignatureInput) { for (i in 0..1) spot(0f, 4f, 9f).let { mx[i] = it.first; my[i] = it.second } }
+    override fun play(input: SignatureInput, t: Long, dt: Float, ms: Long, r: Float) {
+        if (r <= 0f && hypot(tilt.x, tilt.y) > 0.2f) { var d = atan2(tilt.y, tilt.x) - beam; while (d > 3.1416f) d -= 6.2832f; while (d < -3.1416f) d += 6.2832f; beam += d * (dt * 6f).coerceAtMost(1f) }
+        for (k in 1..11) { val w = k * 0.18f; for (j in -1..1) canvas.max((MID + cos(beam + j * w / k) * k).toInt(), (MID + sin(beam + j * w / k) * k).toInt(), 900f) }
+        disc(MID, MID, 2f, 2400f)
+        var any = false
+        for (i in 0..1) {
+            mx[i] += sin(t / 500f + i) * dt * 1.2f; my[i] += cos(t / 600f + i) * dt * 1.2f
+            val gap = angleGap(beam, atan2(my[i] - MID, mx[i] - MID))
+            if (gap < 0.3f) { any = true; canvas.max(mx[i].toInt(), my[i].toInt(), 3800f); canvas.max(mx[i].toInt() - 1, my[i].toInt() - 1, 2400f); canvas.max(mx[i].toInt() + 1, my[i].toInt() - 1, 2400f)
+                if (r <= 0f) { held += dt; if (held > 0.4f) { win(input); held = 0f; spot(0f, 4f, 9f).let { mx[i] = it.first; my[i] = it.second } } } }
+        }
+        if (!any) held = (held - dt).coerceAtLeast(0f)
+    }
+}
+
+/** Shadow play: the lean moves the lamp; bring the bunny's big shadow over the butterflies on the wall. */
+private class ShadowCatchGame : DrawnGame() {
+    private var bx = 6f; private var by = 7f; private var held = 0f; private var lamp = MID
+    override fun play(input: SignatureInput, t: Long, dt: Float, ms: Long, r: Float) {
+        if (r <= 0f) lamp = (lamp + (MID + tilt.x * 10f - lamp) * (dt * 4f).coerceAtMost(1f)).coerceIn(3f, 21f)
+        val sx = MID - (lamp - MID) * 0.9f
+        for (yy in 0..24) for (xx in 0..24) { val d = hypot(xx - lamp, yy - 3f); var v = (0.55f - d * 0.025f).coerceAtLeast(0.1f) * 4095f * 0.8f
+            if (abs(xx - sx) < 3.5f && yy in 4..16) v = 0f; canvas.max(xx, yy, v) }
+        val over = abs(bx - sx) < 3f
+        if (r <= 0f) { if (over) held += dt else held = (held - dt).coerceAtLeast(0f); if (held > 0.5f) { win(input); held = 0f; seed++; bx = 4f + TrickKit.hash01(seed) * 16f; by = 5f + TrickKit.hash01(seed * 3) * 8f } }
+        val flap = (t / 150) % 2 == 0L
+        canvas.max(bx.toInt(), by.toInt(), 3800f); canvas.max(bx.toInt() - 1, by.toInt() - (if (flap) 1 else 0), 3200f); canvas.max(bx.toInt() + 1, by.toInt() - (if (flap) 1 else 0), 3200f)
+        for (k in 0..2) canvas.max(lamp.toInt() - 1 + k, 3, 4095f)
+        for (yy in 17..20) for (xx in 10..14) canvas.max(xx, yy, 3600f)
+    }
+}
+
+/** Diorama: walk the critter along the meadow with the lean and pick the berries. */
+private class BerryGame : DrawnGame() {
+    private val bx = FloatArray(2)
+    override fun begin(input: SignatureInput) { x = MID; for (i in 0..1) { seed++; bx[i] = 4f + TrickKit.hash01(seed) * 16f } }
+    override fun play(input: SignatureInput, t: Long, dt: Float, ms: Long, r: Float) {
+        if (r <= 0f) { vx += (tilt.x * 12f - vx) * (dt * 5f).coerceAtMost(1f); x = (x + vx * dt).coerceIn(3f, 21f) }
+        for (xx in 0..24) { val h = (15 + sin(xx * 0.35f) * 2f).toInt(); for (yy in h..24) canvas.max(xx, yy, 500f) }
+        for (xx in 0..24) for (yy in 21..24) canvas.max(xx, yy, 1600f)
+        for (i in 0..1) { if (r <= 0f && abs(bx[i] - x) < 1.8f) { win(input); seed++; bx[i] = 4f + TrickKit.hash01(seed) * 16f }
+            canvas.max(bx[i].toInt(), 19, 4000f); canvas.max(bx[i].toInt(), 20, 2000f) }
+        val cx = TrickKit.lerp(x, MID, r)
+        for (yy in 17..20) for (xx in cx.toInt() - 2..cx.toInt() + 2) canvas.max(xx, yy, 3400f)
+        canvas.off(cx.toInt() - 1, 18); canvas.off(cx.toInt() + 1, 18)
+    }
+}
+
+/** X-ray: bags ride the belt; the lean moves the scanner; hold it on the bag with a bone inside. */
+private class LuggageGame : DrawnGame() {
+    private val bagX = FloatArray(3); private val bone = BooleanArray(3); private var scan = MID; private var held = 0f
+    override fun begin(input: SignatureInput) { for (i in 0..2) { bagX[i] = -i * 9f; seed++; bone[i] = TrickKit.hash01(seed) < 0.5f }; bone[0] = true }
+    override fun play(input: SignatureInput, t: Long, dt: Float, ms: Long, r: Float) {
+        if (r <= 0f) scan = (scan + (MID + tilt.x * 11f - scan) * (dt * 5f).coerceAtMost(1f)).coerceIn(2f, 22f)
+        for (xx in 0..24) { canvas.max(xx, 16, 1400f) }
+        var on = false
+        for (i in 0..2) {
+            bagX[i] += dt * 3f
+            if (bagX[i] > 27f) { bagX[i] -= 27f; seed++; bone[i] = TrickKit.hash01(seed) < 0.6f }
+            val under = abs(bagX[i] - scan) < 2.5f
+            for (yy in 11..15) for (xx in bagX[i].toInt() - 2..bagX[i].toInt() + 2) canvas.max(xx, yy, if (under) 2600f else 1500f)
+            if (under && bone[i]) { on = true; for (xx in bagX[i].toInt() - 1..bagX[i].toInt() + 1) canvas.off(xx, 13)
+                if (r <= 0f) { held += dt; if (held > 0.4f) { win(input); held = 0f; bone[i] = false } } }
+        }
+        if (!on) held = (held - dt).coerceAtLeast(0f)
+        for (yy in 8..18) canvas.max(scan.toInt(), yy, 3000f)
+    }
+}
+
+/** Pond: move the critter along the bank and catch the dragonflies as they dip to the water. */
+private class DragonflyGame : DrawnGame() {
+    private var fx = 6f; private var fy = 2f
+    override fun begin(input: SignatureInput) { x = MID; next() }
+    private fun next() { seed++; fx = 4f + TrickKit.hash01(seed) * 16f; fy = 1f }
+    override fun play(input: SignatureInput, t: Long, dt: Float, ms: Long, r: Float) {
+        if (r <= 0f) { vx += (tilt.x * 12f - vx) * (dt * 5f).coerceAtMost(1f); x = (x + vx * dt).coerceIn(3f, 21f) }
+        fy += dt * 2.6f; fx += sin(t / 300f) * dt * 2f
+        if (fy > 9f) { if (r <= 0f && abs(fx - x) < 2.5f) win(input) else if (r <= 0f) miss(input); next() }
+        for (xx in 0..24) canvas.max(xx, 13, 2000f)
+        val cx = TrickKit.lerp(x, MID, r)
+        disc(cx, 10f, 2.4f, 3400f); canvas.off(cx.toInt() - 1, 10); canvas.off(cx.toInt() + 1, 10)
+        disc(cx, 16f, 2.4f, 1500f)
+        canvas.max(fx.toInt(), fy.toInt(), 4000f); canvas.max(fx.toInt() - 1, fy.toInt(), 2400f); canvas.max(fx.toInt() + 1, fy.toInt(), 2400f)
+        canvas.max(fx.toInt(), (26 - fy).toInt(), 1200f)
+    }
+}
+
+/** Sunny: fly the sun with the lean and hold it over the seeds until they grow into flowers. */
+private class FlowerGame : DrawnGame() {
+    private val sx = FloatArray(2); private val sy = FloatArray(2); private val grown = FloatArray(2)
+    override fun begin(input: SignatureInput) { for (i in 0..1) spot(5f, 3f, 9f).let { sx[i] = it.first; sy[i] = it.second } }
+    override fun play(input: SignatureInput, t: Long, dt: Float, ms: Long, r: Float) {
+        if (r <= 0f) fly(dt, 8f, room = RIM - 2f)
+        val cx = TrickKit.lerp(x, MID, r); val cy = TrickKit.lerp(y, MID, r)
+        for (i in 0..1) {
+            if (r <= 0f && hypot(sx[i] - x, sy[i] - y) < 3.4f) grown[i] += dt else grown[i] = (grown[i] - dt * 0.15f).coerceAtLeast(0f)
+            if (grown[i] > 0.5f) { win(input); grown[i] = 0f; spot(5f, 3f, 9f).let { sx[i] = it.first; sy[i] = it.second } }
+            val h = (grown[i] * 3).toInt()
+            canvas.max(sx[i].toInt(), sy[i].toInt(), 1600f)
+            for (k in 1..h) canvas.max(sx[i].toInt(), sy[i].toInt() - k, 2400f)
+            if (h >= 2) { canvas.max(sx[i].toInt() - 1, sy[i].toInt() - h, 3400f); canvas.max(sx[i].toInt() + 1, sy[i].toInt() - h, 3400f) }
+        }
+        for (k in 0 until 8) { val a = k * 0.785f + t / 1500f; canvas.max((cx + cos(a) * 3.5f).toInt(), (cy + sin(a) * 3.5f).toInt(), 2600f) }
+        disc(cx, cy, 2f, 3800f)
+    }
+}
+
+/** Negative cat: the sky glows; dark moths flutter in it; steer the dark cat onto them. */
+private class DarkMothGame : DrawnGame() {
+    private val mx = FloatArray(2); private val my = FloatArray(2)
+    override fun begin(input: SignatureInput) { for (i in 0..1) spot(5f, 3f, 9f).let { mx[i] = it.first; my[i] = it.second } }
+    override fun play(input: SignatureInput, t: Long, dt: Float, ms: Long, r: Float) {
+        if (r <= 0f) fly(dt, 8f, room = RIM - 2f)
+        for (yy in 0..24) for (xx in 0..24) canvas.max(xx, yy, 1500f)
+        val cx = TrickKit.lerp(x, MID, r); val cy = TrickKit.lerp(y, MID, r)
+        // Dark things are drawn by leaving the sky out: the moths and the cat are holes in the light.
+        val holes = ArrayList<Pair<Int, Int>>()
+        for (i in 0..1) {
+            mx[i] += sin(t / 400f + i * 2) * dt * 2f; my[i] += cos(t / 500f + i) * dt * 2f
+            if (r <= 0f && hypot(mx[i] - x, my[i] - y) < 2.4f) { win(input); spot(5f, 3f, 9f).let { mx[i] = it.first; my[i] = it.second } }
+            val flap = (t / 150 + i) % 2 == 0L
+            holes += mx[i].toInt() to my[i].toInt(); holes += (mx[i].toInt() - 1) to (my[i].toInt() - (if (flap) 1 else 0)); holes += (mx[i].toInt() + 1) to (my[i].toInt() - (if (flap) 1 else 0))
+        }
+        for (yy in cy.toInt() - 3..cy.toInt() + 2) for (xx in cx.toInt() - 2..cx.toInt() + 2) if (hypot(xx - cx, yy - cy) <= 2.3f) holes += xx to yy
+        holes += (cx.toInt() - 2) to (cy.toInt() - 3); holes += (cx.toInt() + 2) to (cy.toInt() - 3)
+        canvas.clear()
+        for (yy in 0..24) for (xx in 0..24) if ((xx to yy) !in holes) canvas.max(xx, yy, 1500f)
+        canvas.max(cx.toInt() - 1, cy.toInt(), 4000f); canvas.max(cx.toInt() + 1, cy.toInt(), 4000f)
+    }
+}
+
+/** Squid: jet about the sea with the lean and gather the glowing plankton. */
+private class PlanktonGame : DrawnGame() {
+    private val px = FloatArray(3); private val py = FloatArray(3)
+    override fun begin(input: SignatureInput) { for (i in 0..2) spot(4f, 2f, 9f).let { px[i] = it.first; py[i] = it.second } }
+    override fun play(input: SignatureInput, t: Long, dt: Float, ms: Long, r: Float) {
+        if (r <= 0f) fly(dt, 7f, room = RIM - 2f)
+        val cx = TrickKit.lerp(x, MID, r); val cy = TrickKit.lerp(y, MID, r)
+        for (i in 0..2) { if (r <= 0f && hypot(px[i] - x, py[i] - y) < 2.2f) { win(input); spot(4f, 2f, 9f).let { px[i] = it.first; py[i] = it.second } }
+            canvas.max(px[i].toInt(), py[i].toInt(), if ((t / 200 + i) % 3 == 0L) 4000f else 2600f) }
+        for (yy in cy.toInt() - 3..cy.toInt()) { val w = (yy - cy.toInt() + 3) / 2; for (xx in cx.toInt() - w..cx.toInt() + w) canvas.max(xx, yy, 3200f) }
+        for (k in -1..1) for (j in 1..2) canvas.max(cx.toInt() + k * 1, cy.toInt() + j, if ((t / 150 + j) % 2 == 0L) 2400f else 1200f)
+        canvas.off(cx.toInt() - 1, cy.toInt() - 1); canvas.off(cx.toInt() + 1, cy.toInt() - 1)
+    }
+}
+
+/** Kolobok: a heavy ball rolling on the floor with the lean; roll over the crumbs. */
+private class CrumbGame : DrawnGame() {
+    private val cxs = FloatArray(2)
+    override fun begin(input: SignatureInput) { x = MID; for (i in 0..1) { seed++; cxs[i] = 4f + TrickKit.hash01(seed) * 16f } }
+    override fun play(input: SignatureInput, t: Long, dt: Float, ms: Long, r: Float) {
+        if (r <= 0f) { vx += tilt.x * 18f * dt; vx *= (1f - dt * 0.8f); x += vx * dt; if (x < 5f || x > 19f) { vx = -vx * 0.6f; x = x.coerceIn(5f, 19f) } }
+        for (xx in 0..24) canvas.max(xx, 21, 1400f)
+        for (i in 0..1) { if (r <= 0f && abs(cxs[i] - x) < 2f) { win(input); seed++; cxs[i] = 4f + TrickKit.hash01(seed) * 16f }; canvas.max(cxs[i].toInt(), 20, 4000f) }
+        val cx = TrickKit.lerp(x, MID, r)
+        disc(cx, 17f, 3.2f, 3000f)
+        val face = ((cx - MID) * 0.6f).toInt()
+        canvas.off(cx.toInt() - 1 - face, 16); canvas.off(cx.toInt() + 1 - face, 16)
     }
 }
