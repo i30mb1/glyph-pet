@@ -792,6 +792,14 @@ class PetEngine(
     /** The habit playing now redraws the body ([Habit.redrawsBody]), so it is worth a cross-dissolve. */
     private var habitRedraws = false
 
+    /**
+     * The face's cells in the frame just drawn and in the one before it (the eye and mouth slots): the cross-dissolve
+     * leaves them out, because mixing the eye of one face with the eye of the next puts two holes on one head at half
+     * brightness, and a 2x2 eye at half brightness is not a transition, it is mush.
+     */
+    private val faceNow = BooleanArray(SIZE * SIZE)
+    private val facePrev = BooleanArray(SIZE * SIZE)
+
     /** How far into a fall into sadness, or out of one, the pet is (-1: none), and the face it is falling toward. */
     private var fallMs = -1L
     private var fallTo: Face? = null
@@ -856,15 +864,23 @@ class PetEngine(
                 // A cross-dissolve: the old frame fades out while the new one fades in. (A game cuts between the pet and
                 // its play picture itself, so two faces never meet here.)
                 val k = p * p * (3 - 2 * p)
-                for (i in frame.indices) frame[i] = (frame[i] * k + from[i] * (1 - k)).toInt()
+                for (i in frame.indices) {
+                    // The face cuts instead of dissolving: two faces on one eye is two holes at half brightness, and
+                    // on cells this small that reads as a smudge, not as a change of mood. Both frames' face cells are
+                    // left out, since the pet may also have stepped sideways between them.
+                    if (faceNow[i] || facePrev[i]) continue
+                    frame[i] = (frame[i] * k + from[i] * (1 - k)).toInt()
+                }
             }
         }
+        faceNow.copyInto(facePrev)
         lastOut = frame.copyOf()
         return frame
     }
 
     private fun tickRaw(dtMs: Long, scene: Scene): IntArray {
         time += dtMs
+        faceNow.fill(false)
         // What the phone feels, for the drawn heroes whose drawing follows it ([n7.glyphpet.pet.drawn.NewHeroes]).
         n7.glyphpet.pet.drawn.DrawnWorld.step(dtMs, time, scene.tilt, scene.tiltY, scene.wind, scene.loud, scene.battery, scene.charging, scene.magnet, scene.magnetAngle)
         val frame = IntArray(SIZE * SIZE)
@@ -1107,6 +1123,7 @@ class PetEngine(
             badges = (!(sliding && own == null) || tiltStyle == TiltStyle.STICK) && cuddle == null,
             spout = own == null && !sliding,
         )
+        for (i in faceNow.indices) faceNow[i] = cover[i] == SpeciesRenderer.COVER_FACE
         if (way != null) blownPose(frame, species, face, dx, lift, painter, wraps)
         if (startle != null) {
             val top = species.oy - SpeciesRenderer.jumpOf(face) - lift
