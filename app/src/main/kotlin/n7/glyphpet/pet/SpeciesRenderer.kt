@@ -10,8 +10,14 @@ object SpeciesRenderer {
     const val BRIGHT = 4000
     const val BODY = 1200
 
-    /** [PEEK]: the first eye open, the others shut. [SLEEPY]: shut, a long line where the face has room. */
-    private enum class Eyes { OPEN, CLOSED, HAPPY, SAD, ANGRY, DIZZY, LOVE, SCARED, PEEK, SLEEPY }
+    /**
+     * [PEEK]: the first eye open, the others shut. [SLEEPY]: shut, a long line where the face has room.
+     * A kind with no mouth (the chick, the owl, the penguin, the eye, the adult dino) carries its whole expression in
+     * the eyes, so the moods that differ only by the mouth would be one picture. Three shapes keep them apart:
+     * [WANTING] an open eye under a lowered brow (hunger), [MERRY] a smiling eye with a lifted brow (joy), and
+     * [MUNCHING] an eye squeezed to a slit (eating).
+     */
+    private enum class Eyes { OPEN, CLOSED, HAPPY, SAD, ANGRY, DIZZY, LOVE, SCARED, PEEK, SLEEPY, WANTING, MERRY, MUNCHING }
     private enum class Mouth { NEUTRAL, SMILE, GRIN, FROWN, OPEN, SMALL, TEETH, WAVY }
 
     private class Look(val eyes: Eyes, val mouth: Mouth, val body: Float = 1f, val jump: Int = 0)
@@ -19,12 +25,12 @@ object SpeciesRenderer {
     private val LOOKS = mapOf(
         Face.IDLE to Look(Eyes.OPEN, Mouth.NEUTRAL),
         Face.CONTENT to Look(Eyes.HAPPY, Mouth.SMILE),
-        Face.HAPPY to Look(Eyes.HAPPY, Mouth.GRIN, jump = 2),
+        Face.HAPPY to Look(Eyes.MERRY, Mouth.GRIN, jump = 2),
         Face.LOVE to Look(Eyes.LOVE, Mouth.SMILE),
-        Face.EAT to Look(Eyes.HAPPY, Mouth.OPEN),
+        Face.EAT to Look(Eyes.MUNCHING, Mouth.OPEN),
         Face.SLEEP to Look(Eyes.CLOSED, Mouth.SMALL, body = 0.5f),
         Face.YAWN to Look(Eyes.SLEEPY, Mouth.OPEN),
-        Face.HUNGRY to Look(Eyes.OPEN, Mouth.OPEN),
+        Face.HUNGRY to Look(Eyes.WANTING, Mouth.OPEN),
         Face.ANGRY to Look(Eyes.ANGRY, Mouth.TEETH),
         Face.SCARED to Look(Eyes.SCARED, Mouth.OPEN, jump = 1),
         Face.DIZZY to Look(Eyes.DIZZY, Mouth.WAVY),
@@ -129,6 +135,18 @@ object SpeciesRenderer {
         // Tiny dots, set wide like a real axolotl's.
         "axolotl" to listOf("    ", " #. ", " .. ", "    "),
     )
+
+    /**
+     * Whether ([x], [y]) may be carved out for a brow or a crease: plain body ('#', never a bright detail of the
+     * drawing) with body on every side, so taking it away cannot break the silhouette. Three sides was tried and
+     * tears the outline of the heroes whose eyes sit near an edge; for them the eye itself has to carry the mood.
+     */
+    private fun inBody(rows: List<String>, x: Int, y: Int): Boolean {
+        if ((rows.getOrNull(y)?.getOrNull(x) ?: '.') != '#') return false
+        return listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1).all { (dx, dy) ->
+            (rows.getOrNull(y + dy)?.getOrNull(x + dx) ?: '.') != '.'
+        }
+    }
 
     /**
      * The cells of [style] for the eye at ([ex], [ey]): (x, y, '#' or 'o'), mirrored for the right eye, moved [out]
@@ -284,6 +302,32 @@ object SpeciesRenderer {
                 Eyes.SCARED -> {
                     for (d in EYES.getValue(Eyes.OPEN)) cell(ex + d.first, ey + d.second, hole)
                     cell(ex + if (mirror) 1 else 0, ey, if (species.inverted) '.' else 'o')
+                }
+                // Joy: the smiling eye of [HAPPY] with a brow lifted over it, so joy is not calm with a shut mouth.
+                // The brow is only carved where it stays inside the body: on the outline it would break the silhouette,
+                // and over a bright detail (an ear tip, a frill) it would rub out part of the drawing.
+                Eyes.MERRY -> {
+                    for ((ddx, ddy) in EYES.getValue(Eyes.HAPPY)) cell(ex + if (mirror) 1 - ddx else ddx, ey + ddy, hole)
+                    val bx = ex + if (mirror) 1 else 0
+                    val by = ey - 2
+                    if (inBody(rows, bx, by)) cell(bx, by, hole)
+                }
+                // Eating: the eye squeezed shut from below, a crease under it — a creature enjoying a mouthful. The
+                // crease is what keeps this apart from [SAD], whose eye is open with a tear below it.
+                Eyes.MUNCHING -> {
+                    cell(ex, ey, hole)
+                    cell(ex + 1, ey, hole)
+                    val cx2 = ex + if (mirror) 1 else 0
+                    val cy2 = ey + 2
+                    if (inBody(rows, cx2, cy2)) cell(cx2, cy2, hole)
+                }
+                // Hunger on a kind with no mouth: the eye opens and a brow comes down over its outer corner.
+                Eyes.WANTING -> {
+                    for (d in EYES.getValue(Eyes.OPEN)) cell(ex + d.first, ey + d.second, hole)
+                    val browX = ex + if (mirror) 2 else -1
+                    if (inBody(rows, browX, ey)) cell(browX, ey, hole)
+                    val upX = ex + if (mirror) 1 else 0
+                    if (inBody(rows, upX, ey - 1)) cell(upX, ey - 1, hole)
                 }
                 Eyes.PEEK -> {
                     for ((ddx, ddy) in EYES.getValue(if (i == 0) Eyes.OPEN else Eyes.CLOSED)) cell(ex + ddx, ey + ddy, hole)
