@@ -58,22 +58,90 @@ internal class PopcornToy : Desk() {
         for (j in 0 until heap) for (x in 6 + j..18 - j) c.put(x, 20 - j, if ((x + j) % 3 == 0) 0.85f else 0.6f)
         d.recent(if (won(d)) 1500 else 900) { k, a -> val (x, y) = arc(8f + h(k.n) * 8f, 20f - heap, (h(k.n, 1) - 0.5f) * 16f, -16f - h(k.n, 2) * 10f - (if (won(d)) 8f else 0f), 50f, a)
             val s = if (a < 80) 0 else 1; c.put(x, y, 1f); if (s > 0) { c.put(x + 1, y, 0.8f); c.put(x, y - 1, 0.8f); c.put(x - 1, y, 0.6f) } }
-        c.pet(d, 21f, 19f, 6f, if (d.hit(200) > 0f) Look.WOW else d.mood())
+        c.pet(d, 20f, 19f, 6f, if (d.hit(200) > 0f) Look.WOW else d.mood())
     }
 }
 
-/** Owl, the night watch: its two great eyes in the dark. Each key a light blinks on somewhere in the night and its eyes snap to it; the sky fills with stars as you type, and after 40 s the moon rises. */
+/**
+ * Owl over the night city: the whole owl sits on a roof, big eyes in its facial disc. Each key a window lights
+ * somewhere in the city and the owl's eyes snap to it; the windows stay lit, so the city fills with light as you
+ * type. A rush opens its eyes wide; in a pause its eyes grow heavy, half shut; a sent message spreads its wings. After 10 s the moon
+ * rises; after 20 s it is full.
+ */
 internal class OwlToy : Desk() {
+    private companion object {
+        val OWL = listOf(
+            "#.........#",
+            ".#.......#.",
+            ".#########.",
+            "###########",
+            "###########",
+            "###########",
+            "###########",
+            "#-#######-#",
+            "#-#######-#",
+            "#-#######-#",
+            ".-#######-.",
+            "..#######..",
+        )
+        const val OX = 7
+        const val OY = 3
+        /** The buildings: left x, right x, top row. */
+        val CITY = listOf(Triple(0, 4, 19), Triple(5, 8, 20), Triple(9, 13, 18), Triple(14, 18, 21), Triple(19, 24, 19))
+        val WINDOWS: List<Pair<Int, Int>> = CITY.flatMap { (l, r, t) ->
+            (t + 2..23 step 2).flatMap { y -> (l + 1..r - 1 step 2).map { x -> x to y } }
+        }
+    }
+
+    private val lit = LinkedHashSet<Int>()
+    private var seen = -1
+
     override fun draw(c: Cv, d: DeskInput) {
-        val g = gk(d)
-        for (i in 0 until (g * 24).toInt()) c.put(1 + h(i, 4) * 22, 1 + h(i, 5) * 9, 0.25f + 0.15f * sin(d.t / 400f + i))
-        if (won(d)) { val p = ease((d.typed - 40_000) / 2000f); c.disc(19f, 14f - p * 9, 3f, 0.55f) }
-        val n = keyN(d); val tx = if (n < 0) 12f else 3f + h(n, 1) * 18f; val ty = if (n < 0) 12f else 2f + h(n, 2) * 10f
-        if (n >= 0 && since(d) < 900) c.put(tx, ty, if (since(d) < 150) 1f else 0.6f)
-        val dx = ((tx - 12f) / 9f).coerceIn(-1f, 1f); val dy = ((ty - 14f) / 9f).coerceIn(-1f, 1f)
-        for (ex in listOf(8f, 16f)) { c.disc(ex, 14f, 3.4f, 0.5f); c.disc(ex, 14f, 2.4f, 0.12f)
-            if (!(d.paused && d.t % 2600 < 160)) { val px = ex + dx * 1.2f; val py = 14f + dy * 1.2f; c.disc(px, py, 1.1f, 0f); for (yy in -1..1) for (xx in -1..1) if (abs(xx) + abs(yy) <= 1) c.cut(px.roundToInt() + xx, py.roundToInt() + yy) } }
-        c.shape(listOf("#.#", ".#."), 12, 18, 0.6f, 0.6f)
+        val n = d.n
+        if (n != seen && n >= 0) { seen = n; lit += (n * 7 + (n * n) % 5) % WINDOWS.size }
+
+        // Moon (10 s rising, 20 s full).
+        if (d.stage >= 1) {
+            val p = if (d.stage == 1) d.stageIn(2500) else 1f
+            val my = 9f - p * 4f
+            c.disc(21f, my + 2f, 2.1f, 0.5f)
+            if (d.stage == 1) c.hole(22.2f, my + 1.5f, 1.8f)
+        }
+        // City and its windows.
+        for ((l, r, t) in CITY) for (x in l..r) for (y in t..24) c.set(x, y, 0.08f)
+        for (w in lit) { val (x, y) = WINDOWS[w]; c.set(x, y, 0.5f) }
+        val target = if (n >= 0) WINDOWS[(n * 7 + (n * n) % 5) % WINDOWS.size] else 12 to 20
+        if (n >= 0 && d.sinceKey < 250) c.set(target.first, target.second, 1f)
+
+        // The branch it sits on, from the left edge.
+        for (x in 0..16) c.set(x, OY + 13, 0.18f)
+        c.set(16, OY + 12, 0.18f)
+        // Owl, wings spread on a sent message, a little hop.
+        val up = if (d.sending) -1 else 0
+        if (d.sending) for (j in 0..4) for (i in 0..(3 - j / 2)) { c.set(OX - 1 - i, OY + 5 + j + up, 0.3f); c.set(OX + 11 + i, OY + 5 + j + up, 0.3f) }
+        OWL.forEachIndexed { j, row -> row.forEachIndexed { i, ch -> when (ch) { '#' -> c.set(OX + i, OY + j + up, 0.3f); '-' -> c.cut(OX + i, OY + j + up) } } }
+        // Feet gripping the roof edge.
+        for (x in listOf(10, 11, 13, 14)) c.set(x, OY + 12 + up, 0.7f)
+
+        // Eyes: a lighter facial disc, the pupils snapping to the window that lit.
+        val dx = ((target.first - 12) / 6f).coerceIn(-1f, 1f).roundToInt()
+        val dy = ((target.second - 9) / 8f).coerceIn(-1f, 1f).roundToInt()
+        val wide = d.heat > 0.5f
+        // A pause: its eyes grow heavy (half shut), with a slow blink now and then.
+        val sleepy = d.paused && d.t % 3000 < 220
+        val drowsy = d.paused && !sleepy
+        for (ex in listOf(10, 14)) {
+            val ey = OY + 5 + up
+            c.disc(ex.toFloat(), ey.toFloat(), if (wide) 2.2f else 1.9f, 0.7f)
+            when {
+                sleepy -> for (x in ex - 2..ex + 2) c.cut(x, ey)
+                drowsy -> { for (x in ex - 2..ex + 2) c.set(x, ey - 2, 0.3f); for (x in ex - 2..ex + 2) c.set(x, ey - 1, 0.3f); c.cut(ex, ey); c.cut(ex - 1, ey) }
+                wide -> c.cut(ex + dx, ey + dy)
+                else -> for (yy in 0..1) for (xx in 0..1) c.cut(ex + dx + xx - (if (dx > 0) 1 else 0), ey + dy + yy - (if (dy > 0) 1 else 0))
+            }
+        }
+        // Beak.
+        c.set(12, OY + 7 + up, 0.9f); c.set(12, OY + 8 + up, 0.55f)
     }
 }
 
@@ -138,15 +206,28 @@ internal class ToasterToy : Desk() {
     }
 }
 
-/** Snail, the race: a track to a chequered flag. Each key it creeps one step on, a trail of slime shining behind; it reaches the flag at 40 s and the flag waves. */
+/**
+ * Snail, the race: a track and a chequered flag. Each key it creeps on, a trail of slime shining behind it; it never
+ * stops at the flag: past it (the flag waves) it crawls off the right edge and comes back in from the left, round and
+ * round as long as you type, its trail starting afresh each lap.
+ */
 internal class SnailRaceToy : Desk() {
+    private companion object {
+        /** One lap: from off the left edge to off the right, in cells. */
+        const val LAP = 30f
+    }
+
     override fun draw(c: Cv, d: DeskInput) {
         c.ground(19, 0.22f)
+        val pos = (d.typed / 1000f * 0.75f) % LAP
+        val x = pos - 3f + d.hit(200) * 0.6f
+        val passed = x > 21f && x < 26f
         for (y in 10..18) c.put(21, y, 0.4f)
-        for (j in 0..3) for (i in 0..2) c.put(22 + i, 10 + j + (if (won(d) && (d.t / 200 + i) % 2 == 0L) 1 else 0), if ((i + j) % 2 == 0) 0.9f else 0.15f)
-        val x = mix(2f, 17f, gk(d)) + d.hit(200) * 0.6f
-        for (xx in 0..x.roundToInt()) c.put(xx, 18, 0.45f + 0.2f * sin(xx * 0.8f + d.t / 200f))
+        for (j in 0..3) for (i in 0..2) c.put(22 + i, 10 + j + (if (passed && (d.t / 200 + i) % 2 == 0L) 1 else 0), if ((i + j) % 2 == 0) 0.9f else 0.15f)
+        for (xx in 0..x.roundToInt().coerceAtMost(24)) c.put(xx, 18, 0.45f + 0.2f * sin(xx * 0.8f + d.t / 200f))
         c.pet(d, x, 18f, 6f)
+        // Across the edge it shows on both sides at once, so it never blinks out.
+        if (x > 21f) c.pet(d, x - LAP, 18f, 6f)
     }
 }
 

@@ -221,6 +221,11 @@ internal class BoomboxToy : Desk() {
 
 /** Shadow, hide and seek: the dark, and a torch. Each key the beam swings to a new spot and the shadow's eyes flit away to where it is dark; more pairs of eyes watch as you type, and after 40 s the torch dies and eyes blink all round. */
 internal class TorchToy : Desk() {
+    private companion object {
+        /** The places the eyes watch from, spread over the dark, at least four cells apart. */
+        val EYES = listOf(12 to 4, 5 to 6, 19 to 6, 8 to 11, 16 to 11, 4 to 15, 20 to 15, 12 to 16, 8 to 19, 16 to 19, 12 to 10, 3 to 10)
+    }
+
     override fun draw(c: Cv, d: DeskInput) {
         val n = d.last?.n ?: -1
         val tx = if (n < 0) 12f else 4f + h(n, 1) * 16f; val ty = if (n < 0) 8f else 3f + h(n, 2) * 10f
@@ -230,10 +235,18 @@ internal class TorchToy : Desk() {
         if (torch) for (y in 0..24) for (x in 0..24) { val r = hypot(x - px, y - py); if (r < 4.5f) c.put(x, y, if (r > 3.6f) 0.5f else 0.28f) else {
             val ax = x - 12f; val ay = y - 24f; val bx = px - 12f; val by = py - 24f; val t = ((ax * bx + ay * by) / (bx * bx + by * by)).coerceIn(0f, 1f)
             if (hypot(ax - bx * t, ay - by * t) < 0.6f + 2.5f * t) c.put(x, y, 0.08f) } }
+        // Each pair of eyes has a place of its own, apart from the others; a pair the light falls on slips away to a free
+        // dark place (mirroring it across the room used to land it on another pair: the same eyes twice).
         val pairs = if (torch) min(6, 1 + (d.typed / 7000).toInt()) else 10
-        for (i in 0 until pairs) { var ex = 3f + h(i + n.coerceAtLeast(0) * (if (i == 0) 1 else 0), 5 + i) * 18f; var ey = 3f + h(i, 9 + n.coerceAtLeast(0) * (if (i == 0) 1 else 0)) * 16f
-            if (torch && hypot(ex - px, ey - py) < 6f) { ex = 24f - ex; ey = 24f - ey }
+        val taken = HashSet<Int>()
+        fun lit(k: Int) = torch && hypot(EYES[k].first - px, EYES[k].second - py) < 6f
+        for (i in 0 until pairs) {
+            var k = i
+            if (lit(k)) k = EYES.indices.firstOrNull { it >= pairs && it !in taken && !lit(it) } ?: continue
+            taken += k
             if (((d.t / 100) + i * 13) % 37 == 0L) continue
-            c.set(ex.roundToInt() - 1, ey.roundToInt(), 1f); c.set(ex.roundToInt() + 1, ey.roundToInt(), 1f) }
+            val (ex, ey) = EYES[k]
+            c.set(ex - 1, ey, 1f); c.set(ex + 1, ey, 1f)
+        }
     }
 }

@@ -634,8 +634,12 @@ private object Kolobok : NewHero(
             val lon = kotlin.math.atan2(dx, z) - phi; val lat = kotlin.math.asin(dyy.coerceIn(-1f, 1f))
             var v = q5((0.22f + 0.78f * max(0f, -0.5f * dx - 0.4f * dyy + 0.75f * z)) * light)
             val L = ((lon + PIF) % TAU_F + TAU_F) % TAU_F - PIF
-            val eyeHit = abs(abs(L) - 0.38f) < 0.17f && abs(lat + 0.2f) < (if (eyes == 1) 0.07f else 0.2f)
-            val mouthHit = when (mouth) { 0 -> abs(L) < 0.32f && abs(lat - 0.35f - 0.25f * (L / 0.32f) * (L / 0.32f) * -1f) < 0.09f; 1 -> abs(L) < 0.32f && abs(lat - 0.42f + 0.15f * (1 - (L / 0.32f) * (L / 0.32f))) < 0.09f; 2 -> abs(L) < 0.12f && abs(lat - 0.4f) < 0.15f; else -> false }
+            // Sized by the ball's radius, so the face is two dark 2x2 eyes and a flat smile at every stage (wide
+            // fixed angles came out as tall slanted slits and a V of a mouth: an angry face on the LEDs).
+            val ew = 0.95f / r; val eL = kotlin.math.asin((2.25f / r).coerceAtMost(0.95f)); val eLat = 1.3f / r
+            val eyeHit = abs(abs(L) - eL) < ew && abs(lat + eLat) < (if (eyes == 1) ew * 0.45f else ew)
+            val mw = 1.95f / r; val mLat = 2.75f / r; val mTh = 0.52f / r
+            val mouthHit = when (mouth) { 0 -> abs(L) < mw && abs(lat - mLat + 0.12f * (L / mw) * (L / mw)) < mTh; 1 -> abs(L) < 0.32f && abs(lat - 0.42f + 0.15f * (1 - (L / 0.32f) * (L / 0.32f))) < 0.09f; 2 -> abs(L) < 0.12f && abs(lat - 0.4f) < 0.15f; else -> false }
             if (eyeHit || mouthHit) v = 0f
             c.set(x, y, v)
         }

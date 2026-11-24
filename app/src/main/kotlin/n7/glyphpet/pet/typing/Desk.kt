@@ -20,9 +20,10 @@ import kotlin.math.sin
  * Typing along, a mode of its own, like a game: the phone lies on the desk by the keyboard, the microphone hears the
  * keys, and the pet's own scene ([Desk]) takes the whole matrix. Each kind has its own: what every key does, what a
  * rush of fast typing does ([Tempo.RUSH]), how it waits in a pause, its little salute when a fast run ends ("sent"), and
- * two changes as the typing goes on: after [STAGE_MS] of it the scene becomes something else, and after another
- * [STAGE_MS] something else again. The changes are a picture, not a count: they come with time and go when the
- * typing ends.
+ * two changes as the typing goes on. The scene grows with the rhythm heard ([progress]): steady typing brings the
+ * second act after about 10 s and the third after 20 s, slow typing takes twice as long, a rush half. Two seconds
+ * without a key is a pause (the scene waits, and stops growing); five seconds ends it. Typing again within
+ * [RESUME_MS] goes on from the act it got to.
  */
 object Typing {
     /** Typing this long (pauses not counted) changes the scene; as long again, it changes once more. */
@@ -33,9 +34,12 @@ object Typing {
      */
     const val PACE = 2L
 
-    /** No key this long is a pause; this long (and the microphone no longer hears typing) ends the mode. */
-    const val PAUSE_MS = 1200L
-    const val END_MS = 4500L
+    /** No key this long is a pause; this long ends the mode. */
+    const val PAUSE_MS = 2000L
+    const val END_MS = 5000L
+
+    /** A scene that ended this recently is gone on with, not begun again. */
+    const val RESUME_MS = 60_000L
 
     /** The tempo is the keys of the last [RATE_MS]: from [FLOW_RATE] a second it flows, from [RUSH_RATE] it rushes. */
     const val RATE_MS = 1500L
@@ -45,8 +49,16 @@ object Typing {
     const val RUSH_HOLD_RATE = 4.5f
 
     /** A pause this soon after a rush is a message sent: the salute plays this long. */
-    const val SENT_WINDOW_MS = 1500L
+    const val SENT_WINDOW_MS = 2000L
     const val SENT_MS = 1400L
+
+    /** How fast the scene grows at [tempo]: half for slow keys, double in a rush, standing still in a pause. */
+    fun progress(tempo: Tempo): Float = when (tempo) {
+        Tempo.WARM -> 0.5f
+        Tempo.FLOW -> 1f
+        Tempo.RUSH -> 2f
+        Tempo.PAUSE -> 0f
+    }
 }
 
 /** How the typing goes now. */
@@ -87,7 +99,7 @@ class DeskInput(
     val heat: Float,
     val rest: Float,
     val pet: PetPainter,
-    /** Ms of typing since the mode began, pauses not counted: what a scene that grows grows with. */
+    /** How far the scene has grown, in ms of steady typing ([Typing.progress]), times [Typing.PACE]: what a scene that grows grows with. */
     val typed: Long = 0L,
 ) {
     val last: Key? get() = keys.lastOrNull()
@@ -168,13 +180,17 @@ class PetPainter(val species: Species, private val timeMs: Long, private val bli
         // The form nearest the size asked for (by the width), and what is left to scale it by.
         val wantW = w * scale
         var form = main
-        if (scale < 0.92f) for (f in smaller) { form = f; if (f.w <= wantW * 1.15f) break }
+        val small = scale < 0.92f
+        if (small) for (f in smaller) { form = f; if (f.w <= wantW * 1.15f) break }
         val k = form.w.toFloat() / w
         var fs = scale / k
         var fsy = sy / k
         // Close enough to its own size: drawn at it, cell for cell.
         if (fs in 0.8f..1.25f) { fsy /= fs; fs = 1f }
         if (fsy in 0.9f..1.12f) fsy = 1f
+        // Asked smaller, the form is always drawn cell for cell: shrunk further by sampling, a few rows and columns
+        // drop out and its eyes break up (worst while it moves); a little bigger than asked beats a broken face.
+        if (small) { fs = 1f; fsy = 1f }
         // Standing where the big one would: its feet on the same row.
         val yy = y + ((h - 1) * sy - (form.h - 1) * fsy) / 2f
         form.blit(c, x, yy, fs, fsy, look, gain, flipX, flipY, angle, below, above, outline, eyeDx, pattern)

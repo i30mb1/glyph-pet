@@ -21,124 +21,97 @@ internal fun DeskInput.mood(calm: Look = Look.CALM): Look = when {
 internal fun DeskInput.jump(high: Float = 4f): Float = if (sending) high * sin(sentP * PIF) else 0f
 
 /**
- * Cat: two big paws come up from the bottom and slap down, one then the other, with each key, a wave and sparks
- * rolling out from the slap; in a rush they drum. It grows as the typing goes on, a step every few seconds: a keyboard
- * under the paws (8 s), its key lighting where a paw hits; the cat's ears coming down from the top (16 s); its eyes,
- * glancing at the paw that hits (24 s); the whole face (32 s); whiskers that twitch with the keys (42 s); and at last a
- * contented cat (52 s), eyes shut in happy arcs and smiling between the keys. In a pause the paws rise and the cat
- * blinks and smiles; a sent message is both paws down at once and a ring of light.
+ * Cat at the keyboard: the whole cat sits facing us from the start, its paws on a keyboard. Each key one paw taps down
+ * and the key under it lights; the eyes follow the paw. A rush drums both paws and the eyes narrow; a pause lifts
+ * both paws off the keys and it waits, blinking; a
+ * sent message lifts both paws with happy eyes. After 10 s its tail comes in and swings with the keys; after 20 s
+ * whiskers, and between keys it shuts its eyes in content.
  */
 internal class CatDesk : Desk() {
     private companion object {
-        /** The steps, in seconds of typing. */
-        const val KEYBOARD = 8f
-        const val EARS = 16f
-        const val EYES = 24f
-        const val FACE = 32f
-        const val WHISKERS = 42f
-        const val CONTENT = 52f
-        val HEAD = listOf("#.........#", "##.......##", "###.....###", "###########", "###########", "###########",
-            "###########", "###########", "###########", ".#########.")
+        val HEAD = listOf(
+            "#.........#",
+            "##.......##",
+            "###.....###",
+            "###########",
+            "###########",
+            "###########",
+            "###########",
+            "###########",
+            "###########",
+            ".#########.",
+        )
+        const val HX = 7
+        const val HY = 3
+        const val B = 0.32f
     }
 
     override fun draw(c: Cv, d: DeskInput) {
-        val s = d.typed / 1000f
-        fun into(at: Float, over: Float = 1.2f) = ((s - at) / over).coerceIn(0f, 1f)
         val k = d.last
         val left = k == null || k.n % 2 == 0
-        val hit = d.hit(220)
+        val hit = d.hit(200) > 0f
         val rush = d.heat > 0.5f
-        val rest = d.paused
-        val strong = 0.5f + 0.5f * (s / 50f).coerceAtMost(1f) + 0.4f * d.heat
+        val content = d.stage >= 2 && d.sinceKey > 260 && !d.sending && !d.paused
+        val up = if (d.sending) -1 else 0
 
-        // The cat's head, coming down from the top: ears, then eyes, then the face.
-        if (s >= EARS) {
-            // The head stands in its place and shows from the top down: the ears, down to the eyes, then all of it.
-            val top = 2
-            val rows = when {
-                s < EYES -> 3
-                s < FACE -> 7
-                else -> HEAD.size
-            }
-            val fade = when {
-                s < EYES -> into(EARS)
-                s < FACE -> into(EYES)
-                else -> into(FACE)
-            }
-            HEAD.forEachIndexed { j, row ->
-                if (j >= rows) return@forEachIndexed
-                // The newest rows fade in; the edge of what shows is a soft fringe.
-                val newRow = j >= when { s < EYES -> 0; s < FACE -> 3; else -> 7 }
-                val b = 0.34f * (if (newRow) fade else 1f)
-                row.forEachIndexed { i, ch -> if (ch == '#') c.set(7 + i, top + j, b) }
-            }
-            val content = s >= CONTENT && d.sinceKey > 150
-            if (s >= EYES) {
-                val look = if (k != null && d.sinceKey < 600) (if (left) -1 else 1) else 0
-                val blink = rest && (d.t % 2400) < 150
-                for (ex in listOf(9, 14)) when {
-                    content -> { c.cut(ex, top + 5); c.cut(ex + 1, top + 4); c.cut(ex + 2, top + 5) }
-                    blink -> { c.cut(ex, top + 5); c.cut(ex + 1, top + 5) }
-                    else -> {
-                        for (dy in 0..1) for (dx in 0..1) c.cut(ex + dx + look, top + 4 + dy)
-                        c.set(ex + look, top + 4, 0.9f)
-                    }
-                }
-            }
-            if (s >= WHISKERS) {
-                val f = into(WHISKERS, 1.5f)
-                val twitch = if (hit > 0f) -1 else 0
-                for (side in listOf(-1, 1)) for (w in 0..2) for (i in 0..2) {
-                    val y = top + 6 + (w - 1) + (if (i == 2) (w - 1) else 0) + (if (i > 0) twitch else 0)
-                    c.put(12 + side * (7 + i), y, (0.45f + 0.4f * hit) * f)
-                }
-            }
-            if (s >= FACE) {
-                c.cut(12, top + 7); c.set(11, top + 7, 0.6f); c.set(13, top + 7, 0.6f)
-                if (rest || content) { c.cut(10, top + 8); c.cut(14, top + 8); c.cut(11, top + 9); c.cut(13, top + 9); c.cut(12, top + 8) }
+        // Tail (10 s): from behind the body, swinging with the keys.
+        if (d.stage >= 1) {
+            val sw = if (hit) 1 else 0
+            val tail = listOf(18 to 19, 19 to 19, 20 to 18, 21 to 17, 21 to 16, 21 + sw to 15, 20 + sw * 2 to 14)
+            for ((x, y) in tail) { c.set(x, y, B); c.set(x, y + 1, B * 0.6f) }
+        }
+        // Body: shoulders under the head, widening down to the keyboard.
+        for (y in 13..19) {
+            val half = 4 + (y - 13) / 2
+            for (x in 12 - half..12 + half) c.set(x, y + up, B)
+        }
+        // Head.
+        HEAD.forEachIndexed { j, row -> row.forEachIndexed { i, ch -> if (ch == '#') c.set(HX + i, HY + j + up, B) } }
+        // Ears perk with each key in the last act.
+        if (d.stage >= 2 && hit) { c.set(HX, HY - 1 + up, B); c.set(HX + 10, HY - 1 + up, B) }
+
+        // Eyes: two dark 2x2 holes, glancing at the paw that taps.
+        val ey = HY + 4 + up
+        val look = when { d.sending || content -> 0; k != null && d.sinceKey < 500 -> if (left) -1 else 0; else -> 0 }
+        val blink = d.paused && d.t % 2600 < 160
+        for (ex in listOf(HX + 2, HX + 7)) {
+            val x = ex + look
+            when {
+                d.sending -> { c.cut(x, ey + 1); c.cut(x + 1, ey); c.cut(x + 2, ey + 1) }
+                blink || content -> { c.cut(x, ey + 1); c.cut(x + 1, ey + 1) }
+                rush -> { c.cut(x, ey + 1); c.cut(x + 1, ey + 1); c.cut(x, ey); c.cut(x + 1, ey) ; c.set(x, ey, B) }
+                else -> { c.cut(x, ey); c.cut(x + 1, ey); c.cut(x, ey + 1); c.cut(x + 1, ey + 1) }
             }
         }
-
-        // The keyboard under the paws: the key a paw hits lights up.
-        val kb = into(KEYBOARD, 1.5f)
-        if (kb > 0f) {
-            for (x in 2..22) c.put(x, 23, 0.1f * kb)
-            for (x in 3..21 step 2) {
-                val under = k != null && d.sinceKey < 300 && abs(x - (if (left) 8 else 16)) <= 2
-                c.put(x, 22, (0.2f + if (under) 0.8f * hit else 0f) * kb)
-            }
+        // Nose and mouth.
+        c.cut(HX + 5, HY + 7 + up)
+        if (d.paused || content || d.sending) { c.cut(HX + 4, HY + 8 + up); c.cut(HX + 6, HY + 8 + up) }
+        // Whiskers (20 s), from the cheeks outwards.
+        if (d.stage >= 2) for (side in listOf(-1, 1)) {
+            val x0 = if (side < 0) HX - 1 else HX + 11
+            for (w in 0..1) { c.set(x0, HY + 6 + w * 2 + up, 0.22f); c.set(x0 + side, HY + 6 + w * 2 + up, 0.22f) }
         }
 
-        // A wave rolls out from each slap, sparks too once the cat is all there.
-        d.recent(600) { key, a ->
-            val q = a / 600f
-            val cx = if (key.n % 2 == 0) 8f else 16f
-            val r = 1f + q * (3f + 4f * strong)
-            for (i in 0 until 40) { val an = PIF + i / 40f * PIF; c.put(cx + cos(an) * r, 19f + sin(an) * r * 0.6f, 0.5f * (1f - q) * strong.coerceAtMost(1f)) }
-            if (s >= WHISKERS) for (j in 0..3) {
-                val an = 3.4f + j * 0.8f + h(key.n, j) * 0.4f
-                c.put(cx + cos(an) * q * 8f, 17f + sin(an) * q * 7f + q * q * 4f, 0.9f * (1f - q))
-            }
-        }
+        // Keyboard: a row of keys and its base.
+        for (x in 3..21) { c.set(x, 23, 0.1f); c.set(x, 22, if (x % 3 != 0) 0.2f else 0.1f) }
 
-        // The paws: the one that hits comes down; in a rush they drum; in a pause both rise.
-        val drum = ((d.t / 90) % 2 == 0L)
-        val dl = if (rush) (if (drum) 1f else 0f) else if (left) hit else 0f
-        val dr = if (rush) (if (drum) 0f else 1f) else if (!left) hit else 0f
-        if (d.sending) { paw(c, 7, 0f); paw(c, 17, 0f); c.ring(12f, 15f, 2f + d.sentP * 12f, 1f - d.sentP) }
-        else { paw(c, 7, if (rest) 1.3f else 1f - dl); paw(c, 17, if (rest) 1.3f else 1f - dr) }
+        // Paws: a rush drums them, a key taps one, a sent message lifts both.
+        val drum = (d.t / 100) % 2 == 0L
+        // A pause: it lifts both paws off the keys and waits, looking at you.
+        val downL = when { d.sending -> -2; d.paused -> -1; rush -> if (drum) 1 else 0; hit && left -> 1; else -> 0 }
+        val downR = when { d.sending -> -2; d.paused -> -1; rush -> if (drum) 0 else 1; hit && !left -> 1; else -> 0 }
+        paw(c, 8, downL)
+        paw(c, 16, downR)
     }
 
-    /** A big paw coming up from the bottom edge, [up] 0 slapped down .. 1 raised, its toe beans and pad lit. */
-    private fun paw(c: Cv, cx: Int, up: Float) {
-        val top = (14f + up * 4f).roundToInt()
-        for (y in top until 25) for (x in cx - 5..cx + 5) {
-            val dx = (x - cx) / 5.3f; val dy = (y - (top + 5)) / 5.8f
-            if (dx * dx + dy * dy <= 1f || (y > top + 5 && abs(x - cx) <= 4)) c.set(x, y, 0.34f)
-        }
-        for ((ox, oy) in listOf(-3 to 2, 0 to 1, 3 to 2)) c.set(cx + ox, top + oy, 0.95f)
-        for (ox in -1..1) c.set(cx + ox, top + 5, 0.95f)
-        c.set(cx, top + 6, 0.95f); c.set(cx - 1, top + 6, 0.6f); c.set(cx + 1, top + 6, 0.6f)
+    /** A paw on the keys at column [cx]: [down] 1 taps (and the key under it lights), 0 rests, below 0 raised. */
+    private fun paw(c: Cv, cx: Int, down: Int) {
+        val y = 19 + down
+        for (x in cx - 1..cx + 1) { c.set(x, y, 0.7f); c.set(x, y + 1, 0.7f) }
+        c.set(cx - 1, y + 1, 0.45f); c.set(cx + 1, y + 1, 0.45f)
+        // The arm from the body to the paw.
+        for (yy in 18 until y) c.set(cx, yy, B)
+        if (down == 1) for (x in cx - 2..cx + 2) if (x % 3 != 0) c.set(x, 22, 1f)
     }
 }
 
@@ -521,16 +494,15 @@ internal class ToastDesk : Desk() {
             val q = 1f - d.hit(420)
             val pop = if (d.last == null) 0f else 4f * 4f * q * (1f - q) * (if (d.sinceKey < 420) 1f else 0f)
             val lift = pop + d.heat * 3f + d.rest * 1.5f + d.jump(9f)
-            val flip = d.heat > 0.5f && d.n % 2 == 1
-            p.draw(c, 12f, 15f - lift, sc, d.mood(), flipY = flip, pattern = burnt)
-            if (d.heat > 0.3f) d.recent(600) { k, a -> c.put(10f + h(k.n) * 4f, 13f - (pop + 3f) + a / 60f, 0.4f) }
+            // A rush pops it higher; it is never turned upside down (its face, mouth and all, would flip over).
+            p.draw(c, 12f, 15f - lift - d.heat * 2f, sc, d.mood(), pattern = burnt)
         }
         // The toaster.
         for (y in 15..21) for (x in 6..18) c.set(x, y, if (y == 15 || y == 21 || x == 6 || x == 18) 0.34f else 0.16f)
         for (x in 9..15) c.set(x, 15, 0.04f)
         val lever = if (d.stage < 2 && d.sinceKey > 300) 18 else 16
         c.set(19, lever, 0.7f)
-        if (d.stage == 2) p.draw(c, 12f, p.onFeet(14f, sc, sc * 0.6f), sc, if (d.paused || d.sending) Look.HAPPY else Look.SLEEP, sy = sc * 0.6f, pattern = burnt)
+        if (d.stage == 2) p.draw(c, 12f, p.onFeet(14f, sc), sc, if (d.paused || d.sending) Look.HAPPY else Look.SLEEP, pattern = burnt)
     }
 }
 

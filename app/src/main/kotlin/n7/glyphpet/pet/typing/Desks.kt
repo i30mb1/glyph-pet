@@ -27,6 +27,15 @@ object Desks {
         "glitch" to ::DecryptToy, "hourglass" to ::SandToy, "bubble" to ::WrapToy, "capybara" to ::BathToy, "cassette" to ::BoomboxToy,
         "shadow" to ::TorchToy,
         "sprout" to ::VineToy, "moon" to ::EclipseToy, "tardigrade" to ::SurvivorToy, "planet" to ::TerraToy, "fox" to ::KitsuneToy,
+        // Redone with the owner (docs/design/typing-review).
+        "phoenix" to ::PhoenixSunDesk, "kolobok" to ::KolobokRoadDesk, "cactus" to ::CactusGardenDesk, "jelly" to ::JellyBloomDesk,
+        "ghost" to ::GhostCandlesDesk, "fishjar" to ::FishjarFeedDesk, "cloud" to ::CloudPondDesk,
+        "bot" to ::BotWorkshopDesk, "dino" to ::DinoDigDesk, "shroom" to ::ShroomChoirDesk, "fox" to ::FoxLanternsDesk,
+        "dandelion" to ::DandelionMeadowDesk, "slime" to ::SlimeDripDesk, "ufo" to ::UfoCropDesk,
+        "penguin" to ::PenguinIglooDesk, "crab" to ::CrabCastleDesk, "bee" to ::BeeCombDesk, "bat" to ::BatCaveDesk,
+        "hedgehog" to ::HedgehogBurrowDesk, "kodama" to ::KodamaTreeDesk,
+        "astronaut" to ::AstronautLaunchDesk, "kraken" to ::KrakenWakeDesk, "tardigrade" to ::TardigradeDesk,
+        "cassette" to ::CassetteMixtapeDesk, "ferro" to ::FerroTowerDesk, "shadowplay" to ::ShadowPlayDesk, "meadow" to ::MeadowFlowersDesk, "pond" to ::PondFishingDesk,
     )
 
     val kinds: Set<String> get() = makers.keys

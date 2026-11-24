@@ -679,18 +679,25 @@ class PetEngine(
     private var typeRushAt = Long.MIN_VALUE / 4
     private var typeHeat = 0f
     private var typeRest = 0f
+    /** Where the last scene got to when it ended (its kind, its progress, and when, in [time]), to go on from there. */
+    private var typeLeftKind: String? = null
+    private var typeLeftTyped = 0L
+    private var typeLeftAt = Long.MIN_VALUE / 4
 
     /**
      * Starts, runs and ends the typing scene: on while someone types by the phone and the pet is awake, off the
-     * charger; it ends [n7.glyphpet.pet.typing.Typing.END_MS] after the last key once the microphone no longer hears
-     * typing, when the pet falls asleep or goes on the charger, or when the pet is swapped.
+     * charger; it ends [n7.glyphpet.pet.typing.Typing.END_MS] after the last key, when the pet falls asleep or goes on
+     * the charger, or when the pet is swapped. Typing again within [n7.glyphpet.pet.typing.Typing.RESUME_MS] goes on
+     * from the act it got to.
      */
     private fun updateTyping(dtMs: Long, scene: Scene, species: Species, asleep: Boolean) {
         val T = n7.glyphpet.pet.typing.Typing
         val can = !asleep && !scene.charging && moment == null
         if (!typeOn && scene.typing && can) {
             typeOn = true
-            typeMs = 0L; typedMs = 0L; typeN = 0; typeKeys.clear()
+            typeMs = 0L; typeN = 0; typeKeys.clear()
+            // Typing again soon after a scene ended goes on from where it got to.
+            typedMs = if (typeLeftKind == species.kind && time - typeLeftAt < T.RESUME_MS) typeLeftTyped else 0L
             typeKind = species.kind
             desk = n7.glyphpet.pet.typing.Desks.make(species.kind)
             typeTempo = n7.glyphpet.pet.typing.Tempo.WARM
@@ -703,9 +710,6 @@ class PetEngine(
         if (!typeOn) return
         typeMs += dtMs
         val since = typeMs - (typeKeys.lastOrNull()?.at ?: 0L)
-        if (since < T.PAUSE_MS) typedMs += dtMs
-        val stage = (typedMs * T.PACE / T.STAGE_MS).toInt().coerceAtMost(2)
-        if (stage != typeStage) { typeStage = stage; typeStageAt = typeMs }
         typeRate = typeKeys.count { typeMs - it.at < T.RATE_MS } * 1000f / T.RATE_MS
         val was = typeTempo
         typeTempo = when {
@@ -715,14 +719,19 @@ class PetEngine(
             else -> n7.glyphpet.pet.typing.Tempo.WARM
         }
         if (typeTempo == n7.glyphpet.pet.typing.Tempo.RUSH) typeRushAt = typeMs
+        // The scene grows with the typing heard: slow keys at half speed, a rush at double, not at all in a pause.
+        typedMs += (dtMs * T.progress(typeTempo)).toLong()
+        val stage = (typedMs * T.PACE / T.STAGE_MS).toInt().coerceAtMost(2)
+        if (stage != typeStage) { typeStage = stage; typeStageAt = typeMs }
         // A pause right after a fast run: a message sent.
         if (typeTempo == n7.glyphpet.pet.typing.Tempo.PAUSE && was != n7.glyphpet.pet.typing.Tempo.PAUSE && typeMs - typeRushAt < T.SENT_WINDOW_MS) typeSentAt = typeMs
         val k = (dtMs / 350f).coerceAtMost(1f)
         typeHeat += ((if (typeTempo == n7.glyphpet.pet.typing.Tempo.RUSH) 1f else 0f) - typeHeat) * k
         typeRest += ((if (typeTempo == n7.glyphpet.pet.typing.Tempo.PAUSE) 1f else 0f) - typeRest) * k
-        if (!can || (!scene.typing && since >= T.END_MS) || species.kind != typeKind) {
+        if (!can || since >= T.END_MS || species.kind != typeKind) {
             typeOn = false
             desk = null
+            typeLeftKind = typeKind; typeLeftTyped = typedMs; typeLeftAt = time
         }
     }
 
@@ -907,7 +916,8 @@ class PetEngine(
         // matrix at once (the meal's last hop over the pet at home read as a smeared double, the gem's most of all).
         val jumpEdge = lastLook != null && (lastLook!![0] as? Face)?.let { SpeciesRenderer.jumpOf(it) } != (look[0] as? Face)?.let { SpeciesRenderer.jumpOf(it) }
         // A face that jumps (happy) against one that does not, mixed, is the pet twice a row apart: a smear, so it cuts.
-        val gameEdge = jumpEdge || lastLook != null && (lastLook!![3] != look[3] || (lastLook!![4] == true && look[4] == false) || (lastLook!![5] == true && look[5] == false))
+        // The typing scene coming on or going off cuts too: mixed, the pet and its scene showed two pictures at once.
+        val gameEdge = jumpEdge || lastLook != null && (lastLook!![3] != look[3] || lastLook!![9] != look[9] || (lastLook!![4] == true && look[4] == false) || (lastLook!![5] == true && look[5] == false))
         if (lastLook != null && look != lastLook && prev != null && !gameEdge) { fadeFrom = prev; fadeMs = 0 }
         if (gameEdge) { fadeMs = -1; fadeFrom = null }
         lastLook = look

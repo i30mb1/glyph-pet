@@ -38,11 +38,11 @@ import n7.glyphpet.pet.XpSource
  * few shakes instead. The matrix shows the form of the pet the player picked. While the player has put an egg on the
  * matrix the pet is away: the matrix shows the egg and holding the button cracks it; the fifth press hatches it.
  * On the charger the pet shows the battery level and the charging speed in its own way.
- * Always-on: at every EVENT_AOD (once a minute) the pet comes to life for [AOD_BURST_MS], then holds a calm frame
- * till the next one; a notification wakes it for a moment too.
+ * Always-on is full life: the pet lives on exactly as in the hand (it types along, notices, sleeps), never freezing
+ * into a still frame; EVENT_AOD (once a minute) only makes sure it is running.
  * Nobody sees the matrix while the phone lies screen up or is in a pocket: then it stays dark (a setting, on by default).
  * The phone answers with short, soft vibrations ([Haptics], a setting, on by default): never for a sleeping pet (only its
- * egg and hatch), never in Always-on frames.
+ * egg and hatch).
  */
 class PetToyService : Service(), GlyphMatrixManager.Callback {
 
@@ -57,9 +57,6 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
 
         /** A notification in Always-on wakes the pet for this long, then the calm frame comes back. */
         const val BURST_MS = 2600L
-
-        /** Every Always-on minute the pet lives this long (a blink, a look round) before the calm frame comes back. */
-        const val AOD_BURST_MS = 2500L
 
         /** Tipping the phone this far (radians, about 25 degrees) from how it is held is [Scene.toward] 1. */
         const val TOWARD_FULL = 0.45f
@@ -113,9 +110,6 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
 
     /** While > 0: the live loop was started by a notification in Always-on and ends at this uptime. */
     private var burstUntil = 0L
-
-    /** The live burst running now is Always-on's minute ([AOD_BURST_MS]): silent, nobody asked for it. */
-    private var aodBurst = false
 
     /** When the pet last called for its owner (uptime), and how many calls in a row nobody has answered. */
     private var calledAt = Long.MIN_VALUE / 2
@@ -238,7 +232,6 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
     private fun onLongPress() {
         // The button was pressed: someone has the phone in hand. Light up now, hide again later if it is put away.
         burstUntil = 0
-        aodBurst = false
         hideGate.reset()
         if (!running) startLive()
         val n = nursery ?: store.nursery()
@@ -294,8 +287,6 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
      * are felt.
      */
     private fun feel(kind: HapticKind, strength: Float = 1f) {
-        // Always-on's minute of life is to be seen, not felt: no buzz every minute.
-        if (aodBurst) return
         val egg = kind == HapticKind.CRACK || kind == HapticKind.HATCH_SWING || kind == HapticKind.HATCH_RISE ||
             kind == HapticKind.HATCH_FLASH
         if (mood == Mood.SLEEPING && !egg) return
@@ -317,15 +308,12 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         if (n7.glyphpet.BuildConfig.DEBUG && xpLog.length < 200) xpLog.append(source).append('+').append(xp).append(' ')
     }
 
+    /** Always-on's minute: the pet goes on living (full life, never a frozen frame); only started if it was not. */
     private fun onAod() {
-        burstUntil = 0
-        stopLive()
         sync(force = true)
-        // The pet lives for a moment, then the calm frame is back (renderLive).
         if (!connected) { drawStill(); return }
-        burstUntil = SystemClock.uptimeMillis() + AOD_BURST_MS
-        aodBurst = true
-        startLive()
+        burstUntil = 0
+        if (!running) startLive()
     }
 
     /** The calm Always-on frame, or darkness if nobody can see the matrix right now. */
@@ -350,7 +338,6 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         }
         sync(force = true)
         burstUntil = SystemClock.uptimeMillis() + BURST_MS
-        aodBurst = false
         startLive()
         engine.notice()
     }
@@ -365,7 +352,6 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         if (on && !running) {
             sync(force = true)
             burstUntil = SystemClock.uptimeMillis() + RING_BURST_MS
-            aodBurst = false
             startLive()
         } else if (!on && burstUntil > 0) {
             burstUntil = SystemClock.uptimeMillis() + BURST_MS / 2
@@ -418,7 +404,6 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             return
         }
         burstUntil = now + BURST_MS
-        aodBurst = false
         startLive()
         engine.alert()
     }
@@ -433,14 +418,13 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         hideGate.reset()
         reactions.reset()
         motion.start()
-        // Always-on's minute is silent and nobody is there to blow: the microphone only listens when the pet is live.
-        if (store.mic && !aodBurst && burstUntil == 0L) mic.start()
+        // A short wake-up (a call, a notice) is over before anyone could type or blow: the microphone waits for full life.
+        if (store.mic && burstUntil == 0L) mic.start()
         lastFrameAt = SystemClock.uptimeMillis()
         main.post(frameLoop)
     }
 
     private fun stopLive() {
-        aodBurst = false
         running = false
         main.removeCallbacks(frameLoop)
         if (::motion.isInitialized) motion.stop()
@@ -460,7 +444,6 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         }
         if (burstUntil > 0 && now >= burstUntil) {
             burstUntil = 0
-            aodBurst = false
             stopLive()
             drawStill()
             return
@@ -470,7 +453,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
         // and switched off it stops listening there and then.
         if (now - micCheckedAt >= MIC_CHECK_MS) {
             micCheckedAt = now
-            if (store.mic && !aodBurst && burstUntil == 0L) mic.start() else if (!store.mic) mic.stop()
+            if (store.mic && burstUntil == 0L) mic.start() else if (!store.mic) mic.stop()
         }
         if (hideUnseen && hidden(now)) {
             // Nobody can see the matrix: whatever the phone did, the pet does nothing about it.
