@@ -1167,6 +1167,8 @@ private object Dragon : Anomaly(
         listOf("#.......#", "##.....##", ".#######.", "##o###o##", "#########", ".#######.", "..#-#-#..", "...###..."),
     )
     private val L = floatArrayOf(3.2f, 3.8f, 4.3f)
+    private val BODY_R = floatArrayOf(1.1f, 1.4f, 1.7f)
+    private val SCALES = Tubes.Look(lit = 0.8f, core = 0.45f, shadow = 0.2f, thin = 0.5f, thinBelow = 0.95f)
 
     /** The body from its head at angle [a] back along the ring; [inward] pulls the head off the rim towards the middle. */
     fun body(
@@ -1175,21 +1177,22 @@ private object Dragon : Anomaly(
         coil: Float = 0f, bulge: Float = -1f, wing: Float = 0.6f + 0.4f * sin(t / 500f), web: Float = 0f,
     ): Pair<Float, Float> {
         val n = (len * r * 2.2f).toInt()
+        // The body: one lit tube from the neck to the tail, thick behind the head and thin at the tail, with bands of scales.
+        fun ringAt(q: Float): Pair<Float, Float> {
+            val aa = a - dir * q * len; val rr = r - coil * q * r * 0.7f + wave * sin(q * 9f - t / 150f) * 0.6f
+            return (12 + rr * cos(aa)) to (12 + rr * sin(aa))
+        }
+        Tubes.paint(c, listOf(Tube(Tubes.path(n * 2) { s -> ringAt(s.coerceAtLeast(0.5f / n)) }, BODY_R[st], 0.7f)), SCALES, b, shade = { s, v0 ->
+            var v = v0 * (1f - s * 0.45f) * (if (((s * n).toInt() / 2) % 2 == 0) 1f else 0.72f)
+            if (s > lit) v *= 0.3f
+            if (shimmer >= 0 && abs(s - shimmer) < 0.08f) v = 1f
+            if (bulge >= 0 && abs(s - bulge) < 0.06f) v = 0.9f
+            v
+        })
         for (i in n downTo 1) {
             val q = i.toFloat() / n
             val aa = a - dir * q * len
             val rr = r - coil * q * r * 0.7f + wave * sin(q * 9f - t / 150f) * 0.6f
-            val px = 12 + rr * cos(aa); val py = 12 + rr * sin(aa)
-            val scale = if ((i / 2) % 2 == 0) 0.6f else 0.3f
-            var v = b * scale * (1f - q * 0.45f)
-            if (q > lit) v *= 0.3f
-            if (shimmer >= 0 && abs(q - shimmer) < 0.08f) v = 1f
-            if (bulge >= 0 && abs(q - bulge) < 0.06f) v = 0.9f
-            c.put(px, py, v)
-            // a second row of scales inside, thinning to the tail; spines along the back
-            if (q < 0.45f + 0.15f * st) c.put(12 + (rr - 1) * cos(aa), 12 + (rr - 1) * sin(aa), v * 0.65f)
-            if (st == 2 && q < 0.3f) c.put(12 + (rr - 2) * cos(aa), 12 + (rr - 2) * sin(aa), v * 0.45f)
-            if (st == 2 && i % 4 == 0 && q < 0.8f) c.put(12 + (rr + 1) * cos(aa), 12 + (rr + 1) * sin(aa), v * 0.6f)
             // two pairs of little legs gripping the rim, a forked tip on the tail
             if (abs(q - 0.22f) < 0.5f / n || abs(q - 0.58f) < 0.5f / n) {
                 val kick = if (((t / 200) + (if (q < 0.4f) 0 else 1)) % 2 == 0L) 0.5f else -0.5f

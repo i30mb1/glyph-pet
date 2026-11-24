@@ -486,13 +486,20 @@ private object Dandelion : NewHero(
         "eating" to "пьёт каплю", "game" to "семена на ветру", "loved" to "светится", "dizzy" to "голова кругом",
         "tilt" to "гнётся стебель", "charging" to "тянется к солнцу", "grow" to "прорастает"),
 ) {
+    private val STEM = Tubes.Look(lit = 0.5f, core = 0.33f, shadow = 0.15f, thin = 0.36f, thinBelow = 0.95f)
+    /** The stem's wave for the clip being drawn ([Tubes.waveMs]); pastimes draw on the calm clock. */
+    private var waveMs = 3200f
+
     /** [open] (0 shut .. 1 open) overrides [closed]; [lx], [ly] turn the eyes; eyes -1 hides them. */
     private fun flower(c: Cv, st: Int, t: Long, seeds: Int, sway: Float, eyes: Int, b: Float = 1f, droop: Float = 0f, closed: Boolean = false,
                        open: Float = -1f, lx: Int = 0, ly: Int = 0) {
         val k = s(st)
         val stemTop = 21f - 11f * k
         val hx = 12f + sway + droop * 3; val hy = stemTop + droop * 3
-        for (i in 0..20) { val q = i / 20f; c.put(mix(12f, hx, q * q), mix(21f, hy + 2, q), 0.33f * b) }
+        // The stem: a lit tube, thick at the ground and thin under the head, a slow wave running up it (its ends stay put).
+        val wv = TAU * t / waveMs
+        Tubes.paint(c, listOf(Tube(Tubes.path(40) { q -> (mix(12f, hx, q * q) + 2.6f * k * sin(wv - q * 3f) * q * (1 - q)) to mix(21f, hy + 2, q) }, 0.75f + 0.45f * k, 0.75f)),
+            STEM, b, clip = { _, y -> y <= 21 }, crumbs = false)
         c.line(12f, 18f, 9.5f, 16f, 0.28f * b); c.line(12f, 19.5f, 14.5f, 17.5f, 0.28f * b)
         c.disc(hx, hy, 2f * k + 0.3f, 0.4f * b)
         val r = mix(2.6f, 4.6f, if (open >= 0f) open else if (closed) 0f else 1f) * k
@@ -581,6 +588,7 @@ private object Dandelion : NewHero(
     private val tFly = ArrayList<Long>()
 
     override fun draw(c: Cv, col: String, t: Long, st: Int, tilt: Float) {
+        waveMs = Tubes.waveMs(col)
         if (isPastime(col)) { if (!calmEdge(c, col, t, st)) pastime(c, col, t, st); return }
         val seeds = DrawnWorld.seeds.toInt().coerceIn(0, 16)
         val e = if (blink(t)) 1 else 0

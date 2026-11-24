@@ -343,6 +343,9 @@ private object Sprout : EggHero(
         "tilt" to "растёт вверх, куда ни наклони", "charging" to "фотосинтез", "grow" to "семечко проклюнулось"),
 ) {
     private val H = floatArrayOf(4f, 6f, 8f)
+    private val STEM = Tubes.Look(lit = 0.62f, core = 0.42f, shadow = 0.2f, thin = 0.45f, thinBelow = 0.95f)
+    /** The stem's wave for the clip being drawn ([Tubes.waveMs]); pastimes draw on the calm clock. */
+    private var waveMs = 3200f
     private fun plant(
         c: Cv, st: Int, t: Long, lean: Float = 0f, droop: Float = 0f, eyes: Int = 0, leaf: Float = 0f, bloom: Float = if (st == 2) 0.5f else 0f, h: Float = H[st], b: Float = 1f,
         look: Int = 0, reach: List<Pair<Float, Float>>? = null,
@@ -351,7 +354,10 @@ private object Sprout : EggHero(
         // A glance moves only the inner eye, so neither ever sits on the pot's rim.
         c.eyes(10f + max(look, 0), 14f + min(look, 0), 18f, eyes)
         val topX = 12f + lean; val topY = 16f - h + droop
-        c.line(12f, 16f, topX, topY, 0.42f * b)
+        // The stem: a lit tube from the pot to the bud, a slow wave running up it (its ends stay put).
+        val wv = TAU * t / waveMs
+        Tubes.paint(c, listOf(Tube(Tubes.path(30) { q -> (mix(12f, topX, q) + 1.6f * sin(wv - q * 3f) * q * (1 - q)) to mix(16f, topY, q) }, 0.8f + 0.2f * st, 0.75f)),
+            STEM, b, clip = { _, y -> y <= 16 }, crumbs = false)
         val ly = 16f - h * 0.55f + droop * 0.6f; val lx = 12f + lean * 0.55f
         val open = 1f - droop / 4f + leaf
         c.line(lx, ly, lx - 2.5f * open, ly - 1.2f * open + droop * 0.5f, 0.45f * b); c.put(lx - 2.5f * open, ly - 1.2f * open + droop * 0.5f, 0.7f * b)
@@ -402,6 +408,7 @@ private object Sprout : EggHero(
     }
 
     override fun draw(c: Cv, col: String, t: Long, st: Int, tilt: Float) {
+        waveMs = Tubes.waveMs(col)
         if (pastimes.any { it.id == col }) { pastime(c, col, t, st); return }
         val sw = sin(t / 700f) * 0.8f
         when (col) {
@@ -775,37 +782,72 @@ private object Kraken : EggHero(
         "eating" to "утаскивает рыбку", "game" to "топит кораблики", "loved" to "щупальца аркой", "dizzy" to "водоворот",
         "tilt" to "вода и щупальца кренятся", "charging" to "кончики светятся", "grow" to "кальмарчик всплыл"),
 ) {
-    private fun sea(c: Cv, t: Long, level: Float = 17f, slope: Float = 0f) { for (x in 0..24) c.put(x.toFloat(), level + sin(x * 0.7f + t / 400f) * 0.6f + (x - 12) * slope, 0.25f) }
-    /** An arm raised above its usual 9 in a pastime ([arms] with hk) straightens up as it goes: how much of its sway it keeps. */
-    private fun keep(h: Float) = 1f - 0.75f * ((h - 9f) / 4f).coerceIn(0f, 1f)
-    /** [hk] gives each arm a height of its own (in place of [h]); a raised arm straightens and is drawn joined up. */
-    private fun arms(
-        c: Cv, st: Int, t: Long, h: Float = 9f, lean: Float = 0f, curl: Int = -1, tip: Float = 0.5f, b: Float = 1f, level: Float = 17f, n: Int = 2 + st, speed: Float = 300f,
-        hk: ((Int) -> Float)? = null,
-    ) {
-        for (k in 0 until n) {
-            val bx = 12f + (k - (n - 1) / 2f) * (16f / n)
-            val hh = hk?.invoke(k) ?: h
-            var px = 0; var py = 0
-            for (j in 0..hh.toInt()) {
-                val q = j / hh
-                val x = if (k == curl) bx + cos(j * 0.8f + t / 200f) * j * 0.3f else bx + sin(t / speed + k * 1.7f + j * 0.5f) * j * 0.25f * (if (hk != null) keep(hh) else 1f) + lean * q * 4
-                c.put(x, level - j, (if (j % 3 == 0) 0.5f else 0.3f) * b * (if (j == hh.toInt()) tip / 0.5f else 1f))
-                val xi = x.roundToInt(); val yi = (level - j).roundToInt()
-                if (hk != null && j >= 9 && abs(xi - px) > 1) c.line(px.toFloat(), py.toFloat(), xi.toFloat(), yi.toFloat(), 0.3f * b)
-                px = xi; py = yi
-            }
-        }
+    /** Where the sea is at column [x]: a swell every [period] ms (whole swells per clip, so no clip jumps where it loops); flat when 0. */
+    private fun seaY(x: Int, t: Long, level: Float, slope: Float, period: Float) =
+        level + (if (period > 0f) sin(x * 0.7f + TAU * t / period) * 0.6f else 0f) + (x - 12) * slope
+    private fun sea(c: Cv, t: Long, level: Float = 17f, slope: Float = 0f, period: Float = 1600f) {
+        for (x in 0..24) c.put(x.toFloat(), seaY(x, t, level, slope, period), 0.25f)
     }
-    /** The tip of arm [k] of [n] at height [h] (calm sway): where a thrown shell lands. */
-    private fun tipOf(k: Int, n: Int, t: Long, h: Int): Pair<Float, Float> =
-        (12f + (k - (n - 1) / 2f) * (16f / n) + sin(t / 300f + k * 1.7f + h * 0.5f) * h * 0.25f * keep(h.toFloat())) to (17f - h)
+
+    // The arms are lit tubes: thick at the water, thin at the tip, a wave running up them and the tip coiling.
+
+    private val LEN = floatArrayOf(9.5f, 10.5f, 11.5f)
+    private val R0 = floatArrayOf(1.25f, 1.45f, 1.6f)
+
+    /** How long an arm [h] rows tall (the old one-LED arms' height) is at stage [st]: raised arms grow cell for cell. */
+    private fun len(h: Float, st: Int) = if (h <= 9f) h / 9f * LEN[st] else LEN[st] + (h - 9f)
+    /** An arm raised above its usual 9 in a pastime straightens up as it goes: how much of its sway it keeps. */
+    private fun keep(h: Float) = 1f - 0.75f * ((h - 9f) / 4f).coerceIn(0f, 1f)
+
+    /** A spine from ([bx], [root]): [len] cells, leaning [lean] rad, a wave [amp] running root to tip at [phase], the tip curled [curl] rad. */
+    private fun spine(bx: Float, root: Float, len: Float, lean: Float, phase: Float, amp: Float, curl: Float) =
+        Tubes.spine(bx, root, len, -PI_F / 2 + lean, phase, amp, curl)
+
+    /** Arm [k] of [n]: rising from [level], [hh] tall, its wave and coil once every [period] ms; [curled] rolls it up tight. */
+    private fun arm(k: Int, n: Int, st: Int, t: Long, hh: Float, lean: Float, curled: Boolean, level: Float, period: Float, pastime: Boolean, droop: Float = 0f): Tube {
+        val gap = (if (n >= 4) 15f else 17f) / n
+        val bx = 12f + (k - (n - 1) / 2f) * gap
+        val side = if (k < (n - 1) / 2f) -1f else 1f
+        val calm = if (pastime) keep(hh) else 1f
+        val outer = if (n == 4 && (k == 0 || k == 3)) 0.8f else 1f   // the grown-up's outer arms stay inside the rim
+        val w = TAU * t / period
+        val coil = if (curled) side * (2.4f + 0.55f * st + (1f + 0.25f * st) * sin(w)) else side * ((0.5f + 1.1f * (0.5f + 0.5f * sin(w + k * 2.1f))) * calm + droop)
+        return Tube(spine(bx, level + 1, len(hh, st) * outer, side * 0.1f + lean * 0.45f, w + k * 1.7f, 0.4f * calm, coil), min(R0[st], gap * 0.43f), 0.75f)
+    }
+
+    /** Draws [arms] as lit tubes ([Tubes]), nothing at or under the water ([water] for a column); [b] dims them, [tip] lights their tips. */
+    private fun paint(c: Cv, arms: List<Tube>, water: (Int) -> Float, b: Float = 1f, tip: Float? = null) {
+        Tubes.paint(c, arms, b = b, clip = { x, y -> y < water(x) - 0.5f }, shade = tip?.let { tp -> { s: Float, v: Float -> if (s > 0.8f) tp else v } })
+    }
+
+    /**
+     * The arms out of the sea: [n] of them, [h] tall (or [hk] each, a raised one straightening as it goes), swaying with a
+     * wave that runs up them once every [period] ms; [curl] is one arm rolled up tight, [lean] bends them all, [droop] hangs
+     * their tips down. Cut at the
+     * sea drawn with the same [slope] and [swell] (0: flat at [level]). [extra] arms are drawn last, in front.
+     */
+    private fun arms(
+        c: Cv, st: Int, t: Long, h: Float = 9f, lean: Float = 0f, curl: Int = -1, tip: Float? = null, b: Float = 1f, level: Float = 17f,
+        n: Int = 2 + st, period: Float = 3200f, hk: ((Int) -> Float)? = null, slope: Float = 0f, swell: Float = 1600f, extra: List<Tube> = emptyList(), droop: Float = 0f,
+    ) {
+        val order = (0 until n).sortedByDescending { abs(it - (n - 1) / 2f) }   // the outer ones behind, the middle in front
+        val list = order.map { k -> arm(k, n, st, t, hk?.invoke(k) ?: h, lean, k == curl, level, period, hk != null, droop) } + extra
+        paint(c, list, { x -> seaY(x, t, level, slope, swell) }, b, tip)
+    }
+
+    /** The tip of arm [k] of [n] at height [h] in a pastime (calm sway): where a thrown shell lands. */
+    private fun tipOf(k: Int, n: Int, st: Int, t: Long, h: Int): Pair<Float, Float> {
+        val p = arm(k, n, st, t, h.toFloat(), 0f, false, 17f, 3200f, true).pts
+        return p[p.size - 2] to p[p.size - 1]
+    }
     private fun eye(c: Cv, x: Float, y: Float, open: Boolean = true, r: Float = 2.5f, look: Int = 0) { c.oval(x, y, r, r * 0.6f, 0.6f); if (open) c.cut(x + look, y) else c.line(x - 1, y, x + 1, y, 0.2f) }
     override val pastimes = listOf(
         DrawnPastime("juggles_shell", 5600, "жонглирует ракушкой",
             "Достаёт со дна ракушку и перекидывает её с щупальца на щупальце, следя за ней глазом; потом роняет обратно в воду."),
         DrawnPastime("arm_wave", 4800, "пускает волну щупальцами",
             "Щупальца поднимаются по очереди, как волна на стадионе: слева направо, обратно и ещё раз; глаз довольно жмурится."),
+        DrawnPastime("unfurls", 6400, "разворачивает щупальце",
+            "Из воды поднимается щупальце, свёрнутое, как лист папоротника, медленно разворачивается во весь рост и качается, по нему бегут волны; потом сворачивается обратно и уходит под воду."),
     )
 
     /** A shell: a fan on its base, [x] its middle, [y] its bottom row. */
@@ -833,9 +875,9 @@ private object Kraken : EggHero(
                 val toss = tosses.firstOrNull { t in it.third until it.third + 450 }
                 val at: Pair<Float, Float>? = when {
                     t < 1080 || t >= 4400 -> null
-                    toss != null -> { val p = seg(t, toss.third, toss.third + 450); val (ax, ay) = tipOf(toss.first, n, ct, h(toss.first)); val (bx, by) = tipOf(toss.second, n, ct, h(toss.second))
+                    toss != null -> { val p = seg(t, toss.third, toss.third + 450); val (ax, ay) = tipOf(toss.first, n, st, ct, h(toss.first)); val (bx, by) = tipOf(toss.second, n, st, ct, h(toss.second))
                         mix(ax, bx, p) to mix(ay, by, p) - 4f * sin(p * PI_F) }
-                    else -> { val k = tosses.lastOrNull { t >= it.third }?.second ?: 0; tipOf(k, n, ct, h(k)) }
+                    else -> { val k = tosses.lastOrNull { t >= it.third }?.second ?: 0; tipOf(k, n, st, ct, h(k)) }
                 }
                 if (at != null) shell(c, at.first.roundToInt(), at.second.roundToInt() - 1)
                 val look = at?.let { if (it.first < 9f) -1 else if (it.first > 15f) 1 else 0 } ?: 0
@@ -854,6 +896,20 @@ private object Kraken : EggHero(
                 val look = if (up(top) < 0.2f) 0 else if (bx < 10f) -1 else if (bx > 14f) 1 else 0
                 if (eyeOn) eye(c, 12f, 19f, open = t !in (PEDGE + 3500)..(PEDGE + 3800), look = look)
             }
+            "unfurls" -> {
+                // The middle arm (the teen's own sinks out of its way) rises rolled up like a fern frond, unrolls to its
+                // full height, sways with two waves running up it, then rolls up again and sinks; the eye watches it.
+                val mid = if (n % 2 == 1) (n - 1) / 2 else -1
+                val sink = ease(seg(t, PEDGE, 1000)) * (1f - ease(seg(t, 5400, ms - PEDGE)))
+                val grow = ease(seg(t, 900, 2600)) * (1f - ease(seg(t, 4700, 5500)))
+                val roll = 5f * (1f - ease(seg(t, 1100, 2700))) + 5f * ease(seg(t, 4300, 5300))
+                val amp = 0.5f * ease(seg(t, 2000, 2800)) * (1f - ease(seg(t, 4300, 4800)))
+                val w = TAU * t / ms * 2
+                val big = (len(9f, st) + 3f + st) * grow
+                val fern = if (big > 0.8f) listOf(Tube(spine(12f, 18f, big, 0f, w, amp, roll + 1.2f + 0.8f * sin(w)), R0[st] + 0.5f, 0.8f)) else emptyList()
+                arms(c, st, ct, hk = { if (it == mid) 9f * (1f - sink) else 9f }, extra = fern)
+                if (eyeOn) eye(c, 12f, 19f, open = t in 2600L..4600L)
+            }
         }
     }
 
@@ -861,30 +917,40 @@ private object Kraken : EggHero(
         if (pastimes.any { it.id == col }) { pastime(c, col, t, st); return }
         when (col) {
             "calm" -> { sea(c, t); arms(c, st, t); if (t % 3200 in 800..2400) eye(c, 12f, 19f) }
-            "happy" -> { sea(c, t); arms(c, st, t, h = 9f + hop(t, 400f, 3f), speed = 120f); for (i in 0 until 4) c.put(4f + i * 5, 13f - hop(t + i * 100, 400f, 3f), 0.7f) }
+            "happy" -> { sea(c, t, period = 2400f); arms(c, st, t, h = 9f + hop(t, 400f, 3f), period = 800f, swell = 2400f); for (i in 0 until 4) c.put(4f + i * 5, 13f - hop(t + i * 100, 400f, 3f), 0.7f) }
             "habit" -> { sea(c, t); arms(c, st, t, curl = 0); eye(c, 12f, 19f) }
-            "signature" -> { val p = sin(seg(t, 0, 6000) * PI_F); val lvl = 22f - p * 8; c.oval(12f, lvl + 3, 6f, 5f, 0.3f, 0.45f); eye(c, 12f, lvl + 2, r = 2.5f + p); arms(c, 2, t, h = 6f + p * 8, level = lvl + 6, n = 6, speed = 150f); sea(c, t, 18f) }
+            "signature" -> { val p = sin(seg(t, 0, 6000) * PI_F); val lvl = 22f - p * 8; c.oval(12f, lvl + 3, 6f, 5f, 0.3f, 0.45f)
+                arms(c, 2, t, h = 6f + p * 8, level = lvl + 6, n = 6, period = 6400f / 7, swell = 0f); eye(c, 12f, lvl + 2, r = 2.5f + p); sea(c, t, 18f) }
             "hungry" -> { sea(c, t); val fx = (t / 20f) % 30 - 3; c.rows(listOf(".#o", "###", ".#."), fx.roundToInt(), 8, 0.5f); arms(c, st, t, lean = ((fx - 12) / 12f).coerceIn(-1f, 1f)); eye(c, 12f, 19f) }
-            "sad" -> { rain(c, t, 6, 0.25f); sea(c, t); arms(c, st, t, h = 4f, b = 0.6f, speed = 900f); eye(c, 12f, 19f, open = false) }
-            "tired" -> { sea(c, t); arms(c, st, t, h = 9f * (1 - seg(t, 0, 3000) * 0.6f), speed = 700f) }
-            "asleep" -> { sea(c, t / 3); eye(c, 12f, 18.5f, open = false); for (i in 0..2) { val ph = ((t + i * 600) % 1800) / 1800f; c.ring(14f + i, 16f - ph * 10, 0.6f, 0.3f * (1 - ph)) } }
+            "sad" -> { rain(c, t, 6, 0.25f); sea(c, t); arms(c, st, t, h = 7f, b = 0.7f, droop = 1.8f); eye(c, 12f, 19f, open = false) }
+            "tired" -> { sea(c, t); arms(c, st, t, h = 9f * (1 - seg(t, 0, 3000) * 0.6f)) }
+            "asleep" -> { sea(c, t, period = 4000f); eye(c, 12f, 18.5f, open = false); for (i in 0..2) { val ph = ((t + i * 600) % 1800) / 1800f; c.ring(14f + i, 16f - ph * 10, 0.6f, 0.3f * (1 - ph)) } }
             "eating" -> { sea(c, t); val fx = 16f; val pull = seg(t, 1000, 2000); if (t < 2000) c.rows(listOf(".#o", "###"), fx.roundToInt(), (9 + pull * 8).roundToInt(), 0.5f); arms(c, st, t, lean = if (t < 2000) 0.6f else 0f); if (t in 2000..2400) for (k in -2..2) c.put(fx + k, 15f - abs(k), 0.7f); eye(c, 12f, 19f) }
-            "game" -> { sea(c, t, 15f); for (i in 0 until 3) { val sx = (t / 40f + i * 9) % 28 - 2; c.rows(listOf("..#..", "#####", ".###."), sx.roundToInt() - 2, 12, 0.45f) }; val k = ((tilt + 1) / 2 * 2.99f).toInt(); val strike = (t % 1000) < 300; for (j in 0..(if (strike) 10 else 3)) c.put(5f + k * 7, 16f - j, 0.5f); eye(c, 12f, 19f) }
-            "loved" -> { sea(c, t); for (j in 0..10) { val a = PI_F * j / 10; c.put(12 - cos(a) * 7, 17 - sin(a) * 9, 0.45f) }; eye(c, 12f, 19f) }
-            "dizzy" -> { for (k in 0 until 4) { val a0 = t / 200f + k * PI_F / 2; for (j in 0..10) { val r = j * 0.9f; c.put(12 + cos(a0 + j * 0.3f) * r, 12 + sin(a0 + j * 0.3f) * r, 0.4f) } }; eye(c, 12f, 12f, open = false) }
-            "tilt" -> { sea(c, t, slope = tilt * 0.2f); arms(c, st, t, lean = -tilt) }
+            "game" -> { sea(c, t, 15f); for (i in 0 until 3) { val sx = (t / 40f + i * 9) % 28 - 2; c.rows(listOf("..#..", "#####", ".###."), sx.roundToInt() - 2, 12, 0.45f) }
+                val k = ((tilt + 1) / 2 * 2.99f).toInt(); val strike = (t % 1000) < 300
+                paint(c, listOf(Tube(spine(5f + k * 7, 17f, if (strike) 10f else 3f, 0f, TAU * t / 1000f, 0.3f, 0.6f), 1.2f, 0.75f)), { 16.5f }); eye(c, 12f, 19f) }
+            "loved" -> { sea(c, t, period = 2400f)
+                // Two arms meet over the eye in an arch.
+                fun half(sign: Float) = FloatArray(42) { i -> val a = PI_F / 2 * (i / 2) / 20f; if (i % 2 == 0) 12 - sign * cos(a) * 7 else 17 - sin(a) * 9 }
+                paint(c, listOf(Tube(half(1f), R0[st], 0.75f), Tube(half(-1f), R0[st], 0.75f)), { x -> seaY(x, t, 17f, 0f, 2400f) }); eye(c, 12f, 19f) }
+            "dizzy" -> {
+                // Four arms swirled into a whirlpool round the closed eye.
+                val list = (0 until 4).map { k -> val a0 = TAU * t / 800f + k * PI_F / 2
+                    Tube(FloatArray(202) { i -> val j = (i / 2) / 10f; val r = 2.2f + j * 0.9f; if (i % 2 == 0) 12 + cos(a0 + j * 0.3f) * r else 12 + sin(a0 + j * 0.3f) * r }, 1.1f, 0.75f) }
+                paint(c, list, { 99f }); eye(c, 12f, 12f, open = false) }
+            "tilt" -> { sea(c, t, slope = tilt * 0.2f); arms(c, st, t, lean = -tilt, slope = tilt * 0.2f) }
             "charging" -> { val p = seg(t, 0, 2900); sea(c, t); arms(c, st, t, tip = 0.3f + 0.7f * p); eye(c, 12f, 19f, open = p > 0.5f) }
-            // Typing: each key a tentacle lashes up out of the sea with a splash; at 20 s its eye surfaces, and after
-            // 40 s the whole kraken rises.
+            // Typing: each key an arm lashes up out of the sea with a splash; at 20 s its eye surfaces, and after 40 s
+            // the whole kraken rises.
             "typing" -> { val y = DrawnTyping
-                if (y.stage == 2) { val p = ease(y.stageMs / 2000f); val lvl = 22f - p * 8; c.oval(12f, lvl + 3, 6f, 5f, 0.3f, 0.45f); eye(c, 12f, lvl + 2, r = 2.5f + p)
-                    arms(c, 2, t, h = 6f + p * 6 + y.hit(200) * 3, level = lvl + 6, n = 6, speed = if (y.rush) 90f else 150f); sea(c, t, 18f); return }
+                if (y.stage == 2) { val p = ease(y.stageMs / 2000f); val lvl = 22f - p * 8; c.oval(12f, lvl + 3, 6f, 5f, 0.3f, 0.45f)
+                    arms(c, 2, t, h = 6f + p * 6 + y.hit(200) * 3, level = lvl + 6, n = 6, period = if (y.rush) 600f else 900f, swell = 0f)
+                    eye(c, 12f, lvl + 2, r = 2.5f + p); sea(c, t, 18f); return }
                 sea(c, t); val n = 2 + st
-                arms(c, st, t, h = if (y.rush) 8f + hop(t, 300f, 2f) else 7f, speed = if (y.rush) 120f else 300f)
-                val hit = y.hit(240)
-                if (hit > 0f) { val k = y.key % n; val bx = 12f + (k - (n - 1) / 2f) * (16f / n); val top = 7 + (6 * hit).roundToInt()
-                    for (j in 7..top) c.put(bx, 17f - j, if (j == top) 1f else 0.5f)
-                    if (hit > 0.6f) for (d in 1..2) { c.put(bx - d, 16f, 0.8f); c.put(bx + d, 16f, 0.8f) } }
+                val hit = y.hit(240); val lash = y.key.coerceAtLeast(0) % n
+                arms(c, st, t, period = if (y.rush) 750f else 1900f,
+                    hk = { k -> (if (y.rush) 8f + hop(t, 300f, 2f) else 7f) + (if (hit > 0f && k == lash) 6f * hit else 0f) })
+                if (hit > 0.6f) { val bx = 12f + (lash - (n - 1) / 2f) * ((if (n >= 4) 15f else 17f) / n); for (d in 2..3) { c.put(bx - d, 16f, 0.8f); c.put(bx + d, 16f, 0.8f) } }
                 if (y.stage == 1) { val p = ease(y.stageMs / 1200f); eye(c, 12f, mix(21f, 19f, p), open = !(y.paused && blinkAt(t))) } }
             "grow" -> { sea(c, t); val p = seg(t, 1000, 5000); if (p > 0) arms(c, if (st == 0) 0 else st - 1, t, h = 2f + p * 7, n = 2 + (p * st).toInt()); c.oval(12f, 18f, 1.5f + p, 1f + p * 0.5f, 0.5f) }
         }

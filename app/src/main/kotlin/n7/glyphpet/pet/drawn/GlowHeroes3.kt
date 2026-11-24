@@ -1028,6 +1028,8 @@ private object Squid : NewHero(
         "eating" to "ловит креветку", "game" to "собирает планктон", "loved" to "щупальца сердцем", "dizzy" to "вертится",
         "tilt" to "сносит течением", "charging" to "море светлеет", "grow" to "икринка"),
 ) {
+    private val ARM = Tubes.Look(lit = 1f, core = 0.8f, shadow = 0.6f, thin = 0.85f, thinBelow = 0.8f, seam = false)
+
     private fun squid(c: Cv, st: Int, t: Long, sx: Float = 12f, sy: Float = 8f, glow: Boolean = false, eyes: Int = 0, wig: Float = 1f, sea: Float = 0.32f, ink: Float = 0f,
                       spread: Float = 1f, wave: Float = 0.8f, lift: Float = 0f, liftSw: Float = 0f) {
         // [spread] fans the tentacles out (>1) or bunches them (<1), [wave] how much they wave, [lift] 0..1 raises the
@@ -1037,21 +1039,30 @@ private object Squid : NewHero(
         fun body(x: Int, y: Int): Boolean { val dy = y - sy; if (dy < -5 || dy > 3) return false; val ww = if (dy < 0) (dy + 6) * w / 5f else w; return abs(x - sx) <= ww }
         for (y in (sy - 6).toInt()..(sy + 3).toInt()) for (x in 0..24) if (body(x, y)) { val edge = !body(x - 1, y) || !body(x + 1, y) || !body(x, y - 1) || !body(x, y + 1); c.set(x, y, if (glow) (if (edge) 1f else 0f) else 0.9f) }
         val n = 4 + st
+        // Lit, the tentacles are tubes thick at the body and thin at the tip, a wave running down them; in the ink they
+        // glow as dotted outlines.
+        val gap = 2 * w * spread / (n - 1)
+        val arms = ArrayList<Tube>()
+        val r0 = min(1.05f, gap * 0.5f)
         for (i in 0 until n) { val x0 = sx - w * spread + i * (2 * w * spread / (n - 1))
             if (i == n - 1 && lift > 0f) {
                 // Up its side: out from the body, up past its eye, the tip waving over its head.
                 val up = listOf(1f to -1f, 2f to -2f, 2.5f to -3.5f, 2.5f to -5f, 2.2f to -6.5f, 1.8f to -7.8f)
                 var px = x0; var py = sy + 3
+                val pts = arrayListOf(px to py)
                 for (k in 1..6) {
                     val hx = x0 + sin(t / 250f * wig + i + k * 0.7f) * wave; val hy = sy + 3 + k
                     val (ux, uy) = up[k - 1]; val rx = sx + w + ux + liftSw * (k / 6f) * (k / 6f); val ry = sy + 3 + uy
                     val x = mix(hx, rx, lift); val y = mix(hy, ry, lift)
-                    var s = 0f; while (s <= 1f) { c.put(mix(px, x, s), mix(py, y, s), 0.85f); s += 0.25f }
-                    px = x; py = y
+                    if (glow) { var s = 0f; while (s <= 1f) { c.put(mix(px, x, s), mix(py, y, s), 0.85f); s += 0.25f } }
+                    px = x; py = y; pts += x to y
                 }
+                if (!glow) arms += Tube(Tubes.path(36) { q -> val f = q * 6f; val j = min(5, f.toInt()); val u = f - j; mix(pts[j].first, pts[j + 1].first, u) to mix(pts[j].second, pts[j + 1].second, u) }, r0, 0.75f)
                 continue
             }
-            for (k in 1..6) { val x = x0 + sin(t / 250f * wig + i + k * 0.7f) * wave; c.set(x.roundToInt(), (sy + 3 + k).roundToInt(), if (glow) (if (k % 2 == 1) 0.9f else 0f) else 0.85f) } }
+            if (glow) for (k in 1..6) { val x = x0 + sin(t / 250f * wig + i + k * 0.7f) * wave; c.set(x.roundToInt(), (sy + 3 + k).roundToInt(), if (k % 2 == 1) 0.9f else 0f) }
+            else arms += Tube(Tubes.path(30) { q -> val k = q * 6f; (x0 + sin(t / 250f * wig + i + k * 0.7f) * wave * min(1f, k)) to (sy + 3 + k) }, r0, 0.75f) }
+        if (arms.isNotEmpty()) Tubes.paint(c, arms, ARM, clip = { x, y -> !body(x, y) })
         for (d in intArrayOf(-2, 2)) { val x = (sx + d).roundToInt(); val y = (sy + 1).roundToInt()
             if (glow) { c.set(x, y, 1f) } else if (eyes == 1) c.cut(x, y) else { c.cut(x, y); c.cut(x, y - 1) } }
     }
