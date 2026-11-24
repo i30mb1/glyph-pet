@@ -194,12 +194,12 @@ object SaveMigration {
 
 enum class ButtonAction { CRACK_EGG, FEED, STIR, NOTHING }
 
-enum class ShakeAction { GROW, DIZZY, NOTHING }
+enum class ShakeAction { GROW, DIZZY, CRACK_EGG, NOTHING }
 
 /**
  * The controls, one gesture for one thing: holding the Glyph button feeds the pet, or cracks the egg the player put on
  * the matrix; rocking the phone gently from side to side plays; shaking makes the pet dizzy, or grows a pet that is
- * ready to. While an egg is on the matrix the pet is away: only the button does something.
+ * ready to. While an egg is on the matrix the pet is away: the button or a shake cracks it, the same press either way.
  */
 object ButtonRules {
     /** Holding the Glyph button: cracks the egg on the matrix, else feeds (a full pet refuses); a sleeper only opens one eye. */
@@ -210,9 +210,14 @@ object ButtonRules {
         else -> ButtonAction.FEED
     }
 
-    /** A shake: grows the pet while it is ready to ([GrowthRules.ready]), otherwise the pet gets dizzy. */
+    /**
+     * A shake: cracks the egg on the matrix (one press of [EggRules.PRESSES_TO_HATCH], as the button does; the very
+     * first egg too, with no pet yet), grows the pet while it is ready to ([GrowthRules.ready]), otherwise the pet gets
+     * dizzy.
+     */
     fun shake(hasPet: Boolean, eggOnMatrix: Boolean, petReady: Boolean): ShakeAction = when {
-        !hasPet || eggOnMatrix -> ShakeAction.NOTHING
+        eggOnMatrix -> ShakeAction.CRACK_EGG
+        !hasPet -> ShakeAction.NOTHING
         petReady -> ShakeAction.GROW
         else -> ShakeAction.DIZZY
     }

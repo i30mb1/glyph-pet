@@ -29,6 +29,9 @@ sealed interface Reaction {
     /** A shake while the pet is ready to grow: one shake toward its evolution. */
     data object Grow : Reaction
 
+    /** A shake while an egg is on the matrix: one press toward hatching it, as the Glyph button gives. */
+    data object Crack : Reaction
+
     /** A shake while it is not: the pet shows its signature at once. */
     data object Signature : Reaction
 
@@ -69,6 +72,7 @@ class Reactions {
         if (!gestures.shake) return emptyList()
         val shake = ButtonRules.shake(hasPet = at.hasPet, eggOnMatrix = at.eggOnMatrix, petReady = at.ready)
         return when {
+            shake == ShakeAction.CRACK_EGG -> listOf(Reaction.Crack)
             shake == ShakeAction.GROW -> listOf(Reaction.Grow)
             !at.hasPet || at.eggOnMatrix -> emptyList()
             at.hasSignature && !at.signatureFresh && (at.mood == Mood.CONTENT || at.mood == Mood.HAPPY) -> listOf(Reaction.Signature)

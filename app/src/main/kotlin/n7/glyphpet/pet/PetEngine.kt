@@ -64,6 +64,11 @@ data class Scene(
     /** A magnet near the phone (0..1) and where the field points on the matrix (radians): the ferrofluid follows it. */
     val magnet: Float = 0f,
     val magnetAngle: Float = (-Math.PI / 2).toFloat(),
+    /**
+     * The hero has grown all the way up ([Nursery.grown]): whichever form is shown, it keeps an adult's calm pace
+     * ([PetEngine.GROWN_SIGNATURE_EVERY_MS]). An adult form keeps it anyway.
+     */
+    val grown: Boolean = false,
 )
 
 /**
@@ -184,6 +189,15 @@ class PetEngine(
          */
         const val SIGNATURE_EVERY_MS = 60_000L
         const val FIRST_SIGNATURE_MS = 20_000L
+
+        /**
+         * An adult is calm company, not a show: its signature comes about once in this long, and its habit once in
+         * [GROWN_HABIT_MIN_MS]..[GROWN_HABIT_MAX_MS] of quiet ([QUIET_MS] included); in between it walks, blinks and
+         * breathes. Whatever the owner does (typing, a shake, a clap, a stroke, a lean) is still answered at once.
+         */
+        const val GROWN_SIGNATURE_EVERY_MS = 5 * 60_000L
+        const val GROWN_HABIT_MIN_MS = 30_000L
+        const val GROWN_HABIT_MAX_MS = 60_000L
 
         /** A glint runs over the pet for this long before a signature that came by itself: "now the big one". */
         const val ANNOUNCE_MS = 400L
@@ -457,13 +471,19 @@ class PetEngine(
     /** Whether the signature that comes by itself is due: then it goes first and the habit waits. */
     private fun signatureDue(): Boolean = autoSignatures && signature != null && signatureInMs <= 0 && quietMs >= QUIET_MS
 
+    /** The hero is grown up ([Scene.grown]) or an adult: it keeps the calm pace ([GROWN_SIGNATURE_EVERY_MS], [GROWN_HABIT_MIN_MS]). */
+    private var grownPace = false
+
     private fun nextSignatureIn(first: Boolean = false): Long = when {
-        n7.glyphpet.BuildConfig.DEBUG -> if (first) 5_000L else 30_000L
-        first -> FIRST_SIGNATURE_MS
+        // The first one still comes soon, so whoever picks the phone up sees it.
+        first -> if (n7.glyphpet.BuildConfig.DEBUG && !grownPace) 5_000L else FIRST_SIGNATURE_MS
+        grownPace -> GROWN_SIGNATURE_EVERY_MS
+        n7.glyphpet.BuildConfig.DEBUG -> 30_000L
         else -> SIGNATURE_EVERY_MS
     }
 
-    private fun nextHabitIn(): Long = random.nextLong(0, 10_000)
+    private fun nextHabitIn(): Long =
+        if (grownPace) random.nextLong(GROWN_HABIT_MIN_MS - QUIET_MS, GROWN_HABIT_MAX_MS - QUIET_MS) else random.nextLong(0, 10_000)
 
     /**
      * Whether the signature effect is on the matrix this tick. By itself it comes about once a minute
@@ -988,6 +1008,7 @@ class PetEngine(
         }
 
         kindNow = species.kind
+        grownPace = scene.grown || species.stage == Stage.ADULT
         if (species.kind != signatureKind) {
             signatureKind = species.kind
             signature = Signatures.of(species.kind)
@@ -1409,7 +1430,7 @@ class PetEngine(
 
     /**
      * The habit plays once the pet has been left alone for [QUIET_MS] and a few seconds more ([habitInMs]), so every
-     * 10-20 s of quiet; a signature that is due goes first. If it would not fit where the pet stands, the pet first
+     * 10-20 s of quiet (an adult's every 30-60 s, [GROWN_HABIT_MIN_MS]); a signature that is due goes first. If it would not fit where the pet stands, the pet first
      * walks to the nearest spot where it does. A baby has none.
      */
     private fun updateHabit(dtMs: Long, species: Species, scene: Scene, sliding: Boolean) {
@@ -1635,7 +1656,9 @@ class PetEngine(
                 else -> random.nextLong(2500, 5000)
             }
         }
-        if (abs(targetX - x) >= 1f) {
+        // A slide leaves the pet between cells (1.7 past a walk range ending at 1): the last step lands it on the target
+        // itself, or it would stay short of it for good, frozen, never picking a new spot to wander to.
+        if (abs(targetX - x) > 0.01f) {
             stepMs += dtMs
             val pace = when (scene.mood) {
                 Mood.TIRED, Mood.HUNGRY -> 450
@@ -1643,7 +1666,8 @@ class PetEngine(
             }
             if (stepMs >= pace) {
                 stepMs = 0
-                x += sign(targetX - x)
+                val d = targetX - x
+                x = if (abs(d) <= 1f) targetX else x + sign(d)
             }
         }
     }

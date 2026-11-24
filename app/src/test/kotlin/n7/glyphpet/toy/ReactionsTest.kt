@@ -32,9 +32,13 @@ class ReactionsTest {
     }
 
     @Test
-    fun `nobody is there for a shake without a pet or with an egg in its place`() {
+    fun `nobody is there for a shake without a pet, and a shake cracks the egg in its place`() {
         assertEquals(emptyList<Reaction>(), one(Gestures(shake = true), Attention(hasPet = false)))
-        assertEquals(emptyList<Reaction>(), one(Gestures(shake = true), awake.copy(eggOnMatrix = true)))
+        assertEquals(listOf(Reaction.Crack), one(Gestures(shake = true), awake.copy(eggOnMatrix = true)))
+        // The very first egg, with no pet yet, cracks the same way.
+        assertEquals(listOf(Reaction.Crack), one(Gestures(shake = true), Attention(hasPet = false, eggOnMatrix = true)))
+        // A pet ready to grow is away while its egg-mate is on the matrix: the shake goes to the egg.
+        assertEquals(listOf(Reaction.Crack), one(Gestures(shake = true), awake.copy(eggOnMatrix = true, ready = true)))
     }
 
     @Test

@@ -120,6 +120,14 @@ object PetRules {
     /** Joy below this, a quarter: the pet is sad. */
     const val SAD = 25f
 
+    /**
+     * A grown-up pet (an adult on the matrix) has no chores left: its food and joy never fall below these, so it is
+     * always fed and at ease ([Mood.CONTENT], not hopping with joy: calm company). A meal or a game still lifts them;
+     * they drift back down to here and stop. Four dots of food, three of joy.
+     */
+    const val GROWN_SATIETY = 80f
+    const val GROWN_JOY = 60f
+
     /** Time counts as on the matrix only this long after the toy last said so; a longer silence was time away. */
     const val SEEN_GAP_MS = 3 * 60_000L
 
@@ -138,18 +146,25 @@ object PetRules {
     /**
      * Moves [stats] forward to [nowMs]: up to [SEEN_GAP_MS] after [PetStats.seenAtMs] it was on the matrix, the rest
      * of the time away. [charging] counts for the time on the matrix: the charger fills it at [CHARGE_ENERGY_PER_HOUR].
+     * A [grown] pet's food and joy stay at [GROWN_SATIETY] and [GROWN_JOY] or above, lifted there at once.
      */
-    fun advance(stats: PetStats, nowMs: Long, charging: Boolean = false): PetStats {
-        if (nowMs <= stats.updatedAtMs) return stats
+    fun advance(stats: PetStats, nowMs: Long, charging: Boolean = false, grown: Boolean = false): PetStats {
+        if (nowMs <= stats.updatedAtMs) return if (grown) settled(stats) else stats
         var s = stats.copy(updatedAtMs = maxOf(stats.updatedAtMs, nowMs - MAX_CATCH_UP_MS))
         val seenUntil = if (stats.seenAtMs > 0) stats.seenAtMs + SEEN_GAP_MS else 0L
         while (s.updatedAtMs < nowMs) {
             val seen = s.updatedAtMs < seenUntil
             val stepEnd = minOf(s.updatedAtMs + if (seen) SEEN_STEP_MS else AWAY_STEP_MS, nowMs, if (seen) seenUntil else nowMs)
             s = step(s, stepEnd, seen, charging && seen)
+            if (grown) s = settled(s)
         }
         return s
     }
+
+    /** A grown pet's floor: never hungry, never sad ([GROWN_SATIETY], [GROWN_JOY]). */
+    fun settled(stats: PetStats): PetStats =
+        if (stats.satiety >= GROWN_SATIETY && stats.joy >= GROWN_JOY) stats
+        else stats.copy(satiety = maxOf(stats.satiety, GROWN_SATIETY), joy = maxOf(stats.joy, GROWN_JOY))
 
     private fun step(s: PetStats, stepEnd: Long, seen: Boolean, charged: Boolean): PetStats {
         val hours = (stepEnd - s.updatedAtMs) / HOUR_MS

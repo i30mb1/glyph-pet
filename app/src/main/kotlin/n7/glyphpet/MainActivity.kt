@@ -368,6 +368,11 @@ private fun PetScreen(
             ),
         )
         for (r in list) when (r) {
+            // A shake cracks the egg on the screen, as the press on it does.
+            n7.glyphpet.toy.Reaction.Crack -> {
+                if (store.pressEgg() == n7.glyphpet.pet.PressResult.CRACKED) engine.crack()
+                refresh()
+            }
             n7.glyphpet.toy.Reaction.Grow -> {
                 if (store.growShake() == n7.glyphpet.pet.GrowResult.SHOOK) engine.surge()
                 refresh()
@@ -426,6 +431,7 @@ private fun PetScreen(
                         missedCall = notifications && PetAlerts.missedCalls > 0,
                         ready = nursery.ready,
                         shiny = nursery.activeShiny,
+                        grown = nursery.grown,
                         wind = if (playing) ears.wind else 0f,
                         typing = typing,
                         ringing = PetAlerts.ringing,

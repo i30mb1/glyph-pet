@@ -65,6 +65,9 @@ data class Nursery(
     /** How far the active pet has grown, or null without a pet. */
     val activeGrowth: Growth? get() = active?.let { growth[it.id] }
 
+    /** The active hero has grown all the way up: no chores in any of its forms ([PetRules.GROWN_SATIETY]). */
+    val grown: Boolean get() = activeGrowth?.reached == Stage.ADULT
+
     /** The active pet may grow now: shakes grow it. */
     val ready: Boolean get() = activeGrowth?.let { it.ready && it.reached.next != null } == true
 
@@ -111,10 +114,19 @@ class PetStore(context: Context) {
     @Suppress("UNUSED_PARAMETER")
     fun asleep(stats: PetStats, nowMs: Long = GameClock.now()): Boolean = PetRules.isAsleep(stats)
 
+    /**
+     * Whether the active hero has grown all the way up: it has no chores left ([PetRules.GROWN_SATIETY]), whichever of
+     * its forms the owner shows on the matrix.
+     */
+    private fun grown(nowMs: Long): Boolean = runCatching {
+        val s = loadState(nowMs)
+        s.active?.let { GrowthRules.of(s, it) }?.reached == Stage.ADULT
+    }.getOrDefault(false)
+
     /** Brings everything up to now and returns it. */
     @Synchronized
     fun nursery(nowMs: Long = GameClock.now()): Nursery {
-        val stats = PetRules.advance(loadStats(nowMs), nowMs, isCharging())
+        val stats = PetRules.advance(loadStats(nowMs), nowMs, isCharging(), grown(nowMs))
         saveStats(stats)
         val state = NurseryRules.advance(loadState(nowMs), nowMs, Random(nowMs))
         saveState(state)
@@ -139,7 +151,7 @@ class PetStore(context: Context) {
     /** Changes the needs of the active pet. */
     @Synchronized
     fun update(nowMs: Long = GameClock.now(), change: (PetStats) -> PetStats = { it }): PetStats {
-        val stats = change(PetRules.advance(loadStats(nowMs), nowMs, isCharging()))
+        val stats = change(PetRules.advance(loadStats(nowMs), nowMs, isCharging(), grown(nowMs)))
         saveStats(stats)
         return stats
     }

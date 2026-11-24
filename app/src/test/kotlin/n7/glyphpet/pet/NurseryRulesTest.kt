@@ -270,9 +270,9 @@ class NurseryRulesTest {
     }
 
     @Test
-    fun `a shake makes the pet dizzy and never cracks an egg`() {
-        assertEquals(ShakeAction.NOTHING, ButtonRules.shake(hasPet = true, eggOnMatrix = true, petReady = false))
-        assertEquals(ShakeAction.NOTHING, ButtonRules.shake(hasPet = false, eggOnMatrix = true, petReady = false))
+    fun `a shake makes the pet dizzy, or cracks the egg on the matrix as a press of the button does`() {
+        assertEquals(ShakeAction.CRACK_EGG, ButtonRules.shake(hasPet = true, eggOnMatrix = true, petReady = false))
+        assertEquals(ShakeAction.CRACK_EGG, ButtonRules.shake(hasPet = false, eggOnMatrix = true, petReady = false))
         assertEquals(ShakeAction.DIZZY, ButtonRules.shake(hasPet = true, eggOnMatrix = false, petReady = false))
         assertEquals(ShakeAction.NOTHING, ButtonRules.shake(hasPet = false, eggOnMatrix = false, petReady = false))
     }

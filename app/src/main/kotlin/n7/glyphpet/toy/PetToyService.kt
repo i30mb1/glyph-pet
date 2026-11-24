@@ -271,13 +271,15 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             ButtonAction.NOTHING -> Unit
         }
         sync(force = true)
-        if (cracked) {
-            // Each crack is felt firmer than the one before; the hatching press is felt through the hatch itself.
-            val egg = nursery?.eggOnMatrix
-            val presses = if (egg != null) nursery?.pressesOf(egg.id) ?: 1 else 1
-            feel(HapticKind.CRACK, presses.toFloat() / (n7.glyphpet.pet.EggRules.PRESSES_TO_HATCH - 1))
-        }
+        if (cracked) feelCrack()
         Log.d(TAG, "event long press -> ${ButtonRules.decide(hasPet = n.active != null, mood = mood, eggOnMatrix = n.eggOnMatrix != null)} cracked=$cracked mood=$mood")
+    }
+
+    /** Each crack is felt firmer than the one before; the hatching press is felt through the hatch itself. */
+    private fun feelCrack() {
+        val egg = nursery?.eggOnMatrix
+        val presses = if (egg != null) nursery?.pressesOf(egg.id) ?: 1 else 1
+        feel(HapticKind.CRACK, presses.toFloat() / (n7.glyphpet.pet.EggRules.PRESSES_TO_HATCH - 1))
     }
 
     /** A crack wobbles the egg at once; a hatch plays through sync(), by justHatched. Whether the press cracked it. */
@@ -558,6 +560,13 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
                 if (store.growShake() == GrowResult.SHOOK) { engine.surge(); feel(HapticKind.GROW_SHAKE) }
                 sync(force = true)
             }
+            // A shake cracks the egg on the matrix just as a press of the button does.
+            Reaction.Crack -> {
+                val cracked = crackEgg()
+                Log.d(TAG, "event shake -> crack egg cracked=$cracked")
+                sync(force = true)
+                if (cracked) feelCrack()
+            }
             Reaction.Signature -> {
                 Log.d(TAG, "event shake -> signature")
                 engine.signatureNow()
@@ -639,6 +648,7 @@ class PetToyService : Service(), GlyphMatrixManager.Callback {
             magnet = motion.magnet,
             magnetAngle = motion.magnetAngle,
             shiny = n.activeShiny,
+            grown = n.grown,
         )
     }
 

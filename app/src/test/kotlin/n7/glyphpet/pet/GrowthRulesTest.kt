@@ -278,10 +278,10 @@ class GrowthRulesTest {
     // --- Controls and saves --------------------------------------------------------------------------
 
     @Test
-    fun `a shake grows a ready pet, and does nothing while an egg is on the matrix`() {
+    fun `a shake grows a ready pet, and cracks the egg instead while one is on the matrix`() {
         assertEquals(ShakeAction.GROW, ButtonRules.shake(hasPet = true, eggOnMatrix = false, petReady = true))
-        assertEquals(ShakeAction.NOTHING, ButtonRules.shake(hasPet = true, eggOnMatrix = true, petReady = true))
-        assertEquals(ShakeAction.NOTHING, ButtonRules.shake(hasPet = false, eggOnMatrix = true, petReady = true))
+        assertEquals(ShakeAction.CRACK_EGG, ButtonRules.shake(hasPet = true, eggOnMatrix = true, petReady = true))
+        assertEquals(ShakeAction.CRACK_EGG, ButtonRules.shake(hasPet = false, eggOnMatrix = true, petReady = true))
         assertEquals(ShakeAction.NOTHING, ButtonRules.shake(hasPet = false, eggOnMatrix = false, petReady = true))
         assertEquals(ShakeAction.DIZZY, ButtonRules.shake(hasPet = true, eggOnMatrix = false, petReady = false))
         // In the game: on day 2 a new egg waits in the app and the baby is ready, the shakes grow the baby, the egg stays.
