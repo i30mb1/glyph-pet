@@ -48,6 +48,22 @@ object Drawn {
 
     fun length(col: String): Long = COLS.first { it.first == col }.second
 
+    /**
+     * The engine's clock (ms) at the start of the pastime being drawn, so the pastime can begin and end exactly where
+     * the calm clip would be ([Anomaly.calmNow]): the dissolve into and out of it then never shows two heroes. 0 in the
+     * atlas and on the mockup page, where the clip starts on its own.
+     */
+    @Volatile var pastimeStart = 0L
+
+    /** How long a pastime holds its calm pose at either end: the engine's dissolve ([n7.glyphpet.pet.PetEngine.FADE_MS]) and a bit. */
+    const val PASTIME_EDGE = 480L
+
+    /** The grown-up [kind]'s pastimes ([Anomaly.pastimes]): clips of its own the adult plays now and then. */
+    fun pastimes(kind: String?): List<DrawnPastime> = kind?.let { byKind[it]?.pastimes } ?: emptyList()
+
+    /** How long [col] runs for [kind]: one of its pastimes, or one of the [COLS]. */
+    fun length(kind: String, col: String): Long = pastimes(kind).firstOrNull { it.id == col }?.ms ?: length(col)
+
     /** The state each drawn hero was last shown in before its meal, game or signature took over: where those start from. */
     val cameFrom = java.util.concurrent.ConcurrentHashMap<String, String>()
 
@@ -56,7 +72,7 @@ object Drawn {
         val hero = byKind[kind] ?: return frame
         val c = Cv()
         // At the full frame rate: the atlas records the clips every [STEP], the matrix shows every frame in between.
-        val tt = Math.floorMod(t, length(col))
+        val tt = Math.floorMod(t, length(kind, col))
         runCatching { hero.draw(c, col, tt, stage.ordinal, tilt) }
         val v = c.ints()
         for (i in v.indices) if (v[i] > frame[i]) frame[i] = v[i]
@@ -65,7 +81,7 @@ object Drawn {
 
     /** The clip of one column at one stage (0 baby, 1 teen, 2 adult), as the atlas records it. */
     fun clip(a: Anomaly, col: String, st: Int): List<IntArray> {
-        val ms = length(col)
+        val ms = length(a.kind, col)
         val out = ArrayList<IntArray>()
         var t = 0L
         while (t < ms) {
@@ -189,6 +205,14 @@ object DrawnTyping {
     val inAct get() = ((typedS - stage * 20f) / 20f).coerceIn(0f, 1f)
 }
 
+/**
+ * A drawn hero's pastime: a clip of its own, [id] its column in [Anomaly.draw], [ms] long, that the grown-up plays now
+ * and then in place of its habit ([n7.glyphpet.pet.PetEngine.PASTIME_EVERY_MIN_MS]). [tag] names it for the atlas and
+ * the mockup page, [how] says what happens. It starts and ends looking like the hero's calm clip, so the dissolve into
+ * and out of it never mixes two pictures.
+ */
+class DrawnPastime(val id: String, val ms: Long, val tag: String, val how: String)
+
 abstract class Anomaly(
     val kind: String,
     val names: List<String>,
@@ -201,6 +225,19 @@ abstract class Anomaly(
 ) {
     abstract fun draw(c: Cv, col: String, t: Long, st: Int, tilt: Float)
     open val rarity: Rarity get() = Rarity.ANOMALY
+
+    /** The adult's pastimes ([DrawnPastime]), drawn by [draw] under their ids; none by default. */
+    open val pastimes: List<DrawnPastime> get() = emptyList()
+
+    /**
+     * In a pastime [t] ms in: the hero's calm clip as it is at this moment of real time ([Drawn.pastimeStart] + [t]).
+     * A pastime draws exactly this for its first and last [Drawn.PASTIME_EDGE] ms and moves on from (and back to) this
+     * pose in between, so it flows out of the calm hero and back into it.
+     */
+    fun calmNow(c: Cv, t: Long, st: Int) = draw(c, "calm", Math.floorMod(Drawn.pastimeStart + t, Drawn.length("calm")), st, 0f)
+
+    /** The real-time clock of the calm clip at pastime time [t]: to pick up the calm motion (a path, a phase) and leave it. */
+    fun calmT(t: Long): Long = Drawn.pastimeStart + t
     /** The unlock hint in English. */
     open val unlockEn: String get() = ""
 }

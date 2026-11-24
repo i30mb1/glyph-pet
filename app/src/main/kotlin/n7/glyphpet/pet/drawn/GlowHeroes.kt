@@ -90,7 +90,58 @@ private object Firefly : NewHero(
     private var tKey = -1
     private var tFlash = -99_999L
 
+    override val pastimes = listOf(
+        DrawnPastime("lid_tap", 4000, "стучит в крышку",
+            "Взлетает под крышку и трижды стукается в неё, крышка от каждого удара вспыхивает, потом возвращается в свой полёт."),
+        DrawnPastime("wall_crawl", 4800, "ползёт по стенке",
+            "Садится на правую стенку и ползёт по стеклу вверх, свет скользит по стеклу; у горлышка отпускается и летит дальше."),
+    )
+
+    /**
+     * Its pastimes: they pick the firefly up where its calm flight has it ([calmNow]), take it somewhere of its own and
+     * hand it back to the flight where that will be by then.
+     */
+    private fun pastime(c: Cv, col: String, t: Long, st: Int) {
+        val ms = pastimes.first { it.id == col }.ms
+        val e = Drawn.PASTIME_EDGE
+        if (t < e || t >= ms - e) { calmNow(c, t, st); return }
+        val (sx, sy) = fly(calmT(e))
+        val (ex, ey) = fly(calmT(ms - e))
+        val go = ease(seg(t, e, e + 700))
+        val back = ease(seg(t, ms - e - 700, ms - e))
+        when (col) {
+            "lid_tap" -> {
+                // Up under the lid, three knocks (the lid flashes with each), back into its flight.
+                val tx = 10.5f; val ty = 6f
+                var x = mix(sx, tx, go); var y = mix(sy, ty, go)
+                var flash = 0f
+                val k = (t - e - 700) / 500; val p = ((t - e - 700) % 500) / 500f
+                if (go >= 1f && back <= 0f && k in 0..2) { if (p < 0.2f) y = ty - 1f; if (p < 0.3f) flash = 1f - p / 0.3f }
+                if (back > 0f) { x = mix(tx, ex, back); y = mix(ty, ey, back) }
+                val g = 0.8f + 0.2f * flash
+                lit(c, st, listOf(Triple(x + 1, y + 1, g)))
+                if (flash > 0f) for (lx in 9..15) c.put(lx, 3, 0.3f + 0.7f * flash)
+                bug(c, st, x, y, g, if (flash > 0.5f) 1 else 0, flap(t, true))
+            }
+            "wall_crawl" -> {
+                // Lands on the right wall low down, crawls up the glass a row at a time, lets go by the neck.
+                val wx = if (st == 0) 15f else 14f
+                val climb = seg(t, e + 700, ms - e - 900)
+                val wy = 17f - (climb * 10f).toInt()
+                val off = seg(t, ms - e - 900, ms - e - 700)
+                var x = mix(sx, wx, go); var y = mix(sy, 17f, go)
+                if (go >= 1f) { x = wx; y = wy }
+                if (off > 0f) { x = wx - off; y = wy - off }
+                if (back > 0f) { x = mix(wx - 1f, ex, back); y = mix(wy - 1f, ey, back) }
+                val onWall = go >= 1f && off <= 0f
+                lit(c, st, listOf(Triple(x + 2, y + 1, 0.85f)))
+                bug(c, st, x, y, 0.85f, if (onWall && climb > 0.95f) 1 else 0, if (onWall) false else flap(t, true))
+            }
+        }
+    }
+
     override fun draw(c: Cv, col: String, t: Long, st: Int, tilt: Float) {
+        if (pastimes.any { it.id == col }) { pastime(c, col, t, st); return }
         val (fx, fy) = fly(t)
         when (col) {
             "calm" -> { val g = 0.75f + 0.25f * sin(t / 300f); lit(c, st, listOf(Triple(fx + 1, fy + 1, g))); bug(c, st, fx, fy, g, if (blink(t)) 1 else 0, flap(t)) }

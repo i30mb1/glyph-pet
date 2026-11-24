@@ -11,6 +11,7 @@ import n7.glyphpet.pet.Scene
 import n7.glyphpet.pet.Species
 import n7.glyphpet.pet.SpeciesForms
 import n7.glyphpet.pet.Stage
+import n7.glyphpet.pet.drawn.Drawn
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.io.File
@@ -75,50 +76,13 @@ class Hobbies {
     // --- the batch on the page -----------------------------------------------------------------------------------------
 
     /** The heading of the page. */
-    private val title = "Занятия взрослых героев: партия 2 (10 героев)"
+    private val title = "Занятия взрослых героев: партия 3 (все остальные)"
 
-    /** Batch 2, approved and in the game: the page plays it from [n7.glyphpet.pet.Pastimes]. */
-    private val heroes = listOf(
-        Hero("owl", "Филин", listOf(
-            Pastime("puff_doze", "Нахохливается", "Распушает перья: становится шире на клетку с каждой стороны, дремлет, потом снова приглаживается."),
-            Pastime("wink", "Подмигивает", "Подмигивает одним глазом, потом другим и дважды щёлкает клювом."),
-        )),
-        Hero("fox", "Кицунэ", listOf(
-            Pastime("fox_fire", "Лисий огонёк", "На кончике левого уха загорается огонёк, перелетает дугой над головой и прячется в правое ухо."),
-            Pastime("listen", "Прислушивается", "Прижимает левое ухо и косится влево, потом правое и косится вправо."),
-        )),
-        Hero("cactus", "Цветущий кактус", listOf(
-            Pastime("dance", "Танцует", "Машет ручками по очереди, цветок на макушке качается в такт."),
-            Pastime("bristle", "Ощетинивается", "Выпускает колючки по краям, они мерцают, и кактус прячет их обратно."),
-        )),
-        Hero("penguin", "Император", listOf(
-            Pastime("ice_slide", "Скользит по льду", "Поднимает ласты, пригибается и скользит влево, потом вправо, и возвращается на место."),
-            Pastime("belly_drum", "Барабанит по пузу", "Ласты по очереди хлопают по белому пузу, в конце пингвин довольно жмурится."),
-        )),
-        Hero("slime", "Король-слайм", listOf(
-            Pastime("bubble", "Надувает пузырь", "На плече вырастает пузырь, раздувается и лопается."),
-            Pastime("gulp", "Съедает кубик", "Рядом появляется кубик, слайм косится на него, обволакивает и растворяет внутри себя."),
-        )),
-        Hero("eye", "Глаз на стебельках", listOf(
-            Pastime("eye_roll", "Закатывает глаз", "Зрачок обегает большой глаз по кругу два раза, потом глаз моргает."),
-            Pastime("stalk_sway", "Стебельки качаются", "Три маленьких глаза на стебельках раскачиваются влево и вправо."),
-        )),
-        Hero("toast", "Тост с яичницей", listOf(
-            Pastime("burnt", "Подгорает", "Корочка темнеет снизу вверх, тост тревожно смотрит, отряхивается и снова золотистый."),
-            Pastime("sunny_yolk", "Желток-солнышко", "Желток загорается ярко, как солнце, а белок притухает. Дважды."),
-        )),
-        Hero("ufo", "Корабль-матка", listOf(
-            Pastime("beam", "Луч", "Из нижнего огня опускается луч, по нему поднимается кубик и исчезает в корабле."),
-            Pastime("lift_off", "Взлетает", "Поджимает опоры, поднимается, покачивается в воздухе и садится обратно."),
-        )),
-        Hero("snail", "Садовая улитка", listOf(
-            Pastime("spiral", "Спираль на раковине", "Раковина гаснет и загорается заново по спирали, от края к середине."),
-            Pastime("feelers", "Вытягивает рожки", "Рожки вытягиваются вверх, шевелятся в стороны и втягиваются обратно."),
-        )),
-        Hero("hedgehog", "Ёж с яблоком", listOf(
-            Pastime("huff", "Фыркает и топает", "Иголки встают дыбом и блестят, ёж трижды притоптывает, подпрыгивая всем телом, и фыркает, зажмурившись."),
-            Pastime("apple_roll", "Яблоко катается", "Яблоко скатывается по иголкам влево, потом вправо, ёж следит за ним глазами, и оно встаёт на место."),
-        )),
+    /**
+     * Batch 3, under review: the last sprite heroes are drafted here ([Pastime.draft]); the drawn heroes' pastimes are
+     * in their own code ([n7.glyphpet.pet.drawn.DrawnPastime]) and join the page with HOBBY_DRAWN=1.
+     */
+    private val heroes: List<Hero> = listOf(
     )
 
     // --- recording ---------------------------------------------------------------------------------------------------
@@ -140,6 +104,11 @@ class Hobbies {
         repeat(8) { out += e.tick(step, scene).copyOf() }
         val calmLit = HashSet<Int>()
         for (fr in out) fr.indices.filter { fr[it] > 0 }.forEach { calmLit += it }
+        // A drawn hero moves in its calm clip: what it lights anywhere in a whole calm loop is its own, not a stray.
+        if (Drawn.handles(s.kind)) {
+            val ref = PetEngine(Random(5), autoHabits = false, autoSignatures = false)
+            repeat((Drawn.length("calm") / step).toInt() * 2) { val fr = ref.tick(step, scene); fr.indices.filter { fr[it] > 0 }.forEach { calmLit += it } }
+        }
         if (pastimeId != null) e.pastime(pastimeId) else e.trick()
         var started = false
         var after = 0
@@ -203,7 +172,15 @@ class Hobbies {
         val mask = (0 until 625).joinToString("") { if (GlyphMatrixSpec.isVisible(it % 25, it / 25)) "1" else "0" }
         val sb = StringBuilder("{\"frameMs\":$step,\"title\":\"${esc(title)}\",\"mask\":\"$mask\",\"heroes\":[")
         val report = StringBuilder()
-        heroes.forEachIndexed { hi, h ->
+        // The sprites drafted or listed here, then every drawn hero with pastimes (their names and words are in the
+        // game: [DrawnPastime]); HOBBY_KINDS=a,b,c narrows the page to those kinds (a quick look at one group).
+        val only = System.getenv("HOBBY_KINDS")?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }?.toSet()
+        val drawn = Drawn.all.filter { it.pastimes.isNotEmpty() }.map { a ->
+            Hero(a.kind, "${a.names[2]} (${a.kind})", a.pastimes.map { Pastime(it.id, it.tag, it.how) })
+        }
+        val all = (heroes + if (System.getenv("HOBBY_DRAWN") == "1" || only != null) drawn else emptyList())
+            .filter { only == null || it.kind in only }
+        all.forEachIndexed { hi, h ->
             val s = SpeciesForms.of(h.kind, Stage.ADULT)
             if (hi > 0) sb.append(',')
             sb.append("{\"kind\":\"${h.kind}\",\"name\":\"${esc(h.name)}\",\"clips\":[")

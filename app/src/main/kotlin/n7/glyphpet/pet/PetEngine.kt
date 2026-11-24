@@ -471,7 +471,11 @@ class PetEngine(
     }
 
     /** The adult's pastime playing now ([Pastimes]), by id; null while none is. */
-    val pastimeNow: String? get() = if (habitMs >= 0) playingHabit?.id else null
+    val pastimeNow: String? get() = when {
+        habitMs >= 0 -> playingHabit?.id
+        drawnHabitMs >= 0 && drawnCol != "habit" -> drawnCol
+        else -> null
+    }
 
     /** The 3D look of the legendary and mythic pets. */
     private val living = Living3D()
@@ -1252,6 +1256,9 @@ class PetEngine(
     /** A drawn hero's habit playing now, ms in; -1 when none. */
     private var drawnHabitMs = -1L
 
+    /** The clip [drawnHabitMs] plays: its "habit", or one of a grown-up's pastimes ([Drawn.pastimes]). */
+    private var drawnCol = "habit"
+
     /**
      * Everything else a drawn hero ([Drawn]) shows: its clip for the reaction, the lean, its habit or its mood. Its
      * game, signature and meal have already played through the usual registries.
@@ -1261,10 +1268,29 @@ class PetEngine(
         val free = !asleep && action == Action.NONE && !sliding && (scene.mood == Mood.CONTENT || scene.mood == Mood.HAPPY)
         if (drawnHabitMs >= 0) {
             drawnHabitMs += dtMs
-            if (!free || drawnHabitMs >= Drawn.length("habit")) { drawnHabitMs = -1; habitInMs = nextHabitIn() }
-        } else if (free && (trickAsked || (autoHabits && quietMs >= QUIET_MS && habitInMs <= 0 && signatureMs < 0 && announceMs < 0))) {
-            trickAsked = false
-            drawnHabitMs = 0
+            if (!free || drawnHabitMs >= Drawn.length(species.kind, drawnCol)) { drawnHabitMs = -1; habitInMs = nextHabitIn() }
+        } else if (free) {
+            val due = autoHabits && quietMs >= QUIET_MS && habitInMs <= 0 && signatureMs < 0 && announceMs < 0
+            // A grown-up's pastimes, as the sprites' ([Pastimes]): asked for, or due, one it did not do last.
+            val pastimes = if (species.stage == Stage.ADULT) Drawn.pastimes(species.kind).map { it.id } else emptyList()
+            val asked = pastimeAsked?.takeIf { it in pastimes }
+            val col = when {
+                trickAsked -> "habit"
+                asked != null -> asked
+                due && pastimeInMs <= 0 && pastimes.isNotEmpty() -> pastimes.filter { it != lastPastime }.ifEmpty { pastimes }.random(random)
+                due -> "habit"
+                else -> null
+            }
+            if (col != null) {
+                if (col != "habit") {
+                    lastPastime = col
+                    pastimeInMs = random.nextLong(PASTIME_EVERY_MIN_MS, PASTIME_EVERY_MAX_MS + 1)
+                }
+                trickAsked = false
+                pastimeAsked = null
+                drawnCol = col
+                drawnHabitMs = 0
+            }
         }
         val (col, t) = when {
             action == Action.LOVED -> "loved" to (Cuddles.DURATION_MS - actionLeftMs)
@@ -1273,7 +1299,7 @@ class PetEngine(
             action == Action.REFUSING -> "tired" to time
             action == Action.SURGE -> "happy" to time
             sliding -> "tilt" to time
-            drawnHabitMs >= 0 -> "habit" to drawnHabitMs
+            drawnHabitMs >= 0 -> drawnCol to drawnHabitMs
             asleep -> "asleep" to time
             scene.mood == Mood.HUNGRY -> "hungry" to time
             scene.mood == Mood.SAD -> "sad" to time
@@ -1281,6 +1307,8 @@ class PetEngine(
             scene.mood == Mood.HAPPY && joyMs >= 0 -> "happy" to joyMs
             else -> "calm" to time
         }
+        // A pastime picks up the calm clip where it is now, and gives it back there ([Drawn.pastimeStart]).
+        Drawn.pastimeStart = if (drawnHabitMs >= 0 && col == drawnCol && col != "habit") time - drawnHabitMs else 0L
         Drawn.frame(species.kind, col, t, species.stage, if (sliding) scene.tilt else 0f, frame)
         // Hungry and sad at once: its hungry clip, dimmed by the sadness.
         if (col == "hungry" && scene.alsoSad) for (i in frame.indices) frame[i] = frame[i] * 7 / 10
@@ -1298,10 +1326,12 @@ class PetEngine(
         if (scene.ready && action != Action.SURGE) { val phase = time % READY_EVERY_MS; if (phase < READY_SWEEP_MS) surgeGlow(frame) }
         if (action == Action.SURGE) surgeGlow(frame)
         if (scene.missedCall) SpeciesRenderer.missedCall(frame, time, still = false)
-        val state = PetState.entries.firstOrNull { it.id == (if (col == "habit") "trick" else col) }
+        // A pastime counts as its habit: the same slot, the same face rules.
+        val habitCol = col == "habit" || (drawnHabitMs >= 0 && col == drawnCol)
+        val state = PetState.entries.firstOrNull { it.id == (if (habitCol) "trick" else col) }
         shown = Shown(
-            face = if (col == "habit") null else if (col == "asleep" && action == Action.PEEK) Face.PEEK else state?.stage?.face ?: Face.IDLE,
-            habit = col == "habit", lift = if (col == "happy") 1 else 0, cheer = col == "happy",
+            face = if (habitCol) null else if (col == "asleep" && action == Action.PEEK) Face.PEEK else state?.stage?.face ?: Face.IDLE,
+            habit = habitCol, lift = if (col == "happy") 1 else 0, cheer = col == "happy",
         )
         return frame
     }
@@ -1467,6 +1497,8 @@ class PetEngine(
      * walks to the nearest spot where it does. A baby has none.
      */
     private fun updateHabit(dtMs: Long, species: Species, scene: Scene, sliding: Boolean) {
+        // A drawn hero's habit and pastimes are its clips ([drawn]): what is asked for waits for that, untouched here.
+        if (Drawn.handles(species.kind)) return
         val mood = scene.mood
         if (habitMs >= 0) {
             // A habit that started plays to the end, unless the pet is no longer free for it: any reaction, the
