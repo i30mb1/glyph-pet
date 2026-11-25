@@ -1,13 +1,14 @@
 package n7.glyphpet
 
+import android.content.res.Resources
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
@@ -16,25 +17,28 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
-import n7.glyph.ui.components.GlyphMatrix
 import n7.glyph.ui.components.N7Card
 import n7.glyph.ui.components.N7PagerDots
 import n7.glyph.ui.matrix.Cell
@@ -50,23 +54,46 @@ import n7.glyphpet.pet.StatePreview
 private class LiveFrame(val speciesId: String, val page: Int, val cells: List<Cell>)
 
 /**
+ * The stills made so far, by form and state, kept while the app lives: a form's still of a state is always the same
+ * picture, and finding one plays the state for seconds of its time. Touched on the main thread only.
+ */
+private val STILLS = mutableStateMapOf<String, List<Cell>>()
+
+/** How long the stills may be worked on between two frames of the screen. */
+private const val STILL_SLICE_NS = 3_000_000L
+
+/** The states [species] has a page for: the signature, the game, its own trick and the typing toy only where it has one. */
+private fun statesOf(species: Species): List<PetState> = PetState.entries.filter {
+    (it != PetState.SIGNATURE || Signatures.has(species.kind)) &&
+        (it != PetState.GAME || n7.glyphpet.pet.Tricks.has(species.kind)) &&
+        (it != PetState.TRICK || !species.habit.none) &&
+        (it != PetState.TYPING || n7.glyphpet.pet.typing.Desks.has(species.kind))
+}
+
+/**
  * "States": every state of the active pet, one page at a time, swiped sideways with dots under it. Each page plays
  * its state on its own [StatePreview], which never touches the saved pet. Only the settled page animates, and only
- * while the screen is resumed and the card is on screen and open; any other page shows a still of its state. Folded
- * to one row ("All states") by default. The "Signature" page, right after Calm, is there only for kinds that have one.
+ * while the screen is resumed and the card is on screen and open; any other page shows a still of its state, found
+ * ahead of the swipe a little at a time ([STILLS]). The card is as tall for every hero ([pageHeight]), so picking
+ * another one moves nothing under it. The "Signature" page, right after Calm, is there only for kinds that have one.
  */
 @Composable
 internal fun StatesCard(species: Species, found: Set<String>, open: Boolean, onOpen: (Boolean) -> Unit, modifier: Modifier = Modifier) {
-    val states = remember(species.kind) {
-        PetState.entries.filter { (it != PetState.SIGNATURE || Signatures.has(species.kind)) && (it != PetState.GAME || n7.glyphpet.pet.Tricks.has(species.kind)) && (it != PetState.TRICK || !species.habit.none) && (it != PetState.TYPING || n7.glyphpet.pet.typing.Desks.has(species.kind)) }
-    }
+    val states = remember(species.kind, species.habit.id) { statesOf(species) }
     val pager = rememberPagerState(pageCount = { states.size })
     val lifecycleOwner = LocalLifecycleOwner.current
     var onScreen by remember { mutableStateOf(false) }
     var live by remember { mutableStateOf<LiveFrame?>(null) }
-    // A still per state, made when its page first shows up during a swipe.
-    val stills = remember(species.id) { HashMap<PetState, List<Cell>>() }
     val playing = pager.settledPage
+
+    // Another hero has other pages: its album opens at the first one.
+    var kindShown by remember { mutableStateOf(species.kind) }
+    LaunchedEffect(species.kind) {
+        if (kindShown != species.kind) {
+            kindShown = species.kind
+            pager.scrollToPage(0)
+        }
+    }
 
     LaunchedEffect(species.id, playing, onScreen, open, lifecycleOwner) {
         live = null
@@ -83,6 +110,27 @@ internal fun StatesCard(species: Species, found: Set<String>, open: Boolean, onO
         }
     }
 
+    // The stills of the pages around, the nearest first, a few milliseconds of work between two frames: a swipe
+    // finds its neighbour ready and never waits for it.
+    LaunchedEffect(species.id, playing, open, found) {
+        if (!open) return@LaunchedEffect
+        for (page in states.indices.sortedBy { kotlin.math.abs(it - playing) }) {
+            val state = states[page]
+            val key = "${species.id}/${state.id}"
+            if (state.id !in found || key in STILLS) continue
+            withFrameNanos { }
+            var since = System.nanoTime()
+            for (step in StatePreview(species, state).stillSteps()) {
+                if (step != null) {
+                    STILLS[key] = PetEngine.toCells(step)
+                } else if (System.nanoTime() - since >= STILL_SLICE_NS) {
+                    withFrameNanos { }
+                    since = System.nanoTime()
+                }
+            }
+        }
+    }
+
     N7Card(
         modifier
             .fillMaxWidth()
@@ -92,24 +140,17 @@ internal fun StatesCard(species: Species, found: Set<String>, open: Boolean, onO
         val opened = states.count { it.id in found }
         ExpandRow(stringResource(R.string.states_found, opened, states.size), open) { onOpen(!open) }
         if (open) Column(Modifier.padding(bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box {
-                // The tallest page decides the height, so the card does not jump while swiping. These copies are
-                // never seen and never read aloud.
-                states.forEach { state ->
-                    StatePage(
-                        cells = null,
-                        name = stringResource(stateName(state, species)),
-                        whenLine = stateWhenText(state, species),
-                        modifier = Modifier.fillMaxWidth().alpha(0f).clearAndSetSemantics {},
-                    )
-                }
-                HorizontalPager(state = pager, modifier = Modifier.matchParentSize(), pageSpacing = 8.dp) { page ->
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val preview = if (maxWidth < NARROW) PREVIEW_SMALL else PREVIEW_SIZE
+                HorizontalPager(state = pager, modifier = Modifier.fillMaxWidth().height(pageHeight(maxWidth, preview)), pageSpacing = 8.dp) { page ->
                     val state = states[page]
                     if (state.id in found) {
                         val frame = live?.takeIf { it.speciesId == species.id && it.page == page }?.cells
-                            ?: stills.getOrPut(state) { PetEngine.toCells(StatePreview(species, state).still()) }
+                            ?: STILLS["${species.id}/${state.id}"]
+                            ?: emptyList()
                         StatePage(
                             cells = frame,
+                            preview = preview,
                             name = stringResource(stateName(state, species)),
                             whenLine = stateWhenText(state, species),
                             modifier = Modifier.fillMaxSize(),
@@ -118,6 +159,7 @@ internal fun StatesCard(species: Species, found: Set<String>, open: Boolean, onO
                         // Not seen yet: a question mark on the matrix, and a question instead of the answer.
                         StatePage(
                             cells = QUESTION,
+                            preview = preview,
                             name = "???",
                             whenLine = stringResource(stateAsk(state)),
                             modifier = Modifier.fillMaxSize(),
@@ -132,25 +174,72 @@ internal fun StatesCard(species: Species, found: Set<String>, open: Boolean, onO
 
 /** One state: the live matrix on the left, its name and when it happens on the right. */
 @Composable
-private fun StatePage(cells: List<Cell>?, name: String, whenLine: String, modifier: Modifier) {
+private fun StatePage(cells: List<Cell>, preview: Dp, name: String, whenLine: String, modifier: Modifier) {
     Row(
         modifier.semantics(mergeDescendants = true) {},
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(PREVIEW_GAP),
     ) {
-        if (cells != null) {
-            PetMatrix(cells = cells, modifier = Modifier.size(PREVIEW_SIZE))
-        } else {
-            Spacer(Modifier.size(PREVIEW_SIZE))
-        }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        PetMatrix(cells = cells, modifier = Modifier.size(preview))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(TEXT_GAP)) {
             Text(name, style = N7Type.Title, color = N7Colors.Ink)
             Text(whenLine, style = N7Type.BodyS, color = N7Colors.InkMuted)
         }
     }
 }
 
-private val PREVIEW_SIZE = 64.dp
+private val PREVIEW_SIZE = 104.dp
+private val PREVIEW_SMALL = 88.dp
+private val PREVIEW_GAP = 14.dp
+private val TEXT_GAP = 2.dp
+
+/** A card narrower than this gets the smaller matrix, so the words keep their room. */
+private val NARROW = 300.dp
+
+/** A page's words: its name and the line under it. */
+private data class PageText(val name: String, val line: String)
+
+/** The pages that may be the tallest, and the language they were picked in. */
+private var tallest: Pair<String, List<PageText>>? = null
+
+/**
+ * The pages with the most words among every hero's, in the language of [res]: the tallest page is one of these, so
+ * only they are measured.
+ */
+private fun tallestPages(res: Resources): List<PageText> {
+    val language = res.configuration.locales.toLanguageTags()
+    tallest?.takeIf { it.first == language }?.let { return it.second }
+    val pages = HashSet<PageText>()
+    for (form in n7.glyphpet.pet.SpeciesForms.all.distinctBy { it.kind to it.habit.id }) for (state in statesOf(form)) {
+        pages += PageText(res.getString(stateName(state, form)), whenText(res, state, form))
+        pages += PageText("???", res.getString(stateAsk(state)))
+    }
+    val picked = (pages.sortedByDescending { it.line.length }.take(6) + pages.sortedByDescending { it.name.length }.take(4)).distinct()
+    tallest = language to picked
+    return picked
+}
+
+/**
+ * How tall a page of the card is, the same for every hero and every state: room for the matrix and for the page with
+ * the most words any hero has, at this width and text size.
+ */
+@Composable
+private fun pageHeight(width: Dp, preview: Dp): Dp {
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val configuration = LocalConfiguration.current
+    val res = LocalContext.current.resources
+    return remember(width, preview, density, configuration) {
+        with(density) {
+            val room = Constraints(maxWidth = (width - preview - PREVIEW_GAP).roundToPx().coerceAtLeast(1))
+            val words = tallestPages(res).maxOf {
+                measurer.measure(it.name, N7Type.Title, constraints = room).size.height +
+                    measurer.measure(it.line, N7Type.BodyS, constraints = room).size.height
+            }
+            maxOf(preview, (words + TEXT_GAP.roundToPx()).toDp())
+        }
+    }
+}
 
 /** A big dim question mark on the matrix, for a state not seen yet. */
 private val QUESTION: List<Cell> by lazy {
@@ -204,13 +293,19 @@ internal fun stateName(state: PetState, species: Species): Int = when (state) {
 /** When the toy shows a state; the signature's line also says what the effect is. */
 @Composable
 private fun stateWhenText(state: PetState, species: Species): String {
+    // Read so the line follows a change of language.
+    LocalConfiguration.current
+    return whenText(LocalContext.current.resources, state, species)
+}
+
+private fun whenText(res: Resources, state: PetState, species: Species): String {
     if (state == PetState.TYPING) {
-        val typing = TypingNames.about(species.kind) ?: return stringResource(R.string.state_typing_when, "").removePrefix(". ")
-        return stringResource(R.string.state_typing_when, stringResource(typing))
+        val typing = TypingNames.about(species.kind) ?: return res.getString(R.string.state_typing_when, "").removePrefix(". ")
+        return res.getString(R.string.state_typing_when, res.getString(typing))
     }
-    if (state != PetState.SIGNATURE) return stringResource(stateWhen(state))
-    val about = SignatureNames.about(species.kind) ?: return stringResource(R.string.state_signature_when, "").removePrefix(". ")
-    return stringResource(R.string.state_signature_when, stringResource(about))
+    if (state != PetState.SIGNATURE) return res.getString(stateWhen(state))
+    val about = SignatureNames.about(species.kind) ?: return res.getString(R.string.state_signature_when, "").removePrefix(". ")
+    return res.getString(R.string.state_signature_when, res.getString(about))
 }
 
 /** When the toy shows a state, in the words the app uses (Food, Joy, Sleep). */

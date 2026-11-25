@@ -14,8 +14,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.ui.geometry.CornerRadius
@@ -127,6 +126,15 @@ import n7.glyphpet.pet.NeedDots
 import n7.glyphpet.pet.XpRules
 import n7.glyphpet.pet.Mood
 import n7.glyphpet.pet.Nursery
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.input.pointer.pointerInput
 import n7.glyphpet.pet.PetEngine
 import n7.glyphpet.pet.PetRules
 import n7.glyphpet.pet.PetStats
@@ -438,9 +446,11 @@ private fun PetScreen(
                     )
                     // The light on the pet follows the phone's lean, as on the matrix (the screen faces the other way).
                     n7.glyphpet.pet.Shading.light = if (playing) n7.glyphpet.pet.Shading.lightFor(-motion.tilt, motion.tiltY) else n7.glyphpet.pet.Shading.DEFAULT_LIGHT
-                    frame = try { PetEngine.toCells(engine.tick(FRAME_MS, scene)) } finally { n7.glyphpet.pet.Shading.light = n7.glyphpet.pet.Shading.DEFAULT_LIGHT }
+                    // The pet is only drawn on the Play tab: on the others it waits where it was, and the screen there
+                    // is not slowed by a matrix nobody sees.
+                    if (playing) frame = try { PetEngine.toCells(engine.tick(FRAME_MS, scene)) } finally { n7.glyphpet.pet.Shading.light = n7.glyphpet.pet.Shading.DEFAULT_LIGHT }
                     // A game's joy comes while it is played, a second's worth at a time.
-                    if (engine.playingTrick) gameMs += FRAME_MS
+                    if (playing && engine.playingTrick) gameMs += FRAME_MS
                     if (gameMs >= 1000L || (!engine.playingTrick && gameMs > 0L)) { store.playing(gameMs); gameMs = 0L }
                     // What the pet shows on the Play tab opens in the album, as on the matrix.
                     val formId = nursery.activeForm?.id
@@ -458,6 +468,9 @@ private fun PetScreen(
             }
         }
     }
+
+    // The Nursery's pictures, made ahead while the app is on its first tab.
+    LaunchedEffect(Unit) { TileArt.make() }
 
     val mood = PetRules.mood(nursery.stats, store.asleep(nursery.stats, now))
     val action = ButtonRules.decide(nursery.active != null, mood, eggOnMatrix = nursery.eggOnMatrix != null)
@@ -959,11 +972,7 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
     fun eggPicture(view: EggView) = eggCells.getOrPut(view) {
         PetEngine.toCells(IntArray(SpeciesRenderer.SIZE * SpeciesRenderer.SIZE).also { EggRenderer.big(it, view) })
     }
-    val cells = remember {
-        SpeciesForms.all.associate { s ->
-            s.id to PetEngine.toCells(if (Drawn.handles(s.kind)) Drawn.frame(s.kind, "calm", 800, s.stage) else SpeciesRenderer.render(s, Face.IDLE))
-        }
-    }
+    val art = TileArt.ready
     // An anomaly not found yet: a tap tells how to find it.
     var hintFor by remember { mutableStateOf<Species?>(null) }
     val context = LocalContext.current
@@ -987,14 +996,6 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
         SpeciesRenderer.glyph(frame, mark, 10, 8, hashValue = 900, brightValue = 900)
         PetEngine.toCells(frame)
     }
-    val shadows = remember {
-        SpeciesForms.all.associate { s ->
-            val frame = IntArray(SpeciesRenderer.SIZE * SpeciesRenderer.SIZE)
-            if (Drawn.handles(s.kind)) Drawn.frame(s.kind, "calm", 800, s.stage).forEachIndexed { i, v -> if (v > 0) frame[i] = 220 }
-            else SpeciesRenderer.glyph(frame, s.rows, s.ox, s.oy, hashValue = 220, brightValue = 220)
-            s.id to PetEngine.toCells(frame)
-        }
-    }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             SectionLabel(stringResource(R.string.collection_title, found, SpeciesCatalog.all.size), Modifier.weight(1f))
@@ -1016,8 +1017,7 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
                             count = count,
                             toEgg = if (nursery.eggsLeft && nursery.active?.id == s.id) nursery.eggMinutes else null,
                             live = nursery.eggOnMatrix == null && nursery.active?.id == s.id,
-                            cells = cells,
-                            shadows = shadows,
+                            art = art,
                             onShow = { onShow(s.id, it) },
                             modifier = Modifier.weight(1f).height(TILE_HEIGHT),
                         )
@@ -1062,8 +1062,44 @@ private fun Collection(nursery: Nursery, onShow: (kind: String, stage: Stage) ->
     }
 }
 
+/**
+ * The pictures on the Nursery's tiles: every form of every hero, calm, and its dim silhouette for a form not reached
+ * yet. Made once while the app lives, a few between two frames of the screen, and shown all together ([ready]):
+ * drawing them all at the moment the tab opened is what made it stall.
+ */
+private object TileArt {
+    class Pictures(val cells: Map<String, List<Cell>>, val shadows: Map<String, List<Cell>>)
+
+    /** Null until every picture is made. */
+    var ready by mutableStateOf<Pictures?>(null)
+        private set
+
+    suspend fun make() {
+        if (ready != null) return
+        val cells = HashMap<String, List<Cell>>()
+        val shadows = HashMap<String, List<Cell>>()
+        var since = System.nanoTime()
+        for (s in SpeciesForms.all) {
+            val drawn = if (Drawn.handles(s.kind)) Drawn.frame(s.kind, "calm", 800, s.stage) else null
+            cells[s.id] = PetEngine.toCells(drawn ?: SpeciesRenderer.render(s, Face.IDLE))
+            val shadow = IntArray(SpeciesRenderer.SIZE * SpeciesRenderer.SIZE)
+            if (drawn != null) drawn.forEachIndexed { i, v -> if (v > 0) shadow[i] = 220 }
+            else SpeciesRenderer.glyph(shadow, s.rows, s.ox, s.oy, hashValue = 220, brightValue = 220)
+            shadows[s.id] = PetEngine.toCells(shadow)
+            if (System.nanoTime() - since >= 4_000_000L) {
+                withFrameNanos { }
+                since = System.nanoTime()
+            }
+        }
+        ready = Pictures(cells, shadows)
+    }
+}
+
 private const val TILES_PER_ROW = 4
 private val TILE_MATRIX = 52.dp
+/** How far the strip of forms is pulled, as a part of the tile's width, to run on to the next form when let go. */
+private const val TILE_SWIPE = 0.3f
+private const val TILE_SETTLE_MS = 180
 /** Every tile the same height: a hero's picture, its name, its experience and the page dots. */
 private val TILE_HEIGHT = 108.dp
 
@@ -1093,7 +1129,9 @@ private fun rarityGroupName(rarity: Rarity): Int = when (rarity) {
 }
 
 /**
- * A collected hero: only its picture swipes between its three forms, the name, the experience and the dots stay put.
+ * A collected hero: its picture is a strip of its three forms that follows the finger across the tile and, let go,
+ * runs on to the nearer one; the name, the experience and the dots stay put. Not a pager: one in each of the
+ * Nursery's tiles made the tab slow to open, so the form beside is only drawn while the strip is moving.
  * It opens on the form shown on the matrix. A form not reached yet is a dim silhouette with a lock. A tap puts the
  * form on the page on the matrix; the one there now is framed when [live] (the hero is the active pet and no egg is on
  * the matrix). Under the name its experience toward the next form, "max" for an adult, "ready" when it may grow.
@@ -1106,13 +1144,21 @@ private fun HeroTile(
     /** For the active adult: minutes toward the next egg; null otherwise. */
     toEgg: Int? = null,
     live: Boolean,
-    cells: Map<String, List<Cell>>,
-    shadows: Map<String, List<Cell>>,
+    /** The tiles' pictures, or null while they are being made. */
+    art: TileArt.Pictures?,
     onShow: (Stage) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val forms = SpeciesForms.all(hero.id)
-    val pager = rememberPagerState(initialPage = growth.shown.ordinal) { forms.size }
+    var page by rememberSaveable(hero.id) { mutableIntStateOf(growth.shown.ordinal) }
+    // How far the strip is pulled from the form it rests on, in pixels: below zero toward the next form.
+    val slide = remember { Animatable(0f) }
+    var stripWidth by remember { mutableIntStateOf(0) }
+    val scope = rememberCoroutineScope()
+    // Which side the form beside comes in from: 1 the next one, -1 the one before, 0 at rest.
+    val coming by remember { derivedStateOf { if (slide.value < 0f) 1 else if (slide.value > 0f) -1 else 0 } }
+    // The dots turn once the strip is half way over.
+    val dot by remember { derivedStateOf { if (stripWidth > 0 && kotlin.math.abs(slide.value) > stripWidth / 2f) page + coming else page } }
     val ready = growth.ready && growth.reached.next != null
     val need = growth.threshold
     val xpLine = when {
@@ -1121,7 +1167,8 @@ private fun HeroTile(
         need == null -> stringResource(R.string.xp_full)
         else -> stringResource(R.string.xp_tile, growth.xp, need)
     }
-    val stage = forms[pager.currentPage].stage
+    val form = forms[page]
+    val stage = form.stage
     val reached = stage <= growth.reached
     val framed = live && stage == growth.shown
     val stageName = stringResource(stageName(stage))
@@ -1132,6 +1179,27 @@ private fun HeroTile(
             .background(N7Colors.SurfaceRaised)
             .then(if (framed) Modifier.border(1.dp, N7Colors.ControlBorder, RoundedCornerShape(16.dp)) else Modifier)
             .clickable(enabled = reached && !framed, role = Role.Button) { onShow(stage) }
+            .pointerInput(forms.size) {
+                // Let go: on to the form beside when pulled a third of the way to it, else back.
+                fun settle() {
+                    scope.launch {
+                        val pulled = slide.value
+                        val go = if (kotlin.math.abs(pulled) >= stripWidth * TILE_SWIPE) (if (pulled < 0f) 1 else -1) else 0
+                        slide.animateTo(-go * stripWidth.toFloat(), tween(TILE_SETTLE_MS))
+                        if (go != 0) {
+                            page = (page + go).coerceIn(0, forms.lastIndex)
+                            slide.snapTo(0f)
+                        }
+                    }
+                }
+                detectHorizontalDragGestures(onDragEnd = ::settle, onDragCancel = ::settle) { change, amount ->
+                    change.consume()
+                    // The strip ends at the first and the last form.
+                    val low = if (page < forms.lastIndex) -stripWidth.toFloat() else 0f
+                    val high = if (page > 0) stripWidth.toFloat() else 0f
+                    scope.launch { slide.snapTo((slide.value + amount).coerceIn(low, high)) }
+                }
+            }
             .padding(top = 8.dp, bottom = 7.dp)
             .semantics(mergeDescendants = true) {
                 contentDescription = "${hero.name}, $stageName, $xpLine${if (framed) ", $onMatrix" else ""}"
@@ -1139,12 +1207,16 @@ private fun HeroTile(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        HorizontalPager(state = pager, modifier = Modifier.fillMaxWidth()) { page ->
-            val form = forms[page]
-            val open = form.stage <= growth.reached
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                PetMatrix(cells = (if (open) cells else shadows).getValue(form.id), modifier = Modifier.size(TILE_MATRIX))
-                if (!open) Lock(Modifier.size(18.dp))
+        Box(Modifier.fillMaxWidth().clipToBounds().onSizeChanged { stripWidth = it.width }) {
+            // Whole pixels: a matrix drawn between two pixels is a blurred one.
+            FormPicture(form, reached, art, Modifier.fillMaxWidth().graphicsLayer { translationX = slide.value.roundToInt().toFloat() })
+            forms.getOrNull(page + coming)?.takeIf { coming != 0 }?.let { beside ->
+                FormPicture(
+                    beside,
+                    beside.stage <= growth.reached,
+                    art,
+                    Modifier.fillMaxWidth().graphicsLayer { translationX = (slide.value + coming * stripWidth).roundToInt().toFloat() },
+                )
             }
         }
         Text(
@@ -1169,10 +1241,19 @@ private fun HeroTile(
                 Box(
                     Modifier
                         .size(5.dp)
-                        .background(if (i == pager.currentPage) N7Colors.LedOn else N7Colors.LedOff, CircleShape),
+                        .background(if (i == dot) N7Colors.LedOn else N7Colors.LedOff, CircleShape),
                 )
             }
         }
+    }
+}
+
+/** One form on a hero's tile: its picture, or its dim silhouette under a lock when it is not [open] yet. */
+@Composable
+private fun FormPicture(form: Species, open: Boolean, art: TileArt.Pictures?, modifier: Modifier = Modifier) {
+    Box(modifier, contentAlignment = Alignment.Center) {
+        PetMatrix(cells = (if (open) art?.cells else art?.shadows)?.get(form.id).orEmpty(), modifier = Modifier.size(TILE_MATRIX))
+        if (!open) Lock(Modifier.size(18.dp))
     }
 }
 

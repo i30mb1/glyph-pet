@@ -220,22 +220,37 @@ class StatePreview(val species: Species, val state: PetState) {
      *   at least half bright (a ghost fading out would leave almost nothing to see).
      * - Every other state: a little way ([STILL_HOLD_MS]) into it.
      */
-    fun still(): IntArray {
+    fun still(): IntArray = stillSteps().last()!!
+
+    /**
+     * [still] in small steps, for a screen that must not stop while it is found: a null after every frame played
+     * (a place to pause), the still itself last.
+     */
+    fun stillSteps(): Sequence<IntArray?> = sequence { yield(find()) }
+
+    /** One frame of [copy], then a place to pause. */
+    private suspend fun SequenceScope<IntArray?>.step(copy: StatePreview): IntArray {
+        val frame = copy.tick(FRAME_MS)
+        yield(null)
+        return frame
+    }
+
+    private suspend fun SequenceScope<IntArray?>.find(): IntArray {
         val copy = StatePreview(species, state)
         if (state == PetState.TYPING) {
             // Its first act, a little way in: the toy is built up enough to tell what it is.
-            var frame = copy.tick(FRAME_MS)
+            var frame = step(copy)
             var t = FRAME_MS
-            while (t < TYPING_STILL_MS) { frame = copy.tick(FRAME_MS); t += FRAME_MS }
+            while (t < TYPING_STILL_MS) { frame = step(copy); t += FRAME_MS }
             return frame
         }
         if (state == PetState.SIGNATURE) {
             // The engine does not tell when the effect is on: the frame that shows it best, the one changing the most
             // from the pet just before it, among the frames where the pet itself is drawn whole.
-            var frame = copy.tick(FRAME_MS)
+            var frame = step(copy)
             var t = FRAME_MS
             while (t < state.stage.cueFirstMs) {
-                frame = copy.tick(FRAME_MS)
+                frame = step(copy)
                 t += FRAME_MS
             }
             val before = frame
@@ -243,7 +258,7 @@ class StatePreview(val species: Species, val state: PetState) {
             var best = frame
             var bestScore = -1
             while (t < state.stage.cueFirstMs + signatureMs + STILL_HOLD_MS) {
-                frame = copy.tick(FRAME_MS)
+                frame = step(copy)
                 t += FRAME_MS
                 if (!whole(frame)) continue
                 val score = changed(before, frame)
@@ -252,12 +267,12 @@ class StatePreview(val species: Species, val state: PetState) {
             return best
         }
         val limit = maxOf(loopMs, STILL_SEARCH_MS)
-        var before = copy.tick(FRAME_MS)
+        var before = step(copy)
         var frame = before
         var t = FRAME_MS
         while (t < limit && !state.isShownBy(copy.shown)) {
             before = frame
-            frame = copy.tick(FRAME_MS)
+            frame = step(copy)
             t += FRAME_MS
         }
         val telling: (Shown) -> Boolean = when (state) {
@@ -267,13 +282,13 @@ class StatePreview(val species: Species, val state: PetState) {
         }
         // Happy: wait for the first hop (the face shows all along); trick: the habit is on from here.
         while (t < limit && !(state.isShownBy(copy.shown) && telling(copy.shown))) {
-            frame = copy.tick(FRAME_MS)
+            frame = step(copy)
             t += FRAME_MS
         }
         var best = frame
         var bestScore = if (telling(copy.shown)) changed(before, frame) else -1
         while (t < limit) {
-            val next = copy.tick(FRAME_MS)
+            val next = step(copy)
             t += FRAME_MS
             if (!state.isShownBy(copy.shown)) break
             if (state == PetState.HAPPY && copy.shown.lift == 0 && !copy.shown.cheer) break
@@ -287,13 +302,13 @@ class StatePreview(val species: Species, val state: PetState) {
     }
 
     /** The frame [STILL_HOLD_MS] after [frame], or the last one before the state ends. */
-    private fun hold(copy: StatePreview, frame: IntArray): IntArray {
+    private suspend fun SequenceScope<IntArray?>.hold(copy: StatePreview, frame: IntArray): IntArray {
         var shown = frame
         var held = 0L
         // A kind that eats its own way is caught in the middle of its meal, where it shows best.
         val holdMs = if (state == PetState.EATING) Feasts.of(species.kind)?.let { it.durationMs * 55 / 100 } ?: STILL_HOLD_MS else STILL_HOLD_MS
         while (held < holdMs) {
-            val next = copy.tick(FRAME_MS)
+            val next = step(copy)
             if (!state.isShownBy(copy.shown)) break
             shown = next
             held += FRAME_MS

@@ -10,6 +10,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -55,13 +56,15 @@ fun PetMatrix(cells: List<Cell>, modifier: Modifier = Modifier, contentDescripti
             drawCircle(lerp(N7Colors.LedOff, N7Colors.LedOn, level), r * 0.52f, p)
         }
         // The glow goes on top, added to the light, only around the bright LEDs.
+        // One glow for all of them, moved from LED to LED and dimmed by each one's level: a gradient made per LED
+        // per frame is what made a screen full of matrices slow.
         val halo = r * 2.6f
+        val glow = Brush.radialGradient(listOf(N7Colors.LedOn, Color.Transparent), center = Offset.Zero, radius = halo)
         for (y in 0 until SIZE) for (x in GlyphMatrixSpec.rowRange(y)) {
             val level = levels[y * SIZE + x]
             if (level < GLOW_FROM) continue
             val p = at(x, y)
-            val a = GLOW * level * level
-            drawCircle(Brush.radialGradient(listOf(N7Colors.LedOn.copy(alpha = a), Color.Transparent), center = p, radius = halo), halo, p, blendMode = BlendMode.Plus)
+            translate(p.x, p.y) { drawCircle(glow, halo, Offset.Zero, alpha = GLOW * level * level, blendMode = BlendMode.Plus) }
         }
         // A faint reflection across the top of the glass.
         val top = Offset(c.x - lens * 0.64f, c.y - lens * 0.92f)
