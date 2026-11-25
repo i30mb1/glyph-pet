@@ -254,27 +254,49 @@ private class SpiderGame : DrawnGame() {
 
 /** Glitch: bad pixels blink out of step; fly the cursor over one and hold it there to fix it. */
 private class DebugGame : DrawnGame() {
-    private val bx = IntArray(3); private val by = IntArray(3); private var hold = 0L; private var on = -1
-    override fun begin(input: SignatureInput) { for (i in 0 until 3) place(i) }
-    private fun place(i: Int) { spot(5f, 2f, 9f).let { bx[i] = it.first.toInt(); by[i] = it.second.toInt() } }
-    override fun play(input: SignatureInput, t: Long, dt: Float, ms: Long, r: Float) {
-        // A faint grid: the screen it lives in.
-        for (yy in 2..22 step 4) for (xx in 2..22 step 4) canvas.max(xx, yy, 250f)
-        if (r <= 0f) fly(dt, 9f)
-        var over = -1
-        for (i in 0 until 3) {
-            if (hypot(bx[i] - x, by[i] - y) < 2f) over = i
-            canvas.max(bx[i], by[i], if (((t + i * 170) / 130) % 3 == 0L) 4000f else 600f)
+    private val bx = IntArray(2); private val by = IntArray(2)
+    private var hx = 12; private var hy = 12
+    private var stepIn = 0L; private var hold = 0L; private var glad = 0L
+    private val cv = n7.glyphpet.pet.drawn.Cv()
+    private fun onBug(i: Int) = hx - bx[i] in 0..1 && hy - by[i] in 0..1
+    private fun place(i: Int) {
+        for (tries in 0 until 30) {
+            seed++; val px = 4 + 2 * (TrickKit.hash01(seed) * 9).toInt().coerceIn(0, 8)
+            seed++; val py = 5 + 2 * (TrickKit.hash01(seed) * 8).toInt().coerceIn(0, 7)
+            bx[i] = px; by[i] = py
+            val other = 1 - i
+            if (hypot(px - 12f, py - 12f) < 8.5f && hypot((px - hx).toFloat(), (py - hy).toFloat()) > 6f && hypot((px - bx[other]).toFloat(), (py - by[other]).toFloat()) > 5f) return
         }
-        if (over >= 0 && r <= 0f) {
-            hold += ms
-            if (hold >= 600L) { win(input); place(over); hold = 0L }
-        } else hold = max(0L, hold - ms / 3)
-        val cx = TrickKit.lerp(x, MID, r); val cy = TrickKit.lerp(y, MID, r)
-        // The cursor: a cross, filling up while it holds.
-        for (k in -2..2) { canvas.max((cx + k).toInt(), cy.toInt(), 2400f); canvas.max(cx.toInt(), (cy + k).toInt(), 2400f) }
-        if (hold > 0L) ring(cx, cy, 1.5f + 2f * hold / 700f, 1800f)
-        sparkle(t, cx, cy, 4f)
+    }
+    override fun begin(input: SignatureInput) { hx = 12; hy = 12; stepIn = 0L; hold = 0L; glad = 0L; bx[1] = -9; by[1] = -9; place(0); place(1) }
+    override fun play(input: SignatureInput, t: Long, dt: Float, ms: Long, r: Float) {
+        // Bad pixels flicker on the screen; the little Bit steps to one cell by cell with the lean, and patches the one it
+        // stands on (it stays put till it is done).
+        glad = max(0L, glad - ms)
+        val on = (0 until 2).firstOrNull { onBug(it) } ?: -1
+        if (r <= 0f) {
+            if (on >= 0) {
+                hold += ms
+                if (hold >= 500L) { win(input); glad = 500L; hold = 0L; place(on) }
+            } else {
+                hold = 0L; stepIn -= ms
+                if (stepIn <= 0L) {
+                    stepIn = 130L
+                    val ax = if (abs(tilt.x) > 0.2f) (if (tilt.x > 0) 1 else -1) else 0
+                    val ay = if (abs(tilt.y) > 0.2f) (if (tilt.y > 0) 1 else -1) else 0
+                    fun free(px: Int, py: Int) = hypot(px - 12f, py - 12f) <= 7.5f
+                    if (free(hx + ax, hy + ay)) { hx += ax; hy += ay } else if (free(hx + ax, hy)) hx += ax else if (free(hx, hy + ay)) hy += ay
+                }
+            }
+        }
+        val px = Math.round(TrickKit.lerp(hx.toFloat(), MID, r)); val py = Math.round(TrickKit.lerp(hy.toFloat(), MID, r))
+        cv.v.fill(0f)
+        n7.glyphpet.pet.drawn.glitchBit(cv, t, px - 12, py - 12, glad > 0L, on >= 0 && r <= 0f, tilt.x.coerceIn(-1f, 1f))
+        if (r <= 0f) for (i in 0 until 2) {
+            val fl = ((t / 110 + i * 3) % 3).toInt()
+            for (dy in 0..1) for (dx in 0..1) if (cv.get(bx[i] + dx, by[i] + dy) <= 0f) cv.put(bx[i] + dx, by[i] + dy, if (fl == 0) 1f else if ((dx + dy + fl) % 2 == 1) 0.55f else 0.3f)
+        }
+        for (i in 0 until 625) if (cv.v[i] > 0f) canvas.max(i % 25, i / 25, cv.v[i] * 4095f)
     }
 }
 
@@ -464,23 +486,30 @@ private class SunToy : DrawnGame() {
 
 /** Astronaut: the lean fires its jets; it drifts on with nothing to stop it, bounces off the rim and tumbles. */
 private class DriftToy : DrawnGame() {
-    private var spin = 0f
+    private val th = floatArrayOf(0.6f, 0.6f, 0.4f, 0.4f)
+    private val om = FloatArray(4)
+    private var bump = 0f
+    private val cv = n7.glyphpet.pet.drawn.Cv()
     override fun play(input: SignatureInput, t: Long, dt: Float, ms: Long, r: Float) {
+        // No goal, just zero gravity: the lean pushes the little Cadet, it drifts on and bounces softly off the rim; its
+        // arms and legs trail behind every push.
         vx += tilt.x * 6f * dt; vy += tilt.y * 6f * dt
         x += vx * dt; y += vy * dt
+        bump = max(0f, bump - dt)
         val d = hypot(x - MID, y - MID)
-        if (d > RIM - 2.5f) {
+        if (d > RIM - 4.5f) {
             val nx = (x - MID) / d; val ny = (y - MID) / d; val vn = vx * nx + vy * ny
-            if (vn > 0) { vx -= 1.8f * vn * nx; vy -= 1.8f * vn * ny; spin += vn * 0.6f; gate.feel(input, HapticKind.STOMP, 0.3f) }
-            x = MID + nx * (RIM - 2.5f); y = MID + ny * (RIM - 2.5f)
+            if (vn > 0) { vx -= 1.8f * vn * nx; vy -= 1.8f * vn * ny; bump = 0.3f; for (i in 0 until 4) om[i] += 5f; gate.feel(input, HapticKind.STOMP, 0.3f) }
+            x = MID + nx * (RIM - 4.5f); y = MID + ny * (RIM - 4.5f)
         }
-        spin *= 0.99f
-        for (i in 0 until 6) canvas.max(((TrickKit.hash01(i * 13) * 24 - t / 300f) % 24 + 24).toInt() % 24, (TrickKit.hash01(i * 7) * 24).toInt(), 900f)
-        val a = t / 1000f * spin
-        disc(x, y, 1.8f, 1600f)
-        canvas.v[(y.toInt().coerceIn(0, 24)) * 25 + (x + cos(a)).toInt().coerceIn(0, 24)] = 0f
-        canvas.max((x + cos(a + 1.6f) * 2.8f).toInt(), (y + sin(a + 1.6f) * 2.8f).toInt(), 1400f)
-        canvas.max((x + cos(a + 4.7f) * 2.8f).toInt(), (y + sin(a + 4.7f) * 2.8f).toInt(), 1400f)
-        if (abs(tilt.x) + abs(tilt.y) > 0.4f && (t / 80) % 2 == 0L) canvas.max((x - tilt.x * 3).toInt(), (y - tilt.y * 3).toInt(), 3800f)
+        val rest = floatArrayOf(0.6f, 0.6f, 0.4f, 0.4f)
+        for (i in 0 until 4) {
+            val side = if (i % 2 == 1) 1 else -1
+            val acc = (rest[i] + 0.2f * sin(t / 1000f * (0.9f + i * 0.13f) + i * 1.7f) - th[i]) * 26f - om[i] * 3.2f - side * tilt.x * 3f + tilt.y * 2f
+            om[i] += acc * dt.coerceAtMost(0.05f); th[i] = (th[i] + om[i] * dt.coerceAtMost(0.05f)).coerceIn(-0.5f, 3f)
+        }
+        cv.v.fill(0f)
+        n7.glyphpet.pet.drawn.astroCadet(cv, t, Math.round(x), Math.round(y) - 2, th, bump > 0f)
+        for (i in 0 until 625) if (cv.v[i] > 0f) canvas.max(i % 25, i / 25, cv.v[i] * 4095f)
     }
 }

@@ -49,7 +49,7 @@ object DrawnSleep {
             // Bubbles rising out of the sea from the sleeper under it.
             "kraken" -> for (k in 0..2) { val p = rise(t, 2400, k * 800L); c.ring(14f + k, 16f - p * 12, 0.6f, 0.35f * (1 - p)) }
             // "zzz" in pixels, blinking like a screen on standby.
-            "glitch" -> if ((t / 600) % 2 == 0L) for (k in 0..2) c.rows(SMALL_Z, 9 + k * 3, 14 - k, 0.45f)
+            "glitch" -> if ((t / 600) % 2 == 0L) for (k in 0..2) c.rows(SMALL_Z, 9 + k * 3, 8 - k, 0.45f)
             // A Z cut dark out of the glow.
             "shadow" -> { val p = rise(t, 3000); c.rows(Z.map { it.replace('o', '-') }, (15 + p * 2).roundToInt(), (8 - p * 4).roundToInt()) }
         }
@@ -76,8 +76,10 @@ object DrawnSleep {
         when (kind) {
             // It opens one eye itself ([DrawnFeel.peek]).
             "blackhole" -> Unit
-            // The screen blinks on for a moment: its awake face shows faintly.
-            "glitch" -> { val f = Drawn.frame("glitch", "calm", 400, n7.glyphpet.pet.Stage.TEEN); for (i in f.indices) if (f[i] / 2 > frame[i]) frame[i] = f[i] / 2 }
+            // It opens one eye in its visor itself ([DrawnFeel.peek]).
+            "astronaut" -> Unit
+            // It opens a slit with its eyes in it itself ([DrawnFeel.peek]).
+            "glitch" -> Unit
             // Two eyes open in the dark.
             "shadow" -> { light(frame, 10, 14); light(frame, 14, 14) }
             else -> {

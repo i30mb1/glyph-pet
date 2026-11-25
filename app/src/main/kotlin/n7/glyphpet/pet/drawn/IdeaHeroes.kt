@@ -552,27 +552,133 @@ private object Spider : EggHero(
 
 private object Astronaut : EggHero(
     "astronaut", listOf("Cadet", "Astronaut", "Commander"), Rarity.RARE,
-    "Космонавт: в невесомости медленно плавает по всей матрице",
-    mapOf("calm" to "парит среди звёзд", "happy" to "кувырок в невесомости", "habit" to "ставит флаг", "signature" to "полёт на ранце",
-        "hungry" to "еда в тюбике уплывает", "sad" to "трос оборвался", "tired" to "визор тускнеет", "asleep" to "спит, свернувшись",
-        "eating" to "ест из тюбика", "game" to "к станции по инерции", "loved" to "машет рукой", "dizzy" to "кувыркается",
-        "tilt" to "дрейфует в невесомости", "charging" to "заряжает скафандр", "grow" to "выплывает из капсулы"),
+    "Космонавт на тросе: в невесомости руки и ноги отстают от тела и догоняют",
+    mapOf("calm" to "парит на тросе", "happy" to "сальто в невесомости", "habit" to "пшик ранцем", "signature" to "полёт на ранце",
+        "hungry" to "тюбик уплывает", "sad" to "трос оборвался", "tired" to "обвис и оседает", "asleep" to "спит на боку",
+        "eating" to "ловит тюбик", "game" to "плывёт по инерции", "loved" to "машет рукой", "dizzy" to "кувыркается",
+        "tilt" to "дрейфует, трос следом", "charging" to "ток по тросу", "grow" to "выплывает из капсулы"),
 ) {
-    private val BODY_ROWS = listOf("..#####..", ".#######.", "##.###.##", "...###...", "...#.#...", "..##.##..")
-    private fun stars(c: Cv, t: Long, speed: Float = 200f) { for (i in 0 until 7) c.put(((rnd(i, 1) * 24 - t / speed) % 24 + 24) % 24, rnd(i, 2) * 24, 0.35f) }
-    /** Arms up and legs apart: a jumping jack (the arms are drawn as lines out and up, clear of the helmet). */
-    private val JACK_ROWS = listOf("..#####..", ".#######.", "...###...", "...###...", "..#...#..", ".##...##.")
-    /** [jack] the jumping-jack pose; [reach] where its right hand reaches to (in place of [arm]). */
-    private fun suit(c: Cv, st: Int, x: Float, y: Float, visor: Float = 1f, flip: Boolean = false, arm: Float = 0f, b: Float = 1f, jack: Boolean = false, reach: Pair<Float, Float>? = null) {
-        val s = 0.8f + st * 0.2f
-        c.oval(x, y, 4f * s, 3.5f * s, 0.35f * b, 0.5f * b)
-        for (yy in -1..1) for (xx in -2..2) c.cut(x + xx * s, y + 0.5f + yy)
-        c.put(x + 1, y - 0.5f, visor)
-        c.rows(if (jack) JACK_ROWS else if (flip) BODY_ROWS.reversed() else BODY_ROWS, (x - 4).roundToInt(), (y + 4 * s).roundToInt(), 0.32f * b)
-        if (jack) { val sy = y + 5 * s; c.line(x - 4, sy, x - 7, sy - 3, 0.32f * b); c.line(x + 4, sy, x + 7, sy - 3, 0.32f * b) }
-        if (reach != null) c.line(x + 3, y + 5 * s, reach.first, reach.second, 0.4f * b)
-        else if (arm != 0f) c.line(x + 3, y + 5 * s, x + 6, y + 5 * s - arm * 3, 0.4f * b)
+    /** One stage's suit: rows '#' the suit, 'v' the lit visor, '-' a dark eye; [cr] the row of the eyes (the helmet's middle). */
+    private class Form(val rows: List<String>, val cr: Int, val ex: Int, val armX: Int, val armY: Int, val hipX: Int, val hipY: Int, val len: Int) {
+        val half = (rows[0].length - 1) / 2
     }
+    private val FORMS = listOf(
+        Form(listOf(".###.", "#vvv#", "#-v-#", ".###.", ".###.", ".###."), 2, 1, 2, 4, 1, 6, 2),
+        Form(listOf(".#####.", "#vvvvv#", "#v-v-v#", "#vvvvv#", ".#####.", ".#####.", "..###..", "..###.."), 2, 1, 3, 5, 1, 8, 3),
+        Form(listOf("..#####..", ".#######.", "#vvvvvvv#", "#v-vvv-v#", "#vvvvvvv#", ".#######.", "..#####..", "...###...", "..#####..", "..#####..", "..#####.."), 3, 2, 3, 8, 2, 11, 4),
+    )
+    private val HOME = floatArrayOf(10f, 9f, 7f)
+    /** How its limbs hang at rest (arms, then legs: the angle out from straight down), and flung out like a star. */
+    private val REST = floatArrayOf(0.6f, 0.6f, 0.4f, 0.4f)
+    private val JACK = floatArrayOf(2.3f, 2.3f, 0.9f, 0.9f)
+    private val LIMP = floatArrayOf(0.08f, 0.08f, 0.06f, 0.06f)
+    const val OPEN = 0
+    const val HAPPY = 1
+    const val CLOSED = 2
+    const val WIDE = 3
+    const val PEEK = 4
+    const val TIED = 0
+    const val SNAPPED = 1
+    const val LOOSE = 2
+
+    /**
+     * The astronaut, its helmet's middle at [x], [y], turned [q] quarter turns (whole quarters only, so it stays crisp).
+     * [th] are its four limbs' angles; [reach] is where its right glove reaches to instead. Its tether runs from its belt
+     * to the bottom of the matrix ([TIED]), hangs torn off ([SNAPPED]) or is not there ([LOOSE]); [charge] sends pulses up it.
+     */
+    fun figure(
+        c: Cv, st: Int, t: Long, x: Int, y: Int, th: FloatArray, q: Int = 0, eyes: Int = OPEN, visor: Float = 0.85f, look: Int = 0,
+        tether: Int = TIED, charge: Boolean = false, reach: Pair<Float, Float>? = null, tuck: Boolean = false,
+    ) {
+        val f = FORMS[st]
+        fun px(dx: Float, dy: Float) = x + when (q) { 0 -> dx; 1 -> -dy; 2 -> -dx; else -> dy }
+        fun py(dx: Float, dy: Float) = y + when (q) { 0 -> dy; 1 -> dx; 2 -> -dy; else -> -dx }
+        val grid = Array(f.rows.size) { f.rows[it].toCharArray() }
+        for (sd in intArrayOf(-1, 1)) {
+            val c0 = f.half + sd * f.ex
+            grid[f.cr][c0] = 'v'
+            when (if (eyes == PEEK) (if (sd > 0) OPEN else CLOSED) else eyes) {
+                OPEN -> grid[f.cr][c0 + (if (st == 0) 0 else look)] = '-'
+                CLOSED -> grid[f.cr][c0] = 'c'
+                WIDE -> { grid[f.cr][c0] = '-'; grid[f.cr - 1][c0] = '-' }
+                HAPPY -> if (st == 2) { grid[f.cr - 1][c0] = '-'; grid[f.cr][c0 - 1] = '-'; grid[f.cr][c0 + 1] = '-' } else grid[f.cr - 1][c0] = '-'
+            }
+        }
+        val bx = px(0f, (f.rows.size - f.cr).toFloat()); val by = py(0f, (f.rows.size - f.cr).toFloat())
+        if (tether == SNAPPED) for (i in 0..4) c.put((bx + if (i == 4) sin(t / 500f).roundToInt() else 0).roundToInt(), (by + i).roundToInt(), 0.24f)
+        if (tether == TIED) {
+            val dist = hypot(bx - 12f, by - 24f); val slack = max(0f, 15f - dist)
+            val mx = (bx + 12f) / 2 + slack * 0.55f * sin(t / 1250f) + (if (bx > 12f) -1 else 1) * slack * 0.25f; val my = (by + 24f) / 2 + slack * 0.2f
+            for (i in 0..40) {
+                val u = i / 40f
+                c.put((1 - u) * (1 - u) * bx + 2 * u * (1 - u) * mx + u * u * 12f, (1 - u) * (1 - u) * by + 2 * u * (1 - u) * my + u * u * 24f,
+                    if (charge && Math.floorMod((u * 12 - t / 170f).toInt(), 4) == 0) 0.9f else 0.22f)
+            }
+        }
+        // Its limbs: lit tubes from the shoulders and hips, a brighter glove or boot at the end.
+        for (i in 0 until 4) {
+            val side = if (i % 2 == 1) 1 else -1
+            val jx = (side * (if (i < 2) f.armX else f.hipX)).toFloat(); val jy = ((if (i < 2) f.armY else f.hipY) - f.cr).toFloat()
+            if (i == 1 && reach != null) { c.line(px(jx, jy), py(jx, jy), reach.first, reach.second, 0.3f); c.put(reach.first, reach.second, 0.75f); continue }
+            val len = if (tuck && i >= 2) max(1, f.len - 1) else f.len
+            for (k in 0..len * 2) { val r = k / 2f; val dx = jx + side * sin(th[i]) * r; val dy = jy + cos(th[i]) * r; c.put(px(dx, dy), py(dx, dy), if (k >= len * 2 - 1) 0.75f else 0.3f) }
+        }
+        grid.forEachIndexed { r, row -> row.forEachIndexed { col, ch ->
+            if (ch != '.') { val dx = (col - f.half).toFloat(); val dy = (r - f.cr).toFloat()
+                c.set(px(dx, dy).roundToInt(), py(dx, dy).roundToInt(), when (ch) { '#' -> 0.3f; 'v' -> visor; 'c' -> 0.12f; else -> 0f }) }
+        } }
+    }
+
+    // It floats: its body follows where it is going on a soft spring, and its limbs trail behind the body's every push.
+    // Live this runs on the engine's clock ([DrawnFeel]); in a clip on the clip's own time, settled when the clip starts over.
+    private class Pose(val x: Int, val y: Int, val th: FloatArray)
+    private var pKey = ""
+    private var pAt = 0L
+    private var bx = 12f
+    private var by = 8f
+    private var bvx = 0f
+    private var bvy = 0f
+    private val lth = REST.copyOf()
+    private val lom = FloatArray(4)
+
+    @Synchronized
+    private fun float(st: Int, col: String, t: Long, tilt: Float, hx: Float = 12f, hy: Float = HOME[st], rest: FloatArray = REST, sway: Float = 0.22f): Pose {
+        val live = DrawnFeel.live
+        val clock = if (live) DrawnFeel.timeMs else t
+        val tx = if (col == "tilt") tilt.coerceIn(-1f, 1f) else if (live) DrawnFeel.tiltX.coerceIn(-1f, 1f) else 0f
+        val w = if (live) DrawnFeel.wind.coerceIn(0f, 1f) else 0f
+        val jolt = live && DrawnFeel.startleMs in 0 until 500
+        val want = FloatArray(4) { i -> (if (jolt) JACK[i] else rest[i]) + w * (if (i < 2) 1.6f else 0.5f) }
+        val tgx = hx + sin(clock / 3200f * 2 * PI_F) * 1.1f + tx * 5f
+        val tgy = hy + sin(clock / 3200f * 4 * PI_F + 1f) * 1.1f - w * 3f - (if (jolt) 2f else 0f)
+        val key = if (live) "live$st" else "$col$st"
+        val dt = clock - pAt
+        if (key != pKey || dt < 0 || dt > 400) { bx = tgx; by = tgy; bvx = 0f; bvy = 0f; for (i in 0 until 4) { lth[i] = want[i]; lom[i] = 0f } } else {
+            var left = dt.toInt()
+            while (left > 0) {
+                val h = min(left, 10) / 1000f
+                val ax = (tgx - bx) * 14f - bvx * 1.7f; val ay = (tgy - by) * 14f - bvy * 1.7f
+                bvx += ax * h; bvy += ay * h; bx += bvx * h; by += bvy * h
+                for (i in 0 until 4) {
+                    val side = if (i % 2 == 1) 1 else -1
+                    val idle = (sway + 0.3f * w) * sin(clock / 1000f * (0.9f + i * 0.13f) * (if (w > 0.3f) 9f else 1f) + i * 1.7f)
+                    val acc = (want[i] + idle - lth[i]) * 26f - lom[i] * 3.2f - side * ax * 0.09f + ay * 0.07f
+                    lom[i] += acc * h; lth[i] = (lth[i] + lom[i] * h).coerceIn(-0.5f, 3f)
+                }
+                left -= 10
+            }
+        }
+        pKey = key; pAt = clock
+        return Pose(bx.roundToInt(), by.roundToInt(), lth.copyOf())
+    }
+
+    private fun feltEyes(): Int? = if (!DrawnFeel.live) null else if (DrawnFeel.startleMs in 0 until 500) WIDE else if (DrawnFeel.wind > 0.3f) CLOSED else null
+    private fun feltLook(): Int = if (!DrawnFeel.live) 0 else when (DrawnFeel.startleMs) { in 500 until 950 -> -1; in 950 until 1400 -> 1; else -> if (abs(DrawnFeel.tiltX) > 0.3f) (if (DrawnFeel.tiltX > 0) 1 else -1) else 0 }
+    private fun blinks(t: Long) = if (t % 3000 < 140) CLOSED else OPEN
+
+    /** A food tube, its cap first. */
+    private fun tube(c: Cv, x: Int, y: Int) { for (i in 0..3) c.put(x + i, y, if (i == 0) 1f else 0.55f); c.put(x + 3, y - 1, 0.55f); c.put(x + 3, y + 1, 0.55f) }
+
     override val pastimes = listOf(
         DrawnPastime("jumping_jacks", 4800, "делает зарядку",
             "Прямо в невесомости делает зарядку: руки вверх, ноги врозь — и обратно, раз за разом, потом снова плывёт."),
@@ -589,31 +695,29 @@ private object Astronaut : EggHero(
         val ms = pastimeMs(col)
         if (calmEdge(c, t, st, ms)) return
         val ct = calmClk(t)
-        val fy = 7f + sin(ct / 900f) * 1.5f
-        stars(c, ct)
+        val f = FORMS[st]
         when (col) {
             "jumping_jacks" -> {
-                // Holds still in the middle and does jumping jacks: arms up and legs apart, a hop, back, again.
-                val r = outOf(t, ms, 600)
+                // Jumping jacks: arms up and legs apart, a hop, back, again.
                 val up = t in (PEDGE + 600)..(ms - PEDGE - 700) && ((t - PEDGE - 600) / 330) % 2 == 0L
-                suit(c, st, 12f, mix(fy, 8f, r) - (if (up) 1f else 0f), jack = up)
+                val p = float(st, "calm", ct, 0f, hy = HOME[st] - (if (up) 1f else 0f), rest = if (up) JACK else REST, sway = 0.05f)
+                figure(c, st, ct, p.x, p.y, p.th, eyes = if (up) HAPPY else blinks(ct))
             }
             "catches_comet" -> {
-                // Drifts down and aside, a comet comes over the top, it reaches out and catches it: a twinkling star in its
-                // glove; then it lets it fly off and drifts back.
+                // A comet comes over the top; it reaches out and catches it: a twinkling star in its glove; then lets it go.
                 val r = outOf(t, ms, 700)
-                // Whole columns only: a fractional x would break up its visor.
-                val x = mix(12f, 10f, r).roundToInt().toFloat(); val y = mix(fy, 12f, r)
-                val s = 0.8f + st * 0.2f
+                val p = float(st, "calm", ct, 0f, hx = mix(12f, 9f, r), hy = HOME[st] + 2f * r)
                 val reach = min(ease(seg(t, 1300, 1900)), 1f - ease(seg(t, 3300, 3800)))
-                suit(c, st, x, y, reach = if (reach > 0f) mix(x + 3f, 17f, reach) to mix(y + 5 * s, 10f, reach) else null)
+                val sx = p.x + f.armX.toFloat(); val sy = p.y + (f.armY - f.cr).toFloat()
+                figure(c, st, ct, p.x, p.y, p.th, eyes = if (t in 1900L until 3300L) HAPPY else blinks(ct), look = if (reach > 0f) 1 else 0,
+                    reach = if (reach > 0f) mix(sx + 1f, 17f, reach) to mix(sy + 1f, 9f, reach) else null)
                 when {
-                    t in 1000L until 1900L -> { val p = seg(t, 1000, 1900); comet(c, mix(8f, 17f, p).roundToInt(), (3f + 6f * p * p).roundToInt(), -1, seg(t, 1000, 1150)) }
+                    t in 1000L until 1900L -> { val q = seg(t, 1000, 1900); comet(c, mix(8f, 17f, q).roundToInt(), (2f + 5f * q * q).roundToInt(), -1, seg(t, 1000, 1150)) }
                     t in 1900L until 3300L -> {
                         val tw = 0.5f + 0.3f * sin((t - 1900) / 120f)
-                        c.put(18, 8, 1f); c.put(17, 8, tw); c.put(19, 8, tw); c.put(18, 7, tw); c.put(18, 9, tw)
+                        c.put(18, 7, 1f); c.put(17, 7, tw); c.put(19, 7, tw); c.put(18, 6, tw); c.put(18, 8, tw)
                     }
-                    t in 3300L until 4000L -> { val f = 1f - seg(t, 3750, 4000); if (f > 0.15f) { val p = seg(t, 3300, 4000); comet(c, mix(17f, 7f, p).roundToInt(), mix(8f, 4f, p).roundToInt(), 1, f) } }
+                    t in 3300L until 4000L -> { val g = 1f - seg(t, 3750, 4000); if (g > 0.15f) { val q = seg(t, 3300, 4000); comet(c, mix(17f, 7f, q).roundToInt(), mix(7f, 3f, q).roundToInt(), 1, g) } }
                 }
             }
         }
@@ -621,43 +725,86 @@ private object Astronaut : EggHero(
 
     override fun draw(c: Cv, col: String, t: Long, st: Int, tilt: Float) {
         if (pastimes.any { it.id == col }) { pastime(c, col, t, st); return }
-        val fy = 7f + sin(t / 900f) * 1.5f
+        val f = FORMS[st]
+        val home = HOME[st]
         when (col) {
-            "calm" -> { stars(c, t); suit(c, st, 12f, fy) }
-            "happy" -> { stars(c, t, 120f); val f = (t / 300) % 2 == 1L; suit(c, st, 12f, fy, flip = f, arm = 1f); sparks(c, 12f, 4f, t, 3, 6f, 3f, 41) }
-            "habit" -> { stars(c, t); suit(c, st, 10f, fy); val p = seg(t, 400, 1600); c.line(17f, 20f, 17f, 20f - p * 8, 0.4f); if (p >= 1f) for (k in 0..2) c.put(18f + k, 13f + (if ((t / 200 + k) % 2 == 0L) 0f else 1f), 0.7f) }
-            "signature" -> { val p = seg(t, 600, 5600); val a = p * 2 * PI_F; val x = 12 + sin(a) * 6; val y = 9 - cos(a) * 4 + 3; stars(c, t, 60f); suit(c, st, x, y - 3); for (k in 1..4) c.put(x - sin(a) * k, y + 6 + k * 0.5f, if ((t / 80 + k) % 2 == 0L) 1f else 0.5f) }
-            "hungry" -> { stars(c, t); suit(c, st, 10f, fy, arm = 0.5f); c.rows(listOf("ooo", ".#."), (19 + sin(t / 500f)).roundToInt(), 11, 0.6f) }
-            "sad" -> { stars(c, t, 400f); val d = seg(t, 0, 3200) * 3; suit(c, st, 12f + d, fy + d, visor = 0.3f, b = 0.7f); c.line(0f, 20f, 8f + d, fy + 8 + d, 0.15f) }
-            "tired" -> { stars(c, t, 600f); suit(c, st, 12f, fy, visor = if (t % 1600 < 800) 0.15f else 0.5f, b = 0.8f) }
-            "asleep" -> { stars(c, t, 1200f); suit(c, st, 11f, 9f + sin(t / 2000f), visor = 0.1f, b = 0.8f); zs(c, 17f, 6f, t) }
-            "eating" -> { stars(c, t); suit(c, st, 12f, fy, arm = 1f); if (t < 2600) for (k in 0..2) { val ph = ((t + k * 300) % 900) / 900f; c.put(17f - ph * 4, fy + 2 - ph * 2, 0.7f) } }
-            "game" -> {
-                stars(c, t)
-                c.rows(listOf("#.#", "###", "#.#"), 20, 3, 0.5f)
-                val x = 12f + tilt * 6; val y = 12f + sin(t / 1300f) * 4
-                suit(c, 0, x, y)
-                if (abs(tilt) > 0.5f) c.put(x - tilt * 5, y + 5, 1f)
+            "calm" -> { val p = float(st, col, t, tilt); figure(c, st, t, p.x, p.y, p.th, eyes = feltEyes() ?: blinks(t), look = feltLook()) }
+            "tilt" -> { val p = float(st, col, t, tilt); figure(c, st, t, p.x, p.y, p.th, eyes = feltEyes() ?: blinks(t), look = (tilt * 1.4f).roundToInt().coerceIn(-1, 1)) }
+            "happy" -> { val p = float(st, col, t, tilt, rest = floatArrayOf(1.5f, 1.5f, 0.6f, 0.6f)); figure(c, st, t, p.x, p.y + 2, p.th, q = ((t / 300) % 4).toInt(), eyes = HAPPY) }
+            "habit" -> {
+                // Two puffs of its backpack: one sends it across, the other back.
+                val dir = if (t in 500 until 900) 1 else if (t in 1300 until 1700) -1 else 0
+                val p = float(st, col, t, tilt, hx = if (t in 500 until 1300) 7f else if (t in 1300 until 2300) 17f else 12f)
+                figure(c, st, t, p.x, p.y, p.th, eyes = if (t in 500 until 2300) HAPPY else blinks(t))
+                if (dir != 0) for (i in 1..4) { c.put(p.x + dir * (f.half + i), p.y + 3, 1f - i * 0.18f); if (i < 3) { c.put(p.x + dir * (f.half + i), p.y + 2, 0.5f); c.put(p.x + dir * (f.half + i), p.y + 4, 0.5f) } }
             }
-            "loved" -> { stars(c, t); suit(c, st, 12f, fy, visor = 1f, arm = 1f + sin(t / 100f) * 0.5f); c.put(18f, 4f, 0.8f) }
-            "dizzy" -> { stars(c, t, 50f); suit(c, st, 12f + sin(t / 150f) * 2, fy, flip = (t / 160) % 2 == 0L); for (k in 0..2) { val a = t / 150f + k * 2.1f; c.put(12 + cos(a) * 6, 5 + sin(a) * 2, 0.8f) } }
-            "tilt" -> { stars(c, t); suit(c, st, 12f + tilt * 6, fy + abs(tilt)) }
-            "charging" -> { val p = seg(t, 0, 2900); stars(c, t, 400f); suit(c, st, 12f, fy, visor = p); for (k in 0 until (p * 5).toInt()) c.put(10f + k, 21f, 0.7f) }
+            "signature" -> {
+                // Off the tether: a loop round the sky on its jetpack, the flame at its feet.
+                val a = seg(t, 600, 5600) * 2 * PI_F
+                val p = float(st, col, t, tilt, hx = 12f + sin(a) * 5f, hy = home - 1f + (1f - cos(a)) * 2f, rest = floatArrayOf(2.6f, 2.6f, 0.2f, 0.2f), sway = 0.05f)
+                figure(c, st, t, p.x, p.y, p.th, eyes = HAPPY, tether = LOOSE)
+                if (t in 600 until 5600) for (k in 0..2) c.put(p.x, p.y + f.rows.size - f.cr + k, if ((t / 80 + k) % 2 == 0L) 1f else 0.5f)
+            }
+            "hungry" -> {
+                val p = float(st, col, t, tilt, hx = 9f, rest = floatArrayOf(0.5f, 1.75f, 0.3f, 0.4f))
+                figure(c, st, t, p.x, p.y, p.th, eyes = feltEyes() ?: blinks(t), look = 1)
+                tube(c, min(19, p.x + f.armX + f.len + 2 + sin(t / 3200f * 2 * PI_F * 2).roundToInt()), p.y + 1 + cos(t / 3200f * 2 * PI_F).roundToInt())
+            }
+            "sad" -> { val p = float(st, col, t, tilt, hx = 12f + 2f * sin(t / 3200f * 2 * PI_F), hy = home + 3f, rest = LIMP, sway = 0.05f); figure(c, st, t, p.x, p.y, p.th, eyes = CLOSED, visor = 0.6f, tether = SNAPPED) }
+            "tired" -> {
+                val p = float(st, col, t, tilt, hy = home + 2.5f * seg(t, 0, 2600), rest = LIMP, sway = 0.06f)
+                figure(c, st, t, p.x, p.y, p.th, eyes = if (t < 2600) CLOSED else WIDE, visor = if (t < 2600) 0.55f + 0.12f * sin(t / 200f) else 0.85f)
+            }
+            "asleep" -> {
+                val p = float(st, col, t, tilt, hx = 13f, hy = home + 3f, rest = floatArrayOf(0.2f, 0.2f, 1f, 0.1f), sway = 0.05f)
+                figure(c, st, t, p.x, p.y, p.th, q = 1, eyes = if (DrawnFeel.live && DrawnFeel.peek) PEEK else CLOSED, visor = 0.6f, tuck = true)
+            }
+            "eating" -> {
+                // It catches the tube, brings it to its helmet, and cheers.
+                val rest = when { t < 900 -> floatArrayOf(0.5f, 1.9f, 0.3f, 0.3f); t < 2400 -> floatArrayOf(0.5f, 2.9f, 0.3f, 0.3f); else -> floatArrayOf(1.6f, 1.6f, 0.4f, 0.4f) }
+                val p = float(st, col, t, tilt, hx = 9f, rest = rest)
+                figure(c, st, t, p.x, p.y, p.th, eyes = if (t >= 2400) HAPPY else OPEN, look = if (t < 2400) 1 else 0)
+                if (t < 2400) { val g = ease(seg(t, 200, 900)); tube(c, mix(min(19f, p.x + f.armX + f.len + 2f), p.x + f.half + 2f, g).roundToInt(), mix(p.y + 1f, p.y.toFloat(), g).roundToInt()) }
+            }
+            "game" -> { val p = float(0, col, t, tilt, hx = 12f + tilt * 6f, hy = 11f); figure(c, 0, t, p.x, p.y, p.th, tether = LOOSE) }
+            "loved" -> { val p = float(st, col, t, tilt, rest = floatArrayOf(0.6f, 2.4f + 0.5f * sin(t / 90f), 0.4f, 0.4f)); figure(c, st, t, p.x, p.y, p.th, eyes = HAPPY) }
+            "dizzy" -> {
+                val k = 1f - seg(t, 1500, 2300)
+                val p = float(st, col, t, tilt, rest = floatArrayOf(1.9f, 1.9f, 0.8f, 0.8f))
+                figure(c, st, t, p.x, p.y + 2, p.th, q = if (k <= 0f) 0 else ((t / 1000f * 9f * k).toInt() % 4), eyes = if (k <= 0f) OPEN else WIDE)
+            }
+            "charging" -> {
+                val g = seg(t, 0, 2900)
+                val p = float(st, col, t, tilt, rest = floatArrayOf(0.9f, 0.9f, 0.3f, 0.3f))
+                figure(c, st, t, p.x, p.y, p.th, eyes = if (t > 2900) HAPPY else blinks(t), visor = 0.35f + 0.6f * g, charge = true)
+            }
             // Typing: each key a burst of its jetpack; a planet rises from below as it flies to it, closer and closer, and
             // after 40 s it lands and plants its flag.
             "typing" -> { val y = DrawnTyping; val g = y.grown()
-                stars(c, t, if (y.rush) 45f else 160f)
                 val pr = 2f + 9f * g; val py = 24f + pr * 0.35f
                 c.disc(12f, py, pr, 0.2f); c.ring(12f, py, pr, 0.45f, 0.6f); if (pr > 5f) { c.put(9f, py - pr * 0.6f, 0.08f); c.put(15f, py - pr * 0.4f, 0.08f) }
                 val land = if (y.stage == 2) ease(y.stageMs / 1500f) else 0f
-                val ay = mix(fy, py - pr - 5f, land)
-                suit(c, st, 12f, ay, visor = 0.4f + 0.6f * y.hit(220), arm = if (y.stage == 2 && y.stageMs > 1500) 1f else 0f)
-                if (land < 1f && (y.hit(180) > 0f || y.rush)) for (k in 1..3) c.put(12f, ay + 4 * (0.8f + st * 0.2f) + 1 + k, if (k == 1) 1f else 0.5f)
-                if (y.stageMs > 1500 && y.stage == 2) { val p = seg(y.stageMs, 1500, 2300); c.line(18f, py - pr + 1, 18f, py - pr + 1 - p * 6, 0.45f); if (p >= 1f) for (k in 0..2) c.put(19f + k, py - pr - 5 + (if ((t / 200 + k) % 2 == 0L) 0f else 1f), 0.75f) } }
-            "grow" -> { stars(c, t); val o = seg(t, 1200, 2600); c.oval(12f, 12f, 5f, 6f, 0.3f, 0.5f); if (o > 0) for (y in 7..17) for (x in (12 - o * 4).roundToInt()..(12 + o * 4).roundToInt()) c.cut(x, y); if (t > 2600) suit(c, if (st == 0 || t > 4400) st else st - 1, 12f, mix(12f, fy, seg(t, 2600, 4200))) }
+                val feet = f.rows.size - f.cr + f.len
+                val planted = y.stage == 2 && y.stageMs > 1500
+                val p = float(st, col, t, tilt, hy = mix(home - 2f, py - pr - feet, land), rest = if (planted) floatArrayOf(0.6f, 2.5f, 0.3f, 0.3f) else REST)
+                figure(c, st, t, p.x, p.y, p.th, eyes = if (planted) HAPPY else blinks(t), visor = 0.55f + 0.3f * y.hit(220), tether = LOOSE)
+                if (land < 1f && (y.hit(180) > 0f || y.rush)) for (k in 0..2) c.put(p.x, p.y + f.rows.size - f.cr + k, if (k == 0) 1f else 0.5f)
+                if (planted) { val q = seg(y.stageMs, 1500, 2300); c.line(19f, py - pr + 1, 19f, py - pr + 1 - q * 6, 0.45f); if (q >= 1f) for (k in 0..2) c.put(20f + k, py - pr - 5 + (if ((t / 200 + k) % 2 == 0L) 0f else 1f), 0.75f) } }
+            "grow" -> {
+                val o = seg(t, 1200, 2600)
+                c.oval(12f, 12f, 5f, 6f, 0.3f, 0.5f)
+                if (o > 0) for (y in 7..17) for (x in (12 - o * 4).roundToInt()..(12 + o * 4).roundToInt()) c.cut(x, y)
+                if (t > 2600) { val now = if (st == 0 || t > 4400) st else st - 1; val p = float(now, col, t, tilt, hy = mix(12f, HOME[now], seg(t, 2600, 4200))); figure(c, now, t, p.x, p.y, p.th, tether = LOOSE) }
+            }
         }
     }
+
+    /** The little Cadet for its toy: off the tether, its helmet's middle at [x], [y], its limbs as the toy flings them. */
+    fun cadet(c: Cv, t: Long, x: Int, y: Int, th: FloatArray, wide: Boolean) = figure(c, 0, t, x, y, th, eyes = if (wide) WIDE else blinks(t), tether = LOOSE)
 }
+
+/** The astronaut's little Cadet, for its toy ([Astronaut.cadet]). */
+internal fun astroCadet(c: Cv, t: Long, x: Int, y: Int, th: FloatArray, wide: Boolean) = Astronaut.cadet(c, t, x, y, th, wide)
 
 // --- kodama ----------------------------------------------------------------------------------------------------------------
 
@@ -961,29 +1108,138 @@ private object Kraken : EggHero(
 
 private object Glitch : EggHero(
     "glitch", listOf("Bit", "Glitch", "Kernel"), Rarity.MYTHIC,
-    "Цифровое существо: рассыпается на пиксели и снова собирается",
-    mapOf("calm" to "курсор мигает", "happy" to "рассыпается и собирается", "habit" to "загрузка…", "signature" to "перезагрузка",
-        "hungry" to "ловит биты", "sad" to "пиксели осыпаются", "tired" to "низкое разрешение", "asleep" to "режим ожидания",
-        "eating" to "биты в рот", "game" to "чинит битые пиксели", "loved" to "глаза-сердечки", "dizzy" to "сбилась развёртка",
-        "tilt" to "картинку рвёт", "charging" to "скачивание", "grow" to "собирается из шума"),
+    "Существо из строк развёртки: каждая строка на своей пружине и кренится вслед за телефоном",
+    mapOf("calm" to "бежит развёртка", "happy" to "идёт волной", "habit" to "загрузка…", "signature" to "перезагрузка",
+        "hungry" to "слабый сигнал", "sad" to "картинка провисла", "tired" to "низкое разрешение", "asleep" to "экран выключен",
+        "eating" to "глотает байты", "game" to "чинит битые пиксели", "loved" to "глаза-сердечки", "dizzy" to "сбилась развёртка",
+        "tilt" to "кренится как желе", "charging" to "заливается светом", "grow" to "собирается из строк"),
 ) {
-    private val FACE = listOf(".#########.", "###########", "##-#####-##", "##-#####-##", "###########", "###########", ".#########.", "..#.#.#.#..", "...#...#...")
-    private fun face(c: Cv, st: Int, t: Long, dx: Int = 0, dy: Int = 0, eyes: Int = 0, mouth: Boolean = (t / 400) % 2 == 0L, b: Float = 1f) {
-        val rows = FACE.map { if (eyes == 1 || eyes == 3) it.replace('-', '#') else it }
-        val w = if (st == 0) 0.85f else 1f
-        c.spr(rows, 12f + dx, 18f + dy, 0.32f * b * w)
-        if (eyes == 1) { c.set(9 + dx, 12 + dy, 0f); c.set(15 + dx, 12 + dy, 0f) }
-        if (eyes == 2) for (x in intArrayOf(9, 15)) { c.set(x + dx, 11 + dy, 1f); c.set(x + dx, 12 + dy, 1f) }
-        if (mouth) for (x in 10..14) c.set(x + dx, 15 + dy, 1f)
-        if (st == 2) c.put(12f + dx, 9f + dy, if ((t / 300) % 2 == 0L) 1f else 0.3f)
+    /** One stage's picture: rows '#' body, '-' a dark eye, 'o' bright; [b0]..[b1] the body's rows (the rest: antenna, legs). */
+    private class Form(val x0: Int, val y0: Int, val b0: Int, val b1: Int, val eyes: IntArray, val er: Int, val eh: Int, val ew: Int, val mr: Int, val m0: Int, val m1: Int, val rows: List<String>) {
+        val h = rows.size
+        val w = rows[0].length
     }
-    private fun glitch(c: Cv, t: Long, amount: Int = 2) {
-        val copy = c.v.copyOf()
-        for (y in 0..24) {
-            val sh = if (rnd(y + 50, (t / 80).toInt()) > 0.6f) (rnd(y, (t / 80).toInt()) * (2 * amount + 1)).toInt() - amount else 0
-            for (x in 0..24) c.v[y * 25 + x] = 0f
-            for (x in 0..24) { val sx = x - sh; if (sx in 0..24) c.set(x, y, copy[y * 25 + sx]) }
+    private val FORMS = listOf(
+        Form(9, 11, 0, 5, intArrayOf(1, 5), 2, 1, 1, 4, 2, 4, listOf(
+            ".#####.", "#######", "#-###-#", "#######", "##ooo##", ".#####.", "..#.#..")),
+        Form(7, 8, 2, 9, intArrayOf(2, 8), 4, 2, 1, 7, 3, 7, listOf(
+            ".....o.....", ".....#.....", ".#########.", "###########", "##-#####-##", "##-#####-##", "###########", "###ooooo###", "###########", ".#########.", "..##...##..")),
+        Form(3, 7, 1, 11, intArrayOf(6, 11), 5, 2, 2, 8, 6, 12, listOf(
+            ".........o.........", "..###############..", "..###############..", "###################", "..###############..", "..####--###--####..",
+            "######--###--######", "..###############..", "..####ooooooo####..", "###################", "..###############..", "..###############..", ".....##.....##.....")),
+    )
+    const val OPEN = 0
+    const val HAPPY = 1
+    const val CLOSED = 2
+    const val NONE = 3
+    const val WIDE = 4
+    const val HEART = 5
+    const val CURSOR = 0
+    const val SMILE = 1
+    const val AGAPE = 2
+    const val OFF = 3
+    const val BAR = 4
+
+    /**
+     * The creature: a screen drawn row by row. [offs] slides each row sideways (its antenna and legs go with the body row
+     * next to them), [src] says which of its rows a row shows (a rolling picture), [show] which rows are there at all.
+     * [fill] lights it from the bottom up (0..1), [lowres] draws it in 2x2 blocks, [sag] droops its sides, [bar] is how
+     * far the loading bar in its mouth has got.
+     */
+    fun body(
+        c: Cv, st: Int, t: Long, eyes: Int = OPEN, mouth: Int = CURSOR, look: Int = 0, offs: IntArray? = null, src: IntArray? = null,
+        show: BooleanArray? = null, dim: Float = 1f, hop: Int = 0, sag: Boolean = false, fill: Float = -1f, lowres: Boolean = false,
+        bar: Float = 0f, dx: Int = 0, dy: Int = 0,
+    ) {
+        val f = FORMS[st]
+        val grid = Array(f.h) { f.rows[it].toCharArray() }
+        fun cut(col: Int, row: Int) { if (row in 0 until f.h && col in 0 until f.w && grid[row][col] == '#') grid[row][col] = '-' }
+        for (ec in f.eyes) {
+            for (j in 0 until f.eh) for (i in 0 until f.ew) grid[f.er + j][ec + i] = '#'
+            val c0 = ec; val c1 = ec + f.ew - 1
+            when (eyes) {
+                OPEN -> for (j in 0 until f.eh) for (i in 0 until f.ew) cut(ec + i + look, f.er + j)
+                WIDE -> for (j in -1 until f.eh) for (i in 0 until f.ew) cut(ec + i, f.er + j)
+                CLOSED -> if (st == 0) grid[f.er][ec] = '=' else for (i in 0 until f.ew) cut(ec + i, f.er + f.eh - 1)
+                HAPPY -> if (st == 0) cut(ec, f.er) else { for (k in c0..c1) cut(k, f.er); cut(c0 - 1, f.er + 1); cut(c1 + 1, f.er + 1) }
+                HEART -> if (st == 0) cut(ec, f.er) else { cut(c0 - 1, f.er - 1); cut(c1 + 1, f.er - 1); for (k in c0 - 1..c1 + 1) cut(k, f.er); for (k in c0..c1) cut(k, f.er + 1) }
+            }
         }
+        for (col in f.m0..f.m1) grid[f.mr][col] = when (mouth) {
+            CURSOR -> if ((t / 450) % 2 == 0L) 'o' else '#'
+            SMILE -> 'o'
+            AGAPE -> if (col > f.m0 && col < f.m1) '-' else '#'
+            BAR -> if ((col - f.m0).toFloat() / (f.m1 - f.m0 + 1) < bar) 'o' else '='
+            else -> '#'
+        }
+        if (st > 0 && (t / 620) % 2 == 0L) grid[0][f.w / 2] = '#'
+        val scan = ((t / 110) % (f.h + 8)).toInt()
+        for (i in 0 until f.h) {
+            if (show != null && !show[i]) continue
+            val si = src?.get(i) ?: i
+            val o = offs?.get(i.coerceIn(f.b0, f.b1)) ?: 0
+            val rb = (if (i % 2 == 1) 0.36f else 0.44f) + if (i == scan && !lowres) 0.3f else 0f
+            val filled = fill > 0f && i >= f.h - 1 - (fill * (f.h - 1)).roundToInt()
+            for (col in 0 until f.w) {
+                var ch = grid[si][col]
+                if (lowres) {
+                    val r0 = si - Math.floorMod(si - f.b0, 2); val cc = col - col % 2
+                    var lit = 0; var eye = false
+                    for (r in r0..r0 + 1) for (k in cc..cc + 1) if (r in 0 until f.h && k < f.w && grid[r][k] != '.') { lit++; if (grid[r][k] == '-') eye = true }
+                    ch = if (lit < 2) '.' else if (eye) '-' else '#'
+                }
+                if (ch == '.') continue
+                val x = f.x0 + col + o + dx
+                var y = f.y0 + i - hop + dy
+                if (sag) { val q = (col - (f.w - 1) / 2f) / ((f.w - 1) / 2f); y += (q * q * (st + 1)).roundToInt() }
+                c.set(x, y, when (ch) { '#' -> (if (filled) 0.8f else rb) * dim; 'o' -> if (dim < 1f) 0.8f * dim else 1f; '=' -> 0.16f * dim; else -> 0f })
+            }
+        }
+    }
+
+    // Every row leans after the phone on its own spring, the top the loosest: the picture rocks like jelly. Live it runs on
+    // the engine's clock ([DrawnFeel]); in a clip on the clip's own time, starting settled each time the clip starts over.
+    private var sKey = ""
+    private var sAt = 0L
+    private val sOff = FloatArray(16)
+    private val sVel = FloatArray(16)
+
+    @Synchronized
+    private fun lean(st: Int, col: String, t: Long, tilt: Float): IntArray {
+        val f = FORMS[st]
+        val live = DrawnFeel.live
+        val tx = if (col == "tilt") tilt.coerceIn(-1f, 1f) else if (live) DrawnFeel.tiltX.coerceIn(-1f, 1f) else 0f
+        val key = if (live) "live$st" else "$col$st"
+        val clock = if (live) DrawnFeel.timeMs else t
+        val dt = clock - sAt
+        val reset = key != sKey || dt < 0 || dt > 400
+        for (i in 0 until f.h) {
+            val up = 1f - i / (f.h - 1f); val target = tx * 3.2f * up; val k = 150f - 90f * up
+            if (reset) { sOff[i] = target; sVel[i] = 0f } else {
+                var left = dt.toInt()
+                while (left > 0) { val h = min(left, 10) / 1000f; sVel[i] += ((target - sOff[i]) * k - sVel[i] * 5f) * h; sOff[i] += sVel[i] * h; left -= 10 }
+            }
+        }
+        sKey = key; sAt = clock
+        val o = IntArray(f.h) { sOff[it].roundToInt() }
+        if (live) {
+            // The wind makes its rows flutter; a clap knocks them apart in pairs, and they snap back.
+            val w = DrawnFeel.wind.coerceIn(0f, 1f)
+            if (w > 0.02f) for (i in 0 until f.h) o[i] += (w * 1.6f * sin(i * 1.3f + clock / 38f)).roundToInt()
+            val s = DrawnFeel.startleMs
+            if (s in 0 until 900) { val a = 3.4f * kotlin.math.exp(-s / 160f) * cos(s / 38f); for (i in 0 until f.h) o[i] += (a * (if ((i shr 1) % 2 == 1) 1 else -1)).roundToInt() }
+        }
+        return o
+    }
+
+    /** The eyes and mouth the engine's feelings ask for (blown on, clapped at), or null. */
+    private fun feltEyes(): Int? = if (!DrawnFeel.live) null else if (DrawnFeel.startleMs in 0 until 500) WIDE else if (DrawnFeel.wind > 0.3f) CLOSED else null
+    private fun feltLook(): Int = if (!DrawnFeel.live) 0 else when (DrawnFeel.startleMs) { in 500 until 950 -> -1; in 950 until 1400 -> 1; else -> 0 }
+
+    /** A burst of interference: a few rows knocked sideways, [amount] cells at most. */
+    private fun slips(st: Int, t: Long, amount: Int): IntArray {
+        val f = FORMS[st]
+        return IntArray(f.h) { i -> if (rnd(i / 2 + 50, (t / 80).toInt()) > 0.55f) ((rnd(i / 2, (t / 80).toInt()) * (2 * amount + 1)).toInt() - amount) else 0 }
     }
     override val pastimes = listOf(
         DrawnPastime("tetris", 5200, "играет в тетрис",
@@ -995,7 +1251,7 @@ private object Glitch : EggHero(
     /** Interference on the head's rows only (its antenna and legs stay put). */
     private fun shear(c: Cv, t: Long) {
         val copy = c.v.copyOf()
-        for (y in 10..16) {
+        for (y in 8..18) {
             val sh = if (rnd(y + 50, (t / 80).toInt()) > 0.45f) (rnd(y, (t / 80).toInt()) * 5).toInt() - 2 else 0
             for (x in 0..24) c.v[y * 25 + x] = 0f
             for (x in 0..24) { val sx = x - sh; if (sx in 0..24) c.set(x, y, copy[y * 25 + sx]) }
@@ -1013,21 +1269,21 @@ private object Glitch : EggHero(
                 val clear = t >= 3450
                 val flash = t in 2850L until 3450L
                 val happy = t in 3450L until 4100L
-                val p1 = if (t >= 680 && !clear) 8 to min(9L, 2 + (t - 680) / 150).toInt() else null
+                val p1 = if (t >= 680 && !clear) 8 to min(7L, 2 + (t - 680) / 150).toInt() else null
                 val k2 = (t - 1900) / 150
                 val p2 = if (t >= 1900 && !clear) k2 else null
                 val falling = t in 680L until 2850L
                 val lx = if (!falling) 0 else if (t < 1900) -1 else 1
-                face(c, st, ct, eyes = if (happy) 2 else if (falling) 3 else 0, mouth = if (happy) true else if (falling || flash) false else (ct / 400) % 2 == 0L)
-                if (falling) for (ex in intArrayOf(9, 15)) { c.cut(ex + lx, 11); c.cut(ex + lx, 12) }
+                body(c, st, ct, eyes = if (happy) HAPPY else if (falling) NONE else OPEN, mouth = if (happy) SMILE else if (falling || flash) OFF else CURSOR)
+                if (falling) for (ex in intArrayOf(9, 14)) for (k in 0..1) { c.cut(ex + k + lx, 12); c.cut(ex + k + lx, 13) }
                 if (flash) {
                     val on = ((t - 2850) / 100) % 2 == 0L
-                    for (x in 8..16) if (on) c.set(x, 9, 1f) else c.cut(x, 9)
+                    for (x in 8..16) if (on) c.set(x, 7, 1f) else c.cut(x, 7)
                 } else {
                     if (p1 != null) for (x in 0..3) c.put(p1.first + x, p1.second, 0.7f)
                     if (p2 != null) {
                         if (p2 < 3) for (y in 0..3) c.put(14, (2 + p2).toInt() + y, 0.7f)
-                        else for (x in 13..16) c.put(x, min(9L, 3 + p2).toInt(), 0.7f)
+                        else for (x in 13..16) c.put(x, min(7L, 3 + p2).toInt(), 0.7f)
                     }
                 }
             }
@@ -1036,7 +1292,7 @@ private object Glitch : EggHero(
                 val k = ((t - PEDGE - 200) / 860).toInt()
                 val inK = (t - PEDGE - 200) % 860
                 val shown = t >= PEDGE + 200 && k in 0..3 && inK >= 160
-                face(c, st, ct, eyes = if (shown) 3 else 0, mouth = if (shown) false else (ct / 400) % 2 == 0L)
+                body(c, st, ct, eyes = if (shown) NONE else OPEN, mouth = if (shown) OFF else CURSOR)
                 fun lit(vararg xy: Int) { for (i in xy.indices step 2) c.set(xy[i], xy[i + 1], 1f) }
                 fun dark(vararg xy: Int) { for (i in xy.indices step 2) c.cut(xy[i], xy[i + 1]) }
                 if (shown) when (k) {
@@ -1054,37 +1310,105 @@ private object Glitch : EggHero(
 
     override fun draw(c: Cv, col: String, t: Long, st: Int, tilt: Float) {
         if (pastimes.any { it.id == col }) { pastime(c, col, t, st); return }
+        val f = FORMS[st]
+        val o = lean(st, col, t, tilt)
+        val blink = t % 2800 < 140
         when (col) {
-            "calm" -> { face(c, st, t); if (t % 1800 in 1100..1400) glitch(c, t) }
-            "happy" -> { val p = abs(sin(t / 1200f * PI_F)); if (p < 0.6f) face(c, st, t, eyes = 2, mouth = true) else for (i in 0 until 40) c.put(12 + (rnd(i, 1) - 0.5f) * 20 * p, 13 + (rnd(i, 2) - 0.5f) * 16 * p, 0.6f) }
-            "habit" -> { face(c, st, t, mouth = false); val p = seg(t, 0, 3000); for (x in 7..17) c.put(x, 21, if (x - 7 <= p * 10) 0.8f else 0.15f) }
-            "signature" -> when {
-                t < 1200 -> { face(c, st, t); glitch(c, t, (t / 300).toInt() + 1) }
-                t < 2600 -> for (i in 0 until 160) if (rnd(i, (t / 80).toInt()) > 0.4f) c.put(rnd(i, (t / 80).toInt() + 1) * 24, rnd(i, (t / 80).toInt() + 2) * 24, 0.5f)
-                t < 4200 -> { c.ring(12f, 12f, 3f, 0.6f, 0.5f, t / 100f, t / 100f + 4f); for (x in 7..17) c.put(x, 18, if (x - 7 <= seg(t, 2600, 4200) * 10) 0.8f else 0.15f) }
-                else -> face(c, st, t, eyes = 2, mouth = true, b = ease(seg(t, 4200, 5000)))
+            "calm" -> {
+                // Now and then two of its rows slip aside for a moment.
+                val clock = if (DrawnFeel.live) DrawnFeel.timeMs else t
+                if (clock % 4600 in 3900 until 4050) { val r = f.b0 + 1 + (rnd((clock / 4600).toInt(), 3) * (f.b1 - f.b0 - 2)).toInt(); o[r] += 2; o[r + 1] += 2 }
+                val startled = DrawnFeel.live && DrawnFeel.startleMs in 0 until 500
+                body(c, st, t, eyes = feltEyes() ?: if (blink) CLOSED else OPEN, mouth = if (startled) AGAPE else CURSOR, look = feltLook(), offs = o)
             }
-            "hungry" -> { face(c, st, t, mouth = true); for (i in 0 until 4) { val ph = ((t + i * 300) % 1200) / 1200f; c.put(20f - ph * 3, 6f + i * 3f, 0.7f) } }
-            "sad" -> { face(c, st, t, eyes = 1, mouth = false, b = 0.7f); for (i in 0 until 5) { val ph = ((t + i * 400) % 2000) / 2000f; c.put(8f + i * 2, 18f + ph * 6, 0.4f * (1 - ph)) } }
-            "tired" -> { face(c, st, t, eyes = 1, mouth = false, b = 0.8f + 0.2f * sin(t / 300f)); for (y in 0..24) for (x in 0..24) if ((x + y) % 2 == 1) c.v[y * 25 + x] *= 0.3f }
-            "asleep" -> { val br = 0.2f + 0.6f * (0.5f + 0.5f * sin(t / 4000f * 2 * PI_F)); c.set(12, 21, br); c.set(11, 21, br * 0.3f); c.set(13, 21, br * 0.3f) }
-            "eating" -> { face(c, st, t, mouth = (t / 200) % 2 == 0L); if (t < 2600) for (i in 0 until 6) { val ph = ((t + i * 200) % 1000) / 1000f; c.put(mix(22f, 12f, ph), mix(4f + i, 15f, ph), 0.8f) } }
-            "game" -> { face(c, st, t, mouth = false, b = 0.6f); val cx = 12f + tilt * 8; c.put(cx, 4f, 1f); c.put(cx - 1, 4f, 0.4f); c.put(cx + 1, 4f, 0.4f); for (i in 0 until 3) { val bx = (5 + i * 7).toFloat(); if (abs(bx - cx) > 1.5f && (t / 200 + i) % 2 == 0L) c.put(bx, 13f, 1f) } }
-            "loved" -> { face(c, st, t, mouth = true); for (x in intArrayOf(8, 14)) c.rows(listOf("o.o", "ooo", ".o."), x, 10 - (if ((t / 300) % 2 == 0L) 1 else 0), 0.3f) }
-            "dizzy" -> { face(c, st, t, eyes = 1); val sh = ((t / 60) % 25).toInt(); val copy = c.v.copyOf(); for (y in 0..24) for (x in 0..24) c.v[y * 25 + x] = copy[((y + sh) % 25) * 25 + x]; for (y in 0..24) for (x in 0..24) if (!n7.glyph.ui.matrix.GlyphMatrixSpec.isVisible(x, y)) c.v[y * 25 + x] = 0f }
-            "tilt" -> { face(c, st, t); val copy = c.v.copyOf(); for (y in 0..24) { val sh = ((y - 12) * tilt * 0.5f).roundToInt(); for (x in 0..24) { val sx = x - sh; c.v[y * 25 + x] = if (sx in 0..24 && n7.glyph.ui.matrix.GlyphMatrixSpec.isVisible(x, y)) copy[y * 25 + sx] else 0f } } }
-            "charging" -> { val p = seg(t, 0, 2900); face(c, st, t, mouth = false, b = 0.4f + 0.6f * p); for (x in 7..17) c.put(x, 21, if (x - 7 <= p * 10) 0.9f else 0.15f) }
+            "tilt" -> body(c, st, t, eyes = feltEyes() ?: if (blink) CLOSED else OPEN, look = (tilt * 1.4f).roundToInt().coerceIn(-1, 1), offs = o)
+            "happy" -> {
+                for (i in 0 until f.h) o[i] += (1.2f * sin(i * 0.9f - t / 2400f * 2 * PI_F * 3)).roundToInt()
+                body(c, st, t, eyes = HAPPY, mouth = SMILE, offs = o, hop = if (abs(sin(t / 600f * PI_F)) > 0.7f) 1 else 0)
+            }
+            "habit" -> if (t < 2400) body(c, st, t, eyes = NONE, mouth = BAR, bar = seg(t, 200, 2200), offs = o) else body(c, st, t, eyes = HAPPY, mouth = SMILE, offs = o)
+            "signature" -> {
+                // A reboot: the picture breaks up, collapses into a line, and boots again from the middle out.
+                val mid = (f.b0 + f.b1) / 2
+                fun rowsWithin(k: Int) = BooleanArray(f.h) { abs(it - mid) <= k }
+                when {
+                    t < 1000 -> body(c, st, t, offs = slips(st, t, 1 + (t / 350).toInt()), mouth = OFF)
+                    t < 1600 -> body(c, st, t, eyes = NONE, mouth = OFF, show = rowsWithin(((1f - seg(t, 1000, 1600)) * f.h / 2).toInt()))
+                    t < 3000 -> { val w = max(2, ((f.w - 3) / 2 * (1f - 0.6f * seg(t, 1600, 2400))).roundToInt()); for (x in 12 - w..12 + w) c.put(x, f.y0 + mid, if (abs(x - 12) <= 1) 1f else 0.5f) }
+                    t < 4400 -> body(c, st, t, eyes = NONE, mouth = BAR, bar = seg(t, 3000, 4300), show = rowsWithin((seg(t, 3000, 3600) * f.h).toInt()))
+                    else -> body(c, st, t, eyes = HAPPY, mouth = SMILE, hop = if (abs(sin(t / 600f * PI_F)) > 0.7f) 1 else 0)
+                }
+            }
+            "hungry" -> {
+                // A weak signal: its rows drop out every other one, and swap.
+                val ph = ((t / 500) % 2).toInt()
+                val show = BooleanArray(f.h) { i -> i in f.b0..f.b1 && ((i + ph) % 2 == 1 || i == f.mr || i in f.er - 1..f.er + f.eh) }
+                body(c, st, t, eyes = feltEyes() ?: if (blink) CLOSED else OPEN, mouth = AGAPE, offs = o, show = show, dim = 0.85f)
+            }
+            "sad" -> body(c, st, t, eyes = CLOSED, mouth = OFF, offs = o, sag = true, dim = 0.62f)
+            // Low resolution, and it nods off: the picture sinks a row, then starts back up.
+            "tired" -> body(c, st, t, eyes = if (t < 2400) CLOSED else OPEN, mouth = OFF, offs = o, lowres = true, dim = if (t in 1400 until 2400) 0.6f else 0.72f, hop = if (t in 1400 until 2400) -1 else 0)
+            "asleep" -> {
+                // The screen is off: one line, breathing. Touched, it opens a slit with its eyes in it.
+                if (DrawnFeel.live && DrawnFeel.peek) body(c, st, t, mouth = OFF, show = BooleanArray(f.h) { it in f.er - 1..f.er + f.eh })
+                else { val w = max(2, ((f.w - 3) / 2 + sin(t / 4000f * 2 * PI_F) * 1.2f).roundToInt()); for (x in 12 - w..12 + w) c.put(x, f.y0 + f.h / 2, if (abs(x - 12) <= 1) 1f else 0.7f) }
+            }
+            "eating" -> {
+                // Three bytes slide in along its mouth's row; each one swallowed lights another third of it.
+                val eat = t < 2400
+                val p = (t % 800) / 550f
+                body(c, st, t, eyes = if (eat) OPEN else HAPPY, mouth = if (eat && p < 1f) AGAPE else SMILE, look = if (eat && p < 1f) 1 else 0, offs = o,
+                    fill = if (eat) (t / 800) / 3f else if (t < 3000) 1f else -1f)
+                if (eat && p < 1f) {
+                    val xm = f.x0 + f.w; val y = f.y0 + f.mr
+                    val head = (22 - (22 - xm) * p - 4 * p).roundToInt()
+                    val xs = (0..4).map { head + it }.filter { it >= xm && n7.glyph.ui.matrix.GlyphMatrixSpec.isVisible(it, y) }
+                    if (xs.size >= 4 || xs.firstOrNull() == xm) for (x in xs) c.put(x, y, 1f - (x - head) * 0.12f)
+                }
+            }
+            "game" -> body(c, 0, t, dx = (tilt * 6f).roundToInt(), look = (tilt * 1.4f).roundToInt().coerceIn(-1, 1))
+            "loved" -> {
+                for (i in 0 until f.h) o[i] += (0.8f * sin(i * 0.7f - t / 2400f * 2 * PI_F * 2)).roundToInt()
+                body(c, st, t, eyes = HEART, mouth = SMILE, offs = o)
+            }
+            "dizzy" -> {
+                // Shaken, it loses its vertical hold: the picture rolls through its own frame, torn, and locks again.
+                val lock = seg(t, 1700, 2300); val n = f.b1 - f.b0 + 1
+                val roll = ((1f - lock) * (1f - lock) * 14f + t / 1000f * 9f * (1f - lock)).toInt()
+                val src = IntArray(f.h) { i -> if (i in f.b0..f.b1) f.b0 + Math.floorMod(i - f.b0 + roll, n) else i }
+                val tear = IntArray(f.h) { i -> ((rnd(i / 2, (t / 80).toInt()) - 0.5f) * 5f * (1f - lock)).roundToInt() }
+                body(c, st, t, eyes = if (lock >= 1f) OPEN else NONE, mouth = if (lock >= 1f) CURSOR else OFF, offs = tear, src = src)
+            }
+            "charging" -> body(c, st, t, eyes = if (t > 2900) HAPPY else if (blink) CLOSED else OPEN, mouth = if (t > 2900) SMILE else CURSOR, offs = o, fill = seg(t, 0, 2900))
             // Typing: each key a burst of interference; a big loading bar fills as you type (100% at 40 s), and then it
             // reboots (its signature) and beams with heart eyes.
             "typing" -> { val y = DrawnTyping
                 if (y.stage == 2) { if (y.stageMs < 3800) draw(c, "signature", 1200L + y.stageMs, st, tilt) else draw(c, "loved", t, st, tilt); return }
-                face(c, st, t, dy = -2, eyes = if (y.rush) 2 else if (y.paused && t % 2600 < 160) 1 else 0, mouth = y.hit(160) > 0f || y.rush)
-                val p = y.grown(); for (x in 6..18) { val on = x - 6 <= p * 12; c.put(x, 20, 0.45f); c.put(x, 22, 0.45f); c.put(x, 21, if (on) 0.95f else 0.08f) }; c.put(5, 21, 0.45f); c.put(19, 21, 0.45f)
-                if (y.hit(140) > 0f || (y.rush && (t / 80) % 3 == 0L)) glitch(c, t, if (y.rush) 3 else 2) }
-            "grow" -> { val p = seg(t, 0, 4400); for (i in 0 until 200) if (rnd(i, (t / 80).toInt()) > p) c.put(rnd(i, 3) * 24, rnd(i, 4) * 24, 0.3f); if (p > 0.5f) face(c, if (st == 0 || t > 5200) st else st - 1, t, b = (p - 0.5f) * 2) }
+                val hit = y.hit(140) > 0f || (y.rush && (t / 80) % 3 == 0L)
+                body(c, st, t, dy = if (st == 2) -3 else -2, eyes = if (y.rush) HAPPY else if (y.paused && t % 2600 < 160) CLOSED else OPEN, mouth = if (y.hit(160) > 0f || y.rush) SMILE else CURSOR,
+                    offs = if (hit) slips(st, t, if (y.rush) 3 else 2) else null)
+                val p = y.grown(); for (x in 6..18) { val on = x - 6 <= p * 12; c.put(x, 20, 0.45f); c.put(x, 22, 0.45f); c.put(x, 21, if (on) 0.95f else 0.08f) }; c.put(5, 21, 0.45f); c.put(19, 21, 0.45f) }
+            "grow" -> {
+                // Out of static (dashes of it, thinning) the picture scans in, row by row from the top.
+                val p = seg(t, 0, 4400)
+                for (k in 0 until (9 * (1f - p)).toInt()) { val y = 3 + (rnd(k, (t / 80).toInt()) * 18).toInt(); val x0 = 3 + (rnd(k, (t / 80).toInt() + 7) * 12).toInt(); for (x in x0..x0 + 4 + k % 3) c.put(x, y, 0.3f) }
+                val now = if (st == 0 || t > 5200) st else st - 1
+                val g = FORMS[now]
+                if (p > 0.3f) body(c, now, t, show = BooleanArray(g.h) { it <= ((p - 0.3f) / 0.7f * g.h).toInt() }, mouth = if (p < 1f) OFF else CURSOR)
+            }
         }
     }
+
+    /** The little Bit for its game, [dx], [dy] from the middle: glad, or patching (its cursor racing), or just walking. */
+    fun bit(c: Cv, t: Long, dx: Int, dy: Int, glad: Boolean, patching: Boolean, lean: Float) {
+        val f = FORMS[0]
+        val o = IntArray(f.h) { ((1f - it / (f.h - 1f)) * lean * 1.6f).roundToInt() }
+        body(c, 0, if (patching) t * 3 else t, eyes = if (glad) HAPPY else OPEN, mouth = if (glad) SMILE else CURSOR, look = lean.roundToInt().coerceIn(-1, 1), offs = o, dx = dx, dy = dy - 3, hop = if (glad && (t / 120) % 2 == 0L) 1 else 0)
+    }
 }
+
+/** The glitch's little Bit, for its game ([Glitch.bit]). */
+internal fun glitchBit(c: Cv, t: Long, dx: Int, dy: Int, glad: Boolean, patching: Boolean, lean: Float) = Glitch.bit(c, t, dx, dy, glad, patching, lean)
 
 // --- shadow ----------------------------------------------------------------------------------------------------------------
 
