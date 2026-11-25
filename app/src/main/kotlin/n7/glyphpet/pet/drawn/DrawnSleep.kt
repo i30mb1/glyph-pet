@@ -23,7 +23,7 @@ object DrawnSleep {
             // Smoke rings over the embers.
             "phoenix" -> for (k in 0..1) { val p = rise(t, 2400, k * 1200L); c.ring(12f + sin(p * 4) * 0.8f, 12f - p * 8, 0.6f + p * 1.4f, 0.35f * (1 - p)) }
             // Little z's that drift out and are pulled back in.
-            "blackhole" -> { val p = rise(t, 2600); val a = p * 6f; val r = 6f - p * 4f; c.rows(SMALL_Z, (12 + cos(a) * r).roundToInt(), (12 + sin(a) * r * 0.6f - 3).roundToInt(), 0.6f * (1 - p) + 0.1f) }
+            "blackhole" -> { val p = rise(t, 2600); c.rows(SMALL_Z, (17 + p * 2).roundToInt(), (5 - p * 3).roundToInt(), 0.6f * (1 - p) + 0.1f) }
             // Puffs of smoke from the coiled dragon's nose.
             "dragon" -> for (k in 0..2) { val p = rise(t, 2700, k * 900L); c.disc(14f + p * 3, 14f - p * 7, 0.5f + p * 0.8f, 0.25f * (1 - p)) }
             // A Z coming out of the keyhole.
@@ -74,8 +74,8 @@ object DrawnSleep {
      */
     fun peek(kind: String, t: Long, frame: IntArray) {
         when (kind) {
-            // The core flashes: its ring lights up all round.
-            "blackhole" -> for (i in frame.indices) { val d = kotlin.math.hypot(i % 25 - 12f, i / 25 - 12f); if (d in 2.6f..4.2f && frame[i] > 0) frame[i] = 4000 }
+            // It opens one eye itself ([DrawnFeel.peek]).
+            "blackhole" -> Unit
             // The screen blinks on for a moment: its awake face shows faintly.
             "glitch" -> { val f = Drawn.frame("glitch", "calm", 400, n7.glyphpet.pet.Stage.TEEN); for (i in f.indices) if (f[i] / 2 > frame[i]) frame[i] = f[i] / 2 }
             // Two eyes open in the dark.

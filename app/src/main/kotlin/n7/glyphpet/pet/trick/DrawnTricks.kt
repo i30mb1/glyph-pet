@@ -114,30 +114,41 @@ internal abstract class DrawnGame : Trick(0L) {
 
 // --- games: fly and gather --------------------------------------------------------------------------------------------
 
-/** Black hole: roll it with the lean and swallow the stars; each one makes it heavier and slower to steer. */
+/**
+ * Black hole: roll it with the lean to the stars; one that comes near is drawn out into a stream and swallowed (a tick in
+ * the hand). Each one makes it heavier and slower to steer, and its disc a little fuller.
+ */
 private class BlackHoleGame : DrawnGame() {
-    private val sx = FloatArray(4); private val sy = FloatArray(4); private val pull = FloatArray(4)
-    override fun begin(input: SignatureInput) { for (i in 0 until 4) { spot().let { sx[i] = it.first; sy[i] = it.second }; pull[i] = -1f } }
+    private val sx = FloatArray(2); private val sy = FloatArray(2); private val pull = FloatArray(2)
+    private var glad = 0f
+    private val cv = n7.glyphpet.pet.drawn.Cv()
+    private fun place(i: Int) { spot(6.5f, 4f, 9.5f).let { sx[i] = it.first; sy[i] = it.second }; pull[i] = -1f }
+    override fun begin(input: SignatureInput) { glad = 0f; for (i in 0 until 2) place(i) }
     override fun play(input: SignatureInput, t: Long, dt: Float, ms: Long, r: Float) {
-        val rc = 1.6f + min(got, 12) * 0.12f
-        if (r <= 0f) fly(dt, 9f / (1f + got * 0.06f), grip = 2.5f / (1f + got * 0.05f))
-        for (i in 0 until 4) {
+        val hole = n7.glyphpet.pet.drawn.BlackHole
+        val heavy = 1f + min(got, 14) * 0.07f
+        if (r <= 0f) fly(dt, 10f / heavy, grip = 3f / heavy, room = 6.5f)
+        glad -= dt
+        val hx = Math.round(TrickKit.lerp(x, MID, r)); val hy = Math.round(TrickKit.lerp(y, MID, r))
+        cv.v.fill(0f)
+        hole.hole(cv, 0, t, cx = hx, cy = hy, phi = -0.12f + tilt.x.coerceIn(-1f, 1f) * 0.3f, rot = t / 1000f * 6f, r2 = 5f + min(got, 12) * 0.12f,
+            eyes = if (glad > 0f) hole.HAPPY else if (t % 2600 < 160) hole.CLOSED else hole.OPEN)
+        for (i in 0 until 2) {
+            val px = Math.round(sx[i]); val py = Math.round(sy[i])
+            val d = hypot((hx - px).toFloat(), (hy - py).toFloat())
             if (pull[i] >= 0f) {
-                pull[i] += dt * 2.5f
-                val a = atan2(sy[i] - y, sx[i] - x) + dt * 8f
-                val d = hypot(sx[i] - x, sy[i] - y) * (1f - dt * 4f)
-                sx[i] = x + cos(a) * d; sy[i] = y + sin(a) * d
-                if (pull[i] >= 1f || d < rc) { win(input); spot().let { sx[i] = it.first; sy[i] = it.second }; pull[i] = -1f }
-            } else if (r <= 0f && hypot(sx[i] - x, sy[i] - y) < rc + 2.2f) pull[i] = 0f
-            val tw = 0.7f + 0.3f * sin(t / 150f + i)
-            canvas.max(sx[i].toInt(), sy[i].toInt(), 4000f * tw)
-            canvas.max(sx[i].toInt() + 1, sy[i].toInt(), 900f); canvas.max(sx[i].toInt() - 1, sy[i].toInt(), 900f)
+                pull[i] += dt / 0.45f
+                if (pull[i] >= 1f) { win(input); glad = 0.5f; place(i); continue }
+                // Drawn out toward the hole: its head runs in, then its tail follows.
+                val k = pull[i] * pull[i] * (3 - 2 * pull[i]); val k2 = ((pull[i] - 0.35f) / 0.65f).coerceIn(0f, 1f)
+                val head = (d - 3.6f) * k; val tail = (d - 3.6f) * k2 * k2 * (3 - 2 * k2)
+                if (head - tail < 3f) { cv.put(px, py, 1f); cv.put(px + 1, py, 0.35f); cv.put(px - 1, py, 0.35f); cv.put(px, py + 1, 0.35f); cv.put(px, py - 1, 0.35f) } else if (d > 0.1f) { var q = tail; while (q <= head) { cv.put(px + (hx - px) / d * q, py + (hy - py) / d * q, 0.55f + 0.45f * (q - tail) / (head - tail)); q += 0.4f } }
+            } else {
+                if (r <= 0f && d < 6f) pull[i] = 0f
+                if (r <= 0f || d > 5f) { cv.put(px, py, 1f); cv.put(px + 1, py, 0.35f); cv.put(px - 1, py, 0.35f); cv.put(px, py + 1, 0.35f); cv.put(px, py - 1, 0.35f) }
+            }
         }
-        val cx = TrickKit.lerp(x, MID, r); val cy = TrickKit.lerp(y, MID, r)
-        // The disc whirling round the dark core.
-        for (k in 0 until 14) { val a = k * 0.45f + t / 300f; val d = rc + 1.2f + (k % 4) * 0.6f; canvas.max((cx + cos(a) * d).toInt(), (cy + sin(a) * d * 0.45f).toInt(), 1400f + 1600f * (0.5f + 0.5f * cos(a))) }
-        ring(cx, cy, rc + 0.5f, 3000f)
-        sparkle(t, cx, cy, rc + 4f)
+        for (i in 0 until 625) if (cv.v[i] > 0f) canvas.max(i % 25, i / 25, cv.v[i] * 4095f)
     }
 }
 

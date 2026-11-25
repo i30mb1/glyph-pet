@@ -1338,7 +1338,14 @@ class PetEngine(
         }
         // A pastime picks up the calm clip where it is now, and gives it back there ([Drawn.pastimeStart]).
         Drawn.pastimeStart = if (drawnHabitMs >= 0 && col == drawnCol && col != "habit") time - drawnHabitMs else 0L
-        Drawn.frame(species.kind, col, t, species.stage, if (sliding) scene.tilt else 0f, frame)
+        // What it feels, for a hero that answers inside its own picture ([n7.glyphpet.pet.drawn.DrawnFeel]).
+        val feel = n7.glyphpet.pet.drawn.DrawnFeel
+        feel.timeMs = time; feel.tiltX = scene.tilt; feel.tiltY = scene.tiltY
+        feel.wind = if (!asleep && action == Action.NONE && !sliding && drawnHabitMs < 0) scene.wind else 0f
+        feel.startleMs = if (action == Action.STARTLE) Startles.of(species.kind).durationMs - actionLeftMs else -1L
+        feel.peek = action == Action.PEEK
+        feel.live = true
+        try { Drawn.frame(species.kind, col, t, species.stage, if (sliding) scene.tilt else 0f, frame) } finally { feel.live = false }
         // Hungry and sad at once: its hungry clip, dimmed by the sadness.
         if (col == "hungry" && scene.alsoSad) for (i in frame.indices) frame[i] = frame[i] * 7 / 10
         Drawn.cameFrom[species.kind] = col

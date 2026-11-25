@@ -24,8 +24,8 @@ android {
         applicationId = "n7.glyphpet"
         minSdk = 35
         targetSdk = 37
-        versionCode = 15
-        versionName = "1.6.0"
+        versionCode = 16
+        versionName = "1.6.1"
     }
 
     // Upload key from ~/.gradle/gradle.properties (n7.upload.*, or the shared kcal.upload.* key).
