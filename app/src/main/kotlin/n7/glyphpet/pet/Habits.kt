@@ -279,20 +279,18 @@ object Habits {
         )
     }
 
-    /** Bunny: one ear flops over and springs back up. */
-    fun bunny(rows: List<String>): Habit {
-        val half = o(7, 0, "xx..", "xx##", "x##.")
-        val flop = o(7, 0, "xx...", "xx...", "xx...", "..###", "...##")
+    /**
+     * Bunny: one ear flops over, right down its cheek, and springs back up past upright; then it folds at the tip and
+     * straightens. The ear is the puppet's ([BunnyPuppet]): each frame names its pose.
+     */
+    fun bunny(@Suppress("UNUSED_PARAMETER") rows: List<String>): Habit {
+        fun f(ms: Long, left: String, blink: Boolean = false) = HabitFrame(ms, pose = "sit,$left,0", blink = blink)
         return Habit(
             "ear_flop",
             listOf(
-                HabitFrame(100, over = listOf(half)),
-                HabitFrame(450, over = listOf(flop)),
-                HabitFrame(100, over = listOf(half)),
-                HabitFrame(160),
-                HabitFrame(90, over = listOf(half)),
-                HabitFrame(350, over = listOf(flop)),
-                HabitFrame(100, over = listOf(half)),
+                f(80, "-1"), f(80, "-2"), f(80, "-3"), f(280, "-4"), f(140, "-4", blink = true),
+                f(70, "-2"), f(90, "T"), f(100, "1"), f(120, "0"),
+                f(300, "bent"), f(70, "0"),
             ),
         )
     }

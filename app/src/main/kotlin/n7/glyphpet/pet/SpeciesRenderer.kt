@@ -381,6 +381,11 @@ object SpeciesRenderer {
         breathe: Boolean = spout,
         eyesShut: Boolean = false,
     ): IntArray {
+        // A habit frame that names a puppet's pose ([HabitFrame.pose]) is drawn in that pose, wherever it is drawn.
+        if (habit?.pose != null && species.base == null) {
+            val posed = Puppets.posed(species, habit.pose)
+            if (posed !== species) return render(posed, face, blink, dx, frame, timeMs, lift, habit, clipped, eyeDx, shadow, cover, painter, badges, spout, breathe, eyesShut)
+        }
         val look = LOOKS.getValue(face)
         val eyesDx = habit?.eyeDx?.takeIf { it != 0 } ?: safeEyeDx(species, habit?.rows ?: species.rows, eyeDx)
         val rows = habit?.rows ?: species.rows
@@ -455,13 +460,17 @@ object SpeciesRenderer {
             }
         }
 
-        val w = species.width
-        val heartX = ox + w / 2 - 2
-        val heartY = maxOf(0, species.oy - 5)
-        val zX = ox + w - 1
-        val zY = maxOf(1, species.oy - 3)
-        val sideX = ox + w + 1
-        val sideY = species.oy + (species.mouth?.second ?: (species.height / 2))
+        // A puppet's pose ([Species.base]) keeps its signs where the plain sprite has them.
+        val home = species.base ?: species
+        val hx = ox - species.ox + home.ox
+        val hy = oy - species.oy + home.oy
+        val w = home.width
+        val heartX = hx + w / 2 - 2
+        val heartY = maxOf(0, home.oy - 5)
+        val zX = hx + w - 1
+        val zY = maxOf(1, home.oy - 3)
+        val sideX = hx + w + 1
+        val sideY = home.oy + (home.mouth?.second ?: (home.height / 2))
 
         if (badges && face !in species.replaces) {
             when (face) {
@@ -469,8 +478,8 @@ object SpeciesRenderer {
                 Face.LOVE -> badge(frame, HEART, heartX, heartY)
                 Face.EAT -> badge(frame, FOOD, sideX, sideY)
                 // Each kind sleeps its own way: a snore bubble, bubbles, a moon, notes, sheep to count ([SleepSigns]).
-                Face.SLEEP -> SleepSigns.draw(frame, species, ox, oy, signRoom(species, dx), timeMs)
-                Face.HUNGRY -> thoughtSpot(species, dx)?.let { (rows, x, y) ->
+                Face.SLEEP -> SleepSigns.draw(frame, home, hx, hy, signRoom(home, dx), timeMs)
+                Face.HUNGRY -> thoughtSpot(home, dx)?.let { (rows, x, y) ->
                     glyph(frame, rows, x, y, hashValue = THOUGHT_DIM)
                     // What it is hungry for, its own food, glowing up and down.
                     val (ix, iy) = THOUGHTS.first { it.first === rows }.second
@@ -479,17 +488,18 @@ object SpeciesRenderer {
                 }
                 // Each kind its own sadness ([MoodSigns]); the tear for those whose sign it is.
                 Face.SAD -> if (!MoodSigns.drawSad(frame, species, ox, oy, timeMs)) tear(frame, species, ox, oy, timeMs)
-                Face.TIRED, Face.YAWN -> MoodSigns.drawTired(frame, species, ox, oy, timeMs)
+                // (A puppet is tired and dizzy in its own body.)
+                Face.TIRED, Face.YAWN -> if (species.base == null && !Puppets.handles(species.kind)) MoodSigns.drawTired(frame, species, ox, oy, timeMs)
                 Face.ANGRY -> badge(frame, VEIN, zX, zY)
                 // Dizzy: each kind's own gag ([Gags]).
-                Face.DIZZY -> if (!Gags.dizzy(frame, species, ox, oy, timeMs) && !MoodSigns.drawDizzy(frame, species, ox, oy, timeMs)) {
+                Face.DIZZY -> if (species.base == null && !Gags.dizzy(frame, species, ox, oy, timeMs) && !MoodSigns.drawDizzy(frame, species, ox, oy, timeMs)) {
                     badge(frame, STAR, heartX - 3, heartY + 1); badge(frame, STAR, heartX + 5, heartY + 1)
                 }
                 else -> Unit
             }
         }
         species.extras[face]?.forEach { o -> glyph(frame, o.rows, o.x + dx, o.y, (BODY * o.level).toInt(), BRIGHT) }
-        habit?.over?.forEach { o -> overlay(frame, o, species.ox + dx, species.oy - lift, body, clipped) }
+        habit?.over?.forEach { o -> overlay(frame, o, home.ox + dx, home.oy - lift, body, clipped) }
         if (shadow) {
             val height = look.jump + lift - minOf(0, habit?.dy ?: 0)
             if (height > 0) shadow(frame, species, rows, ox, height)

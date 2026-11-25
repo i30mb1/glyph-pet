@@ -37,6 +37,7 @@ class Overlay(val rows: List<String>, val x: Int, val y: Int, val level: Float =
  * @param eyeDx moves the carved eyes (a turned head, a glance).
  * @param body brightness of the body, 1 = normal.
  * @param face replaces the mood's face for this frame.
+ * @param pose a puppet's pose for this frame ([Puppet]): "body,left,right", e.g. "sit,-4,0".
  */
 class HabitFrame(
     val ms: Long,
@@ -48,6 +49,7 @@ class HabitFrame(
     val body: Float = 1f,
     val face: Face? = null,
     val blink: Boolean = false,
+    val pose: String? = null,
 )
 
 /** A species' signature idle animation. [id] is stable: the app names the habit by it. */
@@ -92,6 +94,7 @@ enum class ChargeWay { WHEEL, FILL, BAR, STORM, BEAM, IRIS }
  * coordinates (default: one under each eye).
  * [kind] is the hero this is a form of (the id its collection, eggs and saves use) and [stage] how far it has grown:
  * the species of [SpeciesCatalog] are the teens, with [id] == [kind]; [SpeciesForms] has the babies and adults.
+ * [base] is set on a puppet's pose ([Puppet]): the species it is a pose of, whose home spot its signs keep to.
  */
 class Species(
     val id: String,
@@ -110,6 +113,7 @@ class Species(
     val tearFrom: Pair<Int, Int>? = null,
     val kind: String = id,
     val stage: Stage = Stage.TEEN,
+    val base: Species? = null,
 ) {
     val habit: Habit = habit(rows)
     val width: Int get() = rows[0].length

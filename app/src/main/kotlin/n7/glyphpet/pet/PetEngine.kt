@@ -479,6 +479,9 @@ class PetEngine(
 
     /** The 3D look of the legendary and mythic pets. */
     private val living = Living3D()
+    private var puppet: Puppet? = null
+    private var puppetKind: String? = null
+    private var puppetX = 0f
 
     /** The pet's own depth effect ([Signatures]), if its kind has one; [signatureMs] >= 0 while it plays. */
     private var signature: Signature? = null
@@ -1186,8 +1189,21 @@ class PetEngine(
         } else {
             null
         }
+        // A puppet ([Puppet]) answers with its whole body: its pose for this frame stands in for the plain sprite.
+        val liftNow = lift + (cuddle?.let { Cuddles.lift(it, cuddleMs) } ?: 0)
+        if (puppetKind != species.kind) { puppetKind = species.kind; puppet = Puppets.of(species.kind) }
+        val posed = if (painter != null) null else puppet?.pose(
+            species,
+            PuppetIn(
+                dtMs, time, scene.mood, asleep, scene.tilt, scene.tiltY, if (blown) scene.wind else 0f, liftNow + SpeciesRenderer.jumpOf(face),
+                startleMs = if (startle != null) startleMs else -1L, loved = cuddle != null && action == Action.LOVED, dizzy = action == Action.DIZZY,
+                inHabit = own != null, habitPose = own?.pose,
+                moving = sliding || abs(x - puppetX) > 0.01f,
+            ),
+        )
+        puppetX = x
         SpeciesRenderer.render(
-            species, face, blink = blinkLeftMs > 0, dx = dx, frame = frame, timeMs = time, lift = lift + (cuddle?.let { Cuddles.lift(it, cuddleMs) } ?: 0),
+            posed?.species ?: species, face, blink = blinkLeftMs > 0, dx = dx, frame = frame, timeMs = time, lift = liftNow,
             eyesShut = faceBlinkMs > 0,
             habit = if (painter != null) living.habitFor(species, own, inPastime) else own,
             eyeDx = if (way?.move == Blows.Move.LOOK && blown) -windDir else look(centerX, scene, asleep), shadow = true, cover = cover, painter = painter,

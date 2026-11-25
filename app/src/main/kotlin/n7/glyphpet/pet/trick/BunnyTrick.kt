@@ -1,179 +1,176 @@
 package n7.glyphpet.pet.trick
 
-import n7.glyphpet.pet.Face
 import n7.glyphpet.pet.HapticKind
 import n7.glyphpet.pet.SignatureInput
-import n7.glyphpet.pet.signature.Canvas
-import n7.glyphpet.pet.signature.Kit
-import kotlin.math.cos
-import kotlin.math.hypot
-import kotlin.math.sin
+import n7.glyphpet.pet.SpeciesRenderer
+import kotlin.math.abs
 
 /**
- * Bunny: it hops after a carrot, and the carrot dodges away from the lean, so the owner teases the bunny or lets it
- * win. Caught, the bunny munches it (a tick) and a new carrot pops up across the field; the longer the chase, the
- * bigger the bunny's hops get.
+ * Bunny, "the carrot patch": a carrot's top sticks out of the bed. Lean the phone and the bunny hops along the bed to
+ * it; a sharp nod of the phone (or holding it level for a moment beside the carrot) and it yanks the carrot out of the
+ * ground and eats it (a tick in the hand). Then a new top comes up somewhere else. After a few the carrots sit deeper
+ * and take two pulls; every fifth one it dances.
  */
 internal class BunnyTrick : Trick(0L) {
-    /** The little bunny it plays as: ears, eyes (x: off), a bright nose; munching, its mouth opens dark. */
-    private val BUNNY = listOf(".#...#.", ".#...#.", ".##.##.", "#######", "#x###x#", "###o###", "#######", ".#####.")
-    private val BUNNY_MUNCH = listOf(".#...#.", ".#...#.", ".##.##.", "#######", "#x###x#", "###o###", "##xxx##", ".#####.")
-    private val BUNNY_BLINK = listOf(".#...#.", ".#...#.", ".##.##.", "#######", "#######", "###o###", "#######", ".#####.")
+    /** The little bunny it plays as: ears, eyes (x: off), a bright nose. Hopping, its ears trail; pulling, they lie back. */
+    private val SIT = listOf(".#...#.", ".#...#.", ".##.##.", "#######", "#x###x#", "###o###", "#######", ".#####.")
+    private val HOP = listOf("#...#..", ".#...#.", ".##.##.", "#######", "#x###x#", "###o###", "#######", ".##.##.")
+    private val PULL = listOf(".......", "##...##", ".##.##.", "#######", "#######", "###o###", "#######", ".#####.")
+    private val MUNCH = listOf(".#...#.", ".#...#.", ".##.##.", "#######", "#x###x#", "###o###", "##xxx##", ".#####.")
+    private val BLINK = listOf(".#...#.", ".#...#.", ".##.##.", "#######", "#######", "###o###", "#######", ".#####.")
+    private val CARROT = listOf("o.o", ".o.", "###", "###", ".#.", ".#.")
 
     companion object {
-        const val BUNNY_H = 6.5f
         const val GROW_MS = 450L
-        const val CARROT_SPEED = 7f
-        const val CARROT_MAX = 9.5f
-        const val HOP_MS = 360L
-        const val REST_MS = 170L
-        const val HOP_LEN = 3.2f
-        const val HOP_UP = 2f
-        const val CATCH = 2.3f
-        const val MUNCH_MS = 1000L
+        const val HOP_MS = 240L
+        const val PULL_MS = 700L
+        const val MUNCH_MS = 900L
+        const val PARTY_MS = 640L
+        /** Kept beside the carrot this long (level, or still leaning to it), it pulls by itself: the game never needs the nod. */
+        const val HOLD_MS = 900L
+        const val LEAN = 0.18f
+        const val NOD_AT = 0.4f
+        const val NOD_ARM = 0.2f
+        /** The bunny stops this far from the carrot, so the two never run into one picture. */
+        const val REACH = 6
+        const val GROUND = 20
+        const val DEEP_FROM = 5
+        const val CARROT_BODY = 2200
+        const val BED = 350
     }
 
-    private var x = MID
-    private var y = MID
-    private var fromX = 0f
-    private var fromY = 0f
-    private var toX = 0f
-    private var toY = 0f
+    private var x = 12
+    private var from = 12
+    private var to = 12
     private var hop = -1L
-    private var rest = 0L
-    private var chase = 0L
-    private var munch = 0L
-    private var cx = 0f
-    private var cy = 0f
+    private var dir = 1
+    private var sx = 18
+    private var pull = -1L
+    private var half = false
+    private var munch = -1L
+    private var party = -1L
+    private var miss = -1L
+    private var held = 0L
+    private var armed = true
+    private var got = 0
     private var seed = 0
     private var started = false
-    private val carrot = spriteOf(listOf("o.o", ".o.", "###", "###", ".#.", ".#."), body = Kit.BODY * 1.8f)
     private val homing = Homing()
-    private val canvas = Canvas()
-    private val layer = Canvas()
 
     override fun reset() {
         started = false
-        hop = -1L
-        rest = 0L
-        chase = 0L
-        munch = 0L
+        x = 12; hop = -1L; dir = 1; pull = -1L; half = false; munch = -1L; party = -1L; miss = -1L; held = 0L; armed = true; got = 0
         seed = freshSeed()
         homing.reset()
+    }
+
+    private fun near() = abs(x - sx) == REACH
+
+    private fun sprout() {
+        var s: Int
+        do { seed++; s = 4 + 2 * (TrickKit.hash01(seed) * 9).toInt().coerceIn(0, 8) } while (abs(s - x) < REACH + 2)
+        sx = s
+        half = false
+    }
+
+    private fun step(ms: Long, nod: Boolean, input: SignatureInput) {
+        if (pull >= 0) {
+            pull += ms
+            if (pull >= PULL_MS) {
+                pull = -1L
+                // A deep one comes half out at the first pull and waits for the second.
+                if (got >= DEEP_FROM && !half) { half = true; return }
+                munch = 0L; got++
+                gate.feel(input, HapticKind.FEED, if (got % 5 == 0) 1f else 0.8f)
+            }
+            return
+        }
+        if (munch >= 0) {
+            munch += ms
+            if (munch >= MUNCH_MS) { munch = -1L; if (got % 5 == 0) party = 0L; sprout() }
+            return
+        }
+        if (party >= 0) { party += ms; if (party >= PARTY_MS) party = -1L; return }
+        if (miss >= 0) { miss += ms; if (miss >= 220) miss = -1L }
+        if (hop >= 0) {
+            hop += ms
+            if (hop >= HOP_MS) { x = to; hop = -1L }
+            return
+        }
+        val level = abs(tilt.x) < LEAN
+        // Beside the carrot and not leaning away from it: it waits to pull.
+        val toward = !level && (tilt.x > 0) == (sx > x)
+        held = if (near() && (level || toward)) held + ms else 0L
+        if (nod || held >= HOLD_MS) {
+            held = 0L
+            if (near()) pull = 0L else miss = 0L
+            return
+        }
+        if (!level) {
+            dir = if (tilt.x > 0) 1 else -1
+            val next = (x + dir * 2).coerceIn(6, 18)
+            if (next != x && abs(next - sx) >= REACH) { from = x; to = next; hop = 0L }
+        }
     }
 
     override fun scene(frame: IntArray, input: SignatureInput) {
         val sp = input.species
         val t = input.tMs
         val ms = input.dtMs.coerceIn(0L, 100L)
-        val dt = seconds(input)
-        val hx = TrickKit.homeCx(sp, input.dx)
-        val hy = TrickKit.homeCy(sp)
-        // It plays as a little bunny of its own, its size from the start: shrinking the big one blurred it.
-        val small = BUNNY.size.toFloat() / sp.height
-        val grow = Kit.smooth(t.toFloat() / GROW_MS)
-        val scale = small
         val r = returning(t)
-        if (!started) {
-            x = hx
-            y = hy
-            started = true
-            newCarrot()
-        }
-        val maxR = (RIM - sp.height * small * 0.5f - 0.5f).coerceAtLeast(3f)
+        if (!started) { started = true; sprout() }
+        // A sharp nod: the forward lean jumps and comes back.
+        val ay = abs(tilt.y)
+        val nod = armed && ay > NOD_AT
+        if (nod) armed = false else if (ay < NOD_ARM) armed = true
+        if (r <= 0f && t >= GROW_MS) step(ms, nod, input)
 
-        var lift = 0f
-        if (r <= 0f && grow >= 1f) {
-            if (munch > 0L) {
-                munch -= ms
-                if (munch <= 0L) newCarrot()
-            } else {
-                // The carrot slides away from the lean, along the edge when it is cornered.
-                cx -= tilt.x * CARROT_SPEED * dt
-                cy -= tilt.y * CARROT_SPEED * dt
-                val d = hypot(cx - MID, cy - MID)
-                if (d > CARROT_MAX) {
-                    cx = MID + (cx - MID) * CARROT_MAX / d
-                    cy = MID + (cy - MID) * CARROT_MAX / d
-                }
-                chase += ms
+        var bx = x.toFloat()
+        var lift = 0
+        var rows = if (input.blink) BLINK else SIT
+        if (hop >= 0) {
+            val p = hop.toFloat() / HOP_MS
+            bx = Math.round(from + (to - from) * p).toFloat()
+            lift = if (p > 0.2f && p < 0.8f) 1 else 0
+            rows = HOP
+        }
+        if (miss >= 0) rows = PULL
+        if (pull >= 0) rows = if (pull < 520) PULL else SIT
+        if (munch >= 0 && (munch / 130) % 2 == 0L) rows = MUNCH
+        if (party >= 0) { lift = if ((party / 160) % 2 == 0L) 2 else 0; rows = if (lift > 0) HOP else SIT }
+        val going = homing.apply(r, bx, GROUND - 4f, 1f, TrickKit.homeCx(sp, input.dx), TrickKit.homeCy(sp))
+        if (going) { rows = SIT; lift = 0 }
+
+        if (!going) {
+            // The bed, and the carrot in it: only its top shows; pulled, it comes up out of the ground row by row; eaten,
+            // it goes bite by bite from the tip, its top sinking to the ground.
+            for (px in 3..21) SpeciesRenderer.put(frame, px, GROUND, BED)
+            val out = when {
+                pull >= 0 -> { val full = if (got >= DEEP_FROM && !half) 4 else 6; val start = if (half) 4 else 2
+                    (start + ((pull - 180).coerceAtLeast(0) / 70).toInt()).coerceAtMost(full) }
+                munch >= 0 -> 6
+                half -> 4
+                else -> 2
             }
-            if (hop >= 0L) {
-                hop += ms
-                val p = (hop.toFloat() / HOP_MS).coerceIn(0f, 1f)
-                x = TrickKit.lerp(fromX, toX, p)
-                y = TrickKit.lerp(fromY, toY, p)
-                lift = (HOP_UP + (chase / 8000f).coerceAtMost(1.5f)) * 4f * p * (1f - p)
-                if (p >= 1f) {
-                    hop = -1L
-                    rest = 0L
-                }
-            } else if (munch <= 0L) {
-                if (hypot(cx - x, cy - y) < CATCH) {
-                    munch = MUNCH_MS
-                    chase = 0L
-                    gate.feel(input, HapticKind.FEED, 0.8f)
-                } else {
-                    rest += ms
-                    if (rest >= REST_MS) {
-                        val dx = cx - x
-                        val dy = cy - y
-                        val d = hypot(dx, dy).coerceAtLeast(0.01f)
-                        val len = minOf(d, HOP_LEN + (chase / 6000f).coerceAtMost(1.5f))
-                        fromX = x
-                        fromY = y
-                        toX = x + dx / d * len
-                        toY = y + dy / d * len
-                        val td = hypot(toX - MID, toY - MID)
-                        if (td > maxR) {
-                            toX = MID + (toX - MID) * maxR / td
-                            toY = MID + (toY - MID) * maxR / td
-                        }
-                        hop = 0L
-                    }
-                }
+            val bites = if (munch >= 0) (munch / 150).toInt().coerceAtMost(6) else 0
+            for (j in 0 until out - bites) for (i in 0..2) {
+                val ch = CARROT[j][i]
+                if (ch != '.') SpeciesRenderer.put(frame, sx - 1 + i, GROUND - (out - bites) + j, if (ch == 'o') SpeciesRenderer.BRIGHT else CARROT_BODY)
             }
         }
-
-        val going = homing.apply(r, x, y, scale, hx, hy)
-        val face = when {
-            going -> Face.CONTENT
-            munch > 0L -> Face.EAT
-            hop >= 0L -> Face.HAPPY
-            else -> Face.IDLE
-        }
-
-        canvas.clear()
-        layer.clear()
-        if (!going && grow >= 1f && munch <= 0L) {
-            val wob = 0.3f * sin(t / 90f)
-            canvas.sprite(carrot, (cx - 1f + wob).toInt(), (cy - 3f).toInt(), 1f)
-        }
-        canvas.toFrame(frame)
-        // The bunny straight onto the LEDs, cell for cell: eyes two dark LEDs, the same face all the time (faces that
-        // changed on every hop read as eyes jumping about); munching, its mouth opens and shuts. No sparkles over it.
-        val rows = when {
-            munch > 0L && !going && (t / 140L) % 2L == 0L -> BUNNY_MUNCH
-            input.blink && hop < 0L -> BUNNY_BLINK
-            else -> BUNNY
-        }
-        val bx = Math.round(homing.x) - rows[0].length / 2
-        val by = Math.round(homing.y - lift) - rows.size / 2
-        rows.forEachIndexed { j, row -> row.forEachIndexed { i, ch ->
-            val px = bx + i; val py = by + j
-            if (px in 0..24 && py in 0..24 && ch != '.') frame[py * 25 + px] = when (ch) {
-                '#' -> n7.glyphpet.pet.SpeciesRenderer.BODY
-                'o' -> n7.glyphpet.pet.SpeciesRenderer.BRIGHT
+        // The bunny straight onto the LEDs, cell for cell: eyes two dark LEDs, the same face all the time.
+        val flip = rows === HOP && dir < 0
+        val left = Math.round(homing.x) - 3
+        val top = Math.round(homing.y - lift) - rows.size / 2
+        rows.forEachIndexed { j, row -> for (i in 0..6) {
+            val ch = row[if (flip) 6 - i else i]
+            val px = left + i
+            val py = top + j
+            if (ch != '.' && px in 0..24 && py in 0..24) frame[py * 25 + px] = when (ch) {
+                '#' -> SpeciesRenderer.BODY
+                'o' -> SpeciesRenderer.BRIGHT
                 else -> 0
             }
         } }
-    }
-
-    private fun newCarrot() {
-        seed++
-        val ang = kotlin.math.atan2(MID - y, MID - x) + (TrickKit.hash01(seed) - 0.5f) * 1.6f
-        val rr = 5f + 3.5f * TrickKit.hash01(seed * 5 + 1)
-        cx = MID + rr * cos(ang)
-        cy = MID + rr * sin(ang)
     }
 }

@@ -1,0 +1,420 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Glyph Pet — Bunny: супер-питомец (макет)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root { color-scheme: dark; --bg:#0b0c0e; --panel:#131519; --line:#23262d; --ink:#eceef2; --muted:#8d939f; --own:#7ee0b5; --plan:#9fb4ff; --warn:#ff8f6b }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font: 14px/1.55 system-ui, "Segoe UI", sans-serif; margin: 0 }
+.wrap { padding: 28px 16px 64px; display: grid; gap: 22px; max-width: 1120px; margin: 0 auto }
+h1 { font: 700 30px/1.1 system-ui; margin: 0 } h2 { font: 700 19px/1.2 system-ui; margin: 0 }
+.lede, .how { color: var(--muted); max-width: 76ch; margin: 6px 0 0 } .how { font-size: 13px; margin: 0 }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 12px }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 16px }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px }
+.side { display: grid; gap: 6px; justify-items: center }
+.side em { font: 600 11px system-ui; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-style: normal }
+.side.next em { color: var(--own) }
+canvas { width: 100%; max-width: 250px; aspect-ratio: 1; background: #0e1013; border-radius: 50%; display: block; touch-action: none }
+.play { display: grid; grid-template-columns: minmax(240px, 380px) 1fr; gap: 22px; align-items: center }
+@media (max-width: 700px) { .play { grid-template-columns: 1fr } }
+.play canvas { max-width: 380px; cursor: ew-resize }
+.btns { display: flex; flex-wrap: wrap; gap: 8px }
+button { font: 600 13px system-ui; color: var(--ink); background: #1b1e24; border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; cursor: pointer }
+button:hover { border-color: var(--plan) } button.on { background: var(--own); color: #06281b; border-color: var(--own) }
+.lab { font: 600 11px system-ui; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); margin-top: 6px }
+.sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px }
+.sum div { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px }
+.sum b { display: block; font: 700 24px/1.1 system-ui; color: var(--warn) } .sum span { color: var(--muted); font-size: 12px }
+.bzz { font: 600 12px ui-monospace, monospace; color: var(--own); height: 18px }
+ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13px } li b { color: var(--ink) }
+</style>
+<div class="wrap">
+  <header>
+    <h1>Bunny → супер-питомец</h1>
+    <p class="lede">Макет на согласование (подросток). Заяц сегодня — жёсткий брусок: в покое только моргает, почти всё движение взято из общих шаблонов.
+      Предложение: собрать его как куклу — тело в нарисованных позах, уши на пружинке (каждая поза уха нарисована вручную, без размытия), лицо стоит на месте.
+      Уши — его язык: по ним видно настроение, наклон телефона, ветер и громкий звук.</p>
+  </header>
+  <div class="sum">
+    <div><b>2 кадра</b><span>весь «покой» сегодня: открытые глаза и моргание</span></div>
+    <div><b>4–5 кадров</b><span>голод, усталость, привычка, зарядка</span></div>
+    <div><b>общие шаблоны</b><span>еда «Хрум» (с ежом и дино), наклон HOP (с лягушкой и цыплёнком), слеза, звёзды, кивок, храп</span></div>
+    <div><b>164</b><span>разных кадра на 14 состояний — предпоследнее место из 72 героев</span></div>
+  </div>
+
+  <section class="card">
+    <h2>Живая площадка</h2>
+    <div class="play">
+      <canvas id="stage" width="500" height="500"></canvas>
+      <div style="display:grid;gap:8px">
+        <p class="how"><b style="color:var(--ink)">Води мышью (пальцем) по матрице влево-вправо — это наклон телефона.</b> Уши свисают в нижнюю сторону и пружинят, взгляд идёт следом.
+          Не трогай 6 секунд — усядется «буханкой». На телефоне страница слушает и настоящий наклон.</p>
+        <div class="lab">что чувствует телефон</div>
+        <div class="btns"><button data-ev="clap">Хлопок / громкий звук</button><button data-ev="blow">Подуть</button><button data-ev="shake">Встряхнуть</button></div>
+        <div class="lab">настроение</div>
+        <div class="btns" id="moods"></div>
+        <div class="lab">свет</div>
+        <div class="btns"><button id="flat" class="on">Объём (как в игре)</button></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="grid" id="cards"></div>
+
+  <section class="card">
+    <h2>Игра «Грядка» (вместо погони за морковкой)</h2>
+    <div class="play">
+      <div><canvas id="game" width="500" height="500"></canvas><div class="bzz" id="bzz"></div></div>
+      <div style="display:grid;gap:8px">
+        <p class="how"><b style="color:var(--ink)">Наклон — заяц скачет по грядке к ботве. Резкий кивок телефоном (здесь — клик) — выдёргивает морковку и съедает.</b>
+          Цель видна сразу: ботва торчит, заяц рядом. Только телефон, кнопка не нужна. Счёта на матрице нет: очко — это тик вибрации, каждая пятая морковка — посильнее и бинки.
+          Дальше морковки сидят глубже (два кивка подряд).</p>
+        <p class="how">Это набросок механики; без мыши играет сам. В коде у игры будет тест «сценарий наклонов набирает очки».</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Что ещё войдёт (в макете нет)</h2>
+    <ul>
+      <li><b>Еда</b> — своя, не общий «Хрум»: морковка въезжает ботвой вверх, грызёт с кончика, уши подпрыгивают в такт, ботву дожёвывает последней.</li>
+      <li><b>Любовь</b> — «флоп»: валится буханкой, уши в стороны, счастливые глаза.</li>
+      <li><b>Фишка</b> — нора: ныряет в неё, из другой норы сначала вылезают уши, потом он сам.</li>
+      <li><b>Малыш и взрослый</b> — та же кукла в своих размерах: у малыша короткие ушки, у взрослого зайца длинные с яркой серединкой. Занятия взрослого (морковка, топот) перерисую под куклу.</li>
+      <li><b>Тесты</b>: ни одного LED за матрицей, нет замерших клипов, нет оторванных кусочков 1–3 LED, лицо не двигается в покое, игра проходится сценарием.</li>
+    </ul>
+  </section>
+</div>
+<script>
+// The bunny as a puppet: hand-drawn body poses, hand-drawn ear poses picked by a spring, a face that stays put.
+// Everything lands on whole LEDs: no scaling, no fractional positions, no crossfades.
+const B = 0.33, O = 1, DIM = 0.1;
+const BODY = {
+  sit: ["..#######..", ".#########.", "###########", "###########", "###########", "###########", "###########", ".#########.", "..##...##.."],
+  crouch: ["..#########..", ".###########.", "#############", "#############", "#############", ".###########.", "..###...###.."],
+  air: ["..#####..", ".#######.", "#########", "#########", "#########", "#########", "#########", ".#######.", "..#...#.."],
+  stand: ["..#####..", ".#######.", "#########", "#########", "#########", "#########", "#########", ".#######.", ".#######.", ".#######.", ".##...##."],
+  loaf: ["..#########..", ".###########.", "#############", "#############", "#############", "#############", ".###########."],
+};
+const EYE_ROW = { sit: 3, crouch: 2, air: 3, stand: 3, loaf: 2 };
+// Left ear, cells from its root (dx < 0 is outward, dy < 0 is up). The right ear is the mirror.
+const up = n => { const a = []; for (let k = 0; k < n; k++) a.push([0, -k], [1, -k]); return a; };
+const EAR = {
+  "0": up(4),
+  T: up(6),
+  "-1": [[0, 0], [1, 0], [0, -1], [1, -1], [-1, -2], [0, -2], [-1, -3], [0, -3]],
+  "-2": [[0, 0], [1, 0], [-1, -1], [0, -1], [-2, -2], [-1, -2], [-3, -3], [-2, -3]],
+  "-3": [[0, 0], [1, 0], [-1, 0], [-2, 0], [-3, 0], [0, -1], [-1, -1], [-2, -1], [-3, -1], [-4, -1]],
+  "-4": [[0, 0], [1, 0], [-1, 0], [-2, 0], [-3, 1], [-2, 1], [-4, 2], [-3, 2], [-5, 3], [-4, 3], [-5, 4], [-4, 4], [-5, 5], [-4, 5]],
+  "1": [[0, 0], [1, 0], [0, -1], [1, -1], [1, -2], [2, -2], [1, -3], [2, -3]],
+  "2": [[0, 0], [1, 0], [1, -1], [2, -1], [2, -2], [3, -2], [3, -3], [4, -3]],
+  bent: [[0, 0], [1, 0], [0, -1], [1, -1], [0, -2], [1, -2], [-1, -2], [-2, -2], [-2, -1], [-3, -1]],
+};
+
+function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+/** The game's own light (Shading.kt), cell for cell: a brighter side toward the light, a lit rim there and a dim one
+ *  opposite, sharp corners dimmed, the steps of a diagonal edge faintly lit. [g] holds only the silhouette. */
+function shade(g, light) {
+  const sil = (x, y) => x >= 0 && x < 25 && y >= 0 && y < 25 && g[y * 25 + x] > 0;
+  let x0 = 25, y0 = 25, x1 = -1, y1 = -1;
+  for (let y = 0; y < 25; y++) for (let x = 0; x < 25; x++) if (sil(x, y)) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  if (x1 < 0) return;
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, r = Math.max(x1 - x0 + 1, y1 - y0 + 1) / 2 + 0.5;
+  const lx = Math.max(-0.95, Math.min(0.95, light)), ly = -Math.sqrt(1 - lx * lx);
+  const D4 = [[1, 0], [-1, 0], [0, 1], [0, -1]], out = new Float32Array(625);
+  for (let y = 0; y < 25; y++) for (let x = 0; x < 25; x++) {
+    if (!sil(x, y)) continue;
+    let f = 1 + 0.35 * ((x - cx) * lx + (y - cy) * ly) / r, nx = 0, ny = 0, edge = false;
+    const o = D4.map(([dx, dy]) => !sil(x + dx, y + dy));
+    D4.forEach(([dx, dy], i) => { if (o[i]) { nx += dx; ny += dy; edge = true; } });
+    if (edge) { const facing = nx * lx + ny * ly; f *= facing > 0.2 ? 1.3 : facing < -0.2 ? 0.75 : 0.9; }
+    f = Math.max(0.55, Math.min(1.65, f));
+    if (o.filter(Boolean).length === 2 && (o[0] || o[1]) && (o[2] || o[3])) f = Math.max(0.4, f * 0.6);
+    out[y * 25 + x] = B * f;
+  }
+  for (let y = 0; y < 25; y++) for (let x = 0; x < 25; x++) {
+    if (sil(x, y)) continue;
+    const b = D4.map(([dx, dy]) => sil(x + dx, y + dy));
+    if (b.filter(Boolean).length !== 2 || !(b[0] || b[1]) || !(b[2] || b[3])) continue;
+    const dx = b[0] ? 1 : -1, dy = b[2] ? 1 : -1;
+    if (!sil(x + dx, y + dy)) continue;
+    out[y * 25 + x] = Math.min(0.2, (out[y * 25 + x + dx] + out[(y + dy) * 25 + x]) / 2 * 0.45);
+  }
+  g.set(out);
+}
+function put(g, x, y, v) { if (x >= 0 && x < 25 && y >= 0 && y < 25) g[y * 25 + x] = v; }
+
+/** Draws the puppet. p: {pose, x, gy, lift, ears:[key,key], eyes, look, mouth, nose, paws, tear} */
+function drawBunny(g, p) {
+  const rows = BODY[p.pose], w = rows[0].length, h = rows.length;
+  const x0 = p.x - (w - 1) / 2, y0 = p.gy - (p.lift || 0) - h + 1;
+  // Ears first: the head covers their roots.
+  for (let i = 0; i < 2; i++) {
+    const cells = EAR[p.ears[i]];
+    for (const [dx, dy] of cells) put(g, i === 0 ? x0 + 2 + dx : x0 + w - 3 - dx, y0 - 1 + dy, B);
+  }
+  rows.forEach((r, j) => { for (let i = 0; i < w; i++) if (r[i] === "#") put(g, x0 + i, y0 + j, B); });
+  if (p.light != null) shade(g, p.light);
+  // The face: two 2x2 dark eyes with a glint, a bright nose, a little dark mouth. It never moves on the head.
+  const c = x0 + (w - 1) / 2, ey = y0 + EYE_ROW[p.pose];
+  for (const ex of [c - 3, c + 2]) {
+    const e = p.eyes || "open";
+    if (e === "open" || e === "wide") {
+      for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) put(g, ex + i, ey + j, 0);
+      if (e === "wide") { put(g, ex, ey - 1, 0); put(g, ex + 1, ey - 1, 0); put(g, ex + (ex < c ? 1 : 0), ey, O); }
+      else put(g, ex + ((p.look || (p.light > 0 ? 1 : 0)) > 0 ? 1 : 0), ey + (p.lookY > 0 ? 1 : 0), O);
+    } else if (e === "shut") { put(g, ex, ey + 1, 0); put(g, ex + 1, ey + 1, 0); }
+    else if (e === "happy") { put(g, ex, ey, 0); put(g, ex + 1, ey, 0); put(g, ex === c - 3 ? ex - 1 : ex + 2, ey + 1, 0); }
+    else if (e === "half") { put(g, ex, ey + 1, 0); put(g, ex + 1, ey + 1, 0); put(g, ex + ((p.look || 0) > 0 ? 1 : 0), ey + 1, O * 0.6); }
+  }
+  put(g, c, ey + 2, p.nose === false ? B : O);
+  if (p.mouth === "open") { put(g, c - 1, ey + 3, 0); put(g, c, ey + 3, 0); put(g, c + 1, ey + 3, 0); }
+  else { put(g, c - 1, ey + 3, 0); put(g, c + 1, ey + 3, 0); }
+  if (p.tear != null) put(g, c - 2, ey + 2 + p.tear, O);
+  if (p.paws) for (const [dx, dy] of p.paws) put(g, c + dx, ey + dy, O);
+  return { c, ey, x0, y0, w };
+}
+
+class Bunny {
+  constructor(seed = 1) {
+    this.rnd = rng(seed); this.a = [0, 0]; this.v = [0, 0]; this.mode = "calm"; this.mt = 0;
+    this.ev = null; this.et = 0; this.idle = { next: 900, kind: null, t: 0 }; this.still = 0; this.tilt = 0; this.p = null; this.extra = [];
+  }
+  set(mode) { if (mode !== this.mode) { this.mode = mode; this.mt = 0; } }
+  fire(ev) { this.ev = ev; this.et = 0; }
+  step(dt, inp = {}) {
+    const tilt = inp.tilt || 0;
+    this.still = Math.abs(tilt - this.tilt) > 0.02 || this.ev ? 0 : this.still + dt;
+    this.tilt = tilt; this.mt += dt; if (this.ev) this.et += dt;
+    const P = { pose: "sit", x: 12, gy: 19, lift: 0, eyes: "open", look: 0, mouth: null, nose: true, tgt: [0, 0], snap: [null, null], key: [null, null], paws: null };
+    this.extra = [];
+    const T = this.ev ? this.et : this.mt;
+    const m = this.ev || this.mode;
+    this[m](P, T, inp);
+    // Gravity: awake and sitting, the ears hang to the low side of the phone.
+    if (P.lean !== false && Math.abs(tilt) > 0.12) {
+      const s = Math.min(1, (Math.abs(tilt) - 0.12) * 1.5), low = tilt > 0 ? 1 : 0;
+      P.tgt[low] = Math.min(P.tgt[low], -4 * s); P.tgt[1 - low] = Math.max(P.tgt[1 - low], s > 0.35 ? 1 : 0);
+      P.look = tilt > 0 ? 1 : -1;
+    }
+    const k = 150, damp = 9, h = Math.min(dt, 50) / 1000;
+    for (let i = 0; i < 2; i++) {
+      if (P.snap[i] != null) { this.a[i] = P.snap[i]; this.v[i] = 0; }
+      else { this.v[i] += ((P.tgt[i] - this.a[i]) * k - this.v[i] * damp) * h; this.a[i] += this.v[i] * h; }
+      this.a[i] = Math.max(-4, Math.min(1.4, this.a[i]));
+    }
+    const up = -tilt / Math.sqrt(tilt * tilt + 1); P.light = this.flat ? null : Math.max(-0.95, Math.min(0.95, -0.6 + up));
+    P.ears = [0, 1].map(i => P.key[i] || String(Math.round(this.a[i]) + 0));
+    this.p = P;
+  }
+  draw(g) { const r = drawBunny(g, this.p); for (const f of this.extra) f(g, r); }
+
+  // --- calm: the ears live their own life, the nose works, it glances about; left alone it settles into a loaf.
+  calm(P, t) {
+    const id = this.idle;
+    if (id.kind) { id.t += 40; } else if ((id.next -= 40) <= 0) {
+      id.kind = ["flickL", "flickR", "glance", "nose", "blink", "radar", "nose", "flickL"][Math.floor(this.rnd() * 8)]; id.t = 0; id.dir = this.rnd() < 0.5 ? -1 : 1;
+      if (id.kind === "flickL") this.v[0] -= 26; if (id.kind === "flickR") this.v[1] -= 26;
+    }
+    const k = id.kind, it = id.t, end = d => { if (it >= d) { id.kind = null; id.next = 700 + this.rnd() * 1500; } };
+    if (k === "flickL" || k === "flickR") end(500);
+    if (k === "glance") { P.look = id.dir; P.tgt[id.dir > 0 ? 1 : 0] = -1; end(900); }
+    if (k === "nose") { P.nose = Math.floor(it / 90) % 2 === 0; end(720); }
+    if (k === "blink") { P.eyes = "shut"; end(130); }
+    if (k === "radar") { const i = it < 450 ? 0 : 1; P.tgt[i] = 1; end(900); }
+    if (this.still > 6000) { P.pose = this.still < 6160 ? "crouch" : "loaf"; P.tgt = [-1, -1]; if (this.still % 3200 < 900 && this.still > 7000) P.eyes = "half"; }
+  }
+  // --- happy: a binky. Crouch, leap, a twist in the air with the ears thrown about, a soft landing.
+  happy(P, t) {
+    t %= 2600;
+    if (t < 280) { P.pose = "crouch"; P.tgt = [-2, -2]; }
+    else if (t < 380) { P.pose = "air"; P.lift = 2; P.key = ["0", "0"]; P.snap = [0, 0]; }
+    else if (t < 500) { P.pose = "air"; P.lift = 4; P.key = ["0", "0"]; P.eyes = "happy"; }
+    else if (t < 700) { P.pose = "air"; P.lift = 5; P.x = 13; P.key = ["1", "-2"]; P.snap = [1, -2]; P.eyes = "happy"; }
+    else if (t < 900) { P.pose = "air"; P.lift = 5; P.x = 11; P.key = ["-2", "1"]; P.snap = [-2, 1]; P.eyes = "happy"; }
+    else if (t < 1000) { P.pose = "air"; P.lift = 3; P.key = ["T", "T"]; P.snap = [0, 0]; P.eyes = "happy"; }
+    else if (t < 1080) { P.pose = "air"; P.lift = 1; P.key = ["T", "T"]; P.snap = [0, 0]; }
+    else if (t < 1240) { P.pose = "crouch"; P.key = ["bent", "bent"]; P.snap = [-3, -3]; P.eyes = "shut"; }
+    else { P.eyes = t < 2000 ? "happy" : "open"; if (t > 2100 && t < 2230) P.eyes = "shut"; }
+    P.lean = false;
+  }
+  // --- habit: washes its face with both paws, then pulls one ear down and strokes it; let go, the ear springs back.
+  habit(P, t) {
+    t %= 4400; P.lean = false;
+    if (t < 300) { P.paws = [[-1, 4], [1, 4]]; }
+    else if (t < 1500) { const a = Math.floor(t / 170) % 2 === 0; P.eyes = "shut"; P.paws = a ? [[-2, 3], [-1, 3], [1, 3], [2, 3]] : [[-2, 2], [-1, 2], [1, 2], [2, 2]]; }
+    else if (t < 1750) { P.tgt = [-4, 0]; P.look = -1; }
+    else if (t < 3100) {
+      P.snap = [-4, null]; P.eyes = "shut";
+      const s = Math.floor(((t - 1750) % 450) / 90);   // a paw runs down the ear, twice a second
+      this.extra.push((g, r) => { const y = r.y0 + Math.min(s, 4); put(g, r.x0 - 1, y, O); put(g, r.x0 - 2, y, O); });
+    }
+    else if (t < 3700) { P.tgt = [0, 0]; P.eyes = t < 3400 ? "open" : "happy"; }
+    else { P.eyes = "happy"; if (t > 4100) P.eyes = "open"; }
+  }
+  // --- hungry: up on its hind legs, sniffing the air for food, then down again and asks with its mouth open.
+  hungry(P, t) {
+    t %= 3600;
+    if (t < 150) { P.pose = "crouch"; }
+    else if (t < 2000) { P.pose = "stand"; P.nose = Math.floor(t / 80) % 2 === 0; P.tgt = t % 900 < 450 ? [0, -1] : [-1, 0]; P.look = t % 1800 < 900 ? -1 : 1; P.lean = false; }
+    else if (t < 2150) { P.pose = "crouch"; P.tgt = [-2, -2]; }
+    else { P.tgt = [-2, -2]; P.mouth = Math.floor(t / 300) % 2 === 0 ? "open" : null; }
+  }
+  // --- sad: both ears hang down its cheeks, a tear now and then, one ear gives a little sob.
+  sad(P, t) {
+    t %= 3200; P.tgt = [-4, -4]; P.eyes = "half"; P.lean = false;
+    if (t > 600 && t < 1300) P.tear = Math.floor((t - 600) / 175);
+    if (t > 2000 && t < 2120) this.v[1] += 2.2;
+  }
+  // --- tired: the ears sink lower and lower with its eyelids; it starts awake, ears bolt upright, and sinks again.
+  tired(P, t) {
+    t %= 3600; P.lean = false;
+    if (t < 2600) { const d = Math.min(3, Math.floor(t / 650)); P.tgt = [-d, -d]; P.eyes = t < 900 ? "open" : t < 1700 ? "half" : "shut"; if (t > 900 && t < 1500) P.mouth = "open"; }
+    else if (t < 2850) { P.key = ["T", "T"]; P.snap = [0, 0]; P.eyes = "wide"; }
+    else { P.tgt = [0, 0]; P.eyes = "half"; }
+  }
+  // --- asleep: a loaf with its ears laid flat; the nose still works, an ear flicks at a dream.
+  asleep(P, t) {
+    t %= 4000; P.pose = "loaf"; P.tgt = [-3, -3]; P.eyes = "shut"; P.lean = false;
+    P.nose = t % 2000 < 1700 || Math.floor(t / 100) % 2 === 0;
+    if (t > 2600 && t < 2700) this.v[0] += 3;
+  }
+  // --- a clap or a loud sound: bolt upright on its hind legs, ears tall, frozen; the ears turn to listen; a warning thump.
+  clap(P, t) {
+    P.lean = false;
+    if (t < 1000) { P.pose = "stand"; P.key = ["T", "T"]; P.snap = [0, 0]; P.eyes = "wide"; }
+    else if (t < 2000) { P.pose = "stand"; P.key = t < 1500 ? ["T", "-1"] : ["-1", "T"]; P.snap = [0, 0]; P.look = t < 1500 ? 1 : -1; }
+    else if (t < 2600) {
+      P.pose = "stand"; P.key = ["T", "T"]; P.snap = [0, 0];
+      const th = (t - 2000) % 300 < 110;   // the hind foot hits the ground twice
+      if (th) this.extra.push((g, r) => { for (let i = 0; i < 3; i++) put(g, r.x0 + r.w - 1 + i, 19, O); });
+    }
+    else if (t < 2760) { P.pose = "crouch"; }
+    else if (t > 3300) this.ev = null;
+  }
+  // --- blown on: it ducks, eyes shut, ears streaming and fluttering; then shakes them out.
+  blow(P, t) {
+    P.lean = false;
+    if (t < 2000) { P.pose = "crouch"; P.eyes = "shut"; const f = Math.floor(t / 90) % 2; P.snap = f ? [-3, -4] : [-4, -3]; }
+    else if (t < 2500) { const f = Math.floor(t / 80) % 2; P.snap = f ? [-1, 1] : [1, -1]; P.eyes = "shut"; }
+    else if (t > 3000) this.ev = null;
+  }
+  // --- shaken: ears flung from side to side, eyes shut tight; it sits down flat and they wobble to rest.
+  shake(P, t) {
+    P.lean = false;
+    if (t < 900) { const f = Math.floor(t / 100) % 2; P.key = f ? ["-2", "1"] : ["1", "-2"]; P.snap = f ? [-2, 1] : [1, -2]; P.x = 12 + (f ? 1 : -1); P.eyes = "shut"; P.pose = "crouch"; }
+    else if (t < 1700) { P.pose = "crouch"; P.eyes = "half"; P.look = Math.floor(t / 200) % 2 ? 1 : -1; }
+    else if (t > 2100) this.ev = null;
+  }
+}
+
+// --- the game: a carrot patch. Lean to hop along the bed to a carrot top; a sharp nod yanks the carrot out.
+const SMALL = [".#...#.", ".#...#.", ".##.##.", "#######", "#x###x#", "###o###", "#######", ".#####."];
+const SMALL_HOP = ["#...#..", ".#...#.", ".##.##.", "#######", "#x###x#", "###o###", "#######", ".##.##."];
+const SMALL_PULL = [".......", "##...##", ".##.##.", "#######", "#######", "###o###", "#######", ".#####."];
+const SMALL_MUNCH = [".#...#.", ".#...#.", ".##.##.", "#######", "#x###x#", "###o###", "##xxx##", ".#####."];
+const CARROT = ["o.o", ".o.", "###", "###", ".#.", ".#."];
+class Garden {
+  constructor(seed = 3) { this.rnd = rng(seed); this.x = 12; this.from = 12; this.to = 12; this.hop = -1; this.dir = 1; this.sx = 18; this.pull = -1; this.munch = -1; this.got = 0; this.miss = -1; this.tick = 0; }
+  near() { return Math.abs(this.x - this.sx) === 6; }
+  step(dt, inp) {
+    const tilt = inp.tilt || 0; this.tick = Math.max(0, this.tick - dt);
+    if (this.pull >= 0) { this.pull += dt; if (this.pull > 700) { this.pull = -1; this.munch = 0; this.got++; this.tick = 260; } return; }
+    if (this.munch >= 0) { this.munch += dt; if (this.munch > 900) { this.munch = -1; this.sprout(); } return; }
+    if (this.miss >= 0) { this.miss += dt; if (this.miss > 220) this.miss = -1; }
+    if (this.hop >= 0) { this.hop += dt; if (this.hop >= 240) { this.x = this.to; this.hop = -1; } return; }
+    if (inp.nod) { if (this.near()) this.pull = 0; else this.miss = 0; return; }
+    if (Math.abs(tilt) > 0.18) {
+      this.dir = tilt > 0 ? 1 : -1; const to = Math.max(6, Math.min(18, this.x + this.dir * 2));
+      if (to !== this.x && Math.abs(to - this.sx) >= 6) { this.from = this.x; this.to = to; this.hop = 0; }
+    }
+  }
+  sprout() { let s; do { s = 4 + 2 * Math.floor(this.rnd() * 9); } while (Math.abs(s - this.x) < 8); this.sx = s; }
+  draw(g) {
+    for (let x = 3; x <= 21; x++) put(g, x, 20, DIM);
+    const pulling = this.pull >= 0, eating = this.munch >= 0, side = this.sx > this.x ? 1 : -1;
+    let bx = this.x, lift = 0, rows = SMALL;
+    if (this.hop >= 0) { const p = this.hop / 240; bx = Math.round(this.from + (this.to - this.from) * p); lift = p > 0.2 && p < 0.8 ? 1 : 0; rows = SMALL_HOP; }
+    if (this.miss >= 0) rows = SMALL_PULL;
+    if (pulling) rows = this.pull < 520 ? SMALL_PULL : SMALL;
+    if (eating && Math.floor(this.munch / 130) % 2 === 0) rows = SMALL_MUNCH;
+    // The carrot: only its top shows in the bed; yanked, it comes up out of the ground; eaten, it goes bite by bite.
+    const out = pulling ? Math.min(6, 2 + Math.floor(Math.max(0, this.pull - 180) / 70)) : eating ? 6 : 2;
+    const bites = eating ? Math.min(6, Math.floor(this.munch / 150)) : 0;
+    for (let j = bites; j < out; j++) for (let i = 0; i < 3; i++) { const ch = CARROT[j][i]; if (ch !== ".") put(g, this.sx - 1 + i, 20 - out + j, ch === "o" ? O : 0.6); }
+    const flip = (rows === SMALL_HOP && this.dir < 0);
+    const by = 19 - 7 - lift;
+    rows.forEach((r, j) => { for (let i = 0; i < 7; i++) { const ch = r[flip ? 6 - i : i]; if (ch !== ".") put(g, bx - 3 + i, by + j, ch === "#" ? B : ch === "o" ? O : 0); } });
+  }
+}
+
+
+const MASK = "0000000001111111000000000000000011111111111000000000000111111111111111000000000111111111111111110000000111111111111111111100000111111111111111111111000011111111111111111111100011111111111111111111111001111111111111111111111101111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111011111111111111111111111001111111111111111111111100011111111111111111111100001111111111111111111110000011111111111111111110000000111111111111111110000000001111111111111110000000000001111111111100000000000000001111111000000000", OLD = {"calm": ["zzzzzd32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n439a3339a32n43b333b32n43333333332n4333c3322n23333333222n12332222221o1221a1221", "zzzzzd32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n43333333332n43b333b32n43333333332n4333c3322n23333333222n12332222221o1221a1221"], "happy": ["zzzze32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n43a33333a32n4a3a333a3a2n43333333332n4333a3a3322n23333a33222n12332222221o1221a1221zo111111111", "zzzzzd32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n43a33333a32n4a3a333a3a2n43333333332n4333a3a3322n23333a33222n12332222221o1221a1221", "zzzzzd32c32r53c43r53c43c3m253c431p3432a2432o25434443321a5l33333333332n43a33333a32n4a3a333a3a2a7l43333333332n4333a3a3322n23333a332229m12332222221o1221a1221", "zzzf32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n43a33333a32n4a3a333a3a2n43333333332n4333a3a3322n23333a33222n123322222213n1221a1221x5s9b7s1111111", "zzzze32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n43a33333a32n4a3a333a3a2l9a43333333332n4333a3a3322n23333a33222m712332222221o1221a1221p5x111311111", "zzzzzd32c32p9a53c43r53c43n7b253c431p3432a2432o25434443321l5a33333333332n43a33333a32n4a3a333a3a2l3a43333333332n4333a3a3322n23333a33222n12332222221o1221a1221", "zzj7a9s5v3a32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n43a33333a32n4a3a333a3a2n43333333332n4333a3a3322n23333a33222n12332222221o1221a1221zo111111111"], "habit": ["zzzzzd32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n439a3339a32n43b333b32n43333333332n4333c3322n23333333222n12332222221o1221a1221", "zzzzzd32w53e33p53d33p253c431p3432a2432o25434443321n33333333332n439a3339a32n43b333b32n43333333332n4333c3322n23333333222n12332222221o1221a1221", "zzzzzd32w53w53v253c43333n3432a243233m25434443321n33333333332n439a3339a32n43b333b32n43333333332n4333c3322n23333333222n12332222221o1221a1221", "zzzzzd32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n43333333332n43b333b32n43333333332n4333c3322n23333333222n12332222221o1221a1221"], "hungry": ["zzzzzd32c32r53c43r53c43q253c431p3432a2432o25434443321n33a33333a32n4c333c2a22222h43b333b322b4a42g433333333322a664a2g4333c3322266c2g2333c3222a22222h12332222222o1221a1222", "zzzzzd32c32r53c43r53c43q253c431p3432a2432o25434443321n33a33333a32n4c333c2a22222h43b333b322b5a52g433333333322a775a2g4333c3322277c2g2333c3222a22222h12332222222o1221a1222", "zzzzzd32c32r53c43r53c43q253c431p3432a2432o25434443321n33a33333a32n4c333c2a22222h43b333b322b5a52g433333333322a885a2g4333c3322288c2g2333c3222a22222h12332222222o1221a1222", "zzzzzd32c32r53c43r53c43q253c431p3432a2432o25434443321n33a33333a32n4c333c2a22222h43b333b322b6a62g433333333322a996a2g4333c3322299c2g2333c3222a22222h12332222222o1221a1222", "zzzzzd32c32r53c43r53c43q253c431p3432a2432o25434443321n33a33333a32n4c333c2a22222h43b333b322b4a42g433333333322a774a2g4333c3322277c2g2333c3222a22222h12332222222o1221a1222"], "sad": ["zzc1zzz32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n433a333a332n43b333b32n43a33333a32n43a33a33a22n2333a3a3222n12332222221o1221a1221", "zzc1w11zt1f32c32f1k53c43f1k53c43q253c431p3432a2432o25434443321n33333333332n433a333a332n43b333b32n43333333332n43a33a33a22n23a3a3a3a22n12332222221o1221a1221", "i11zzp11w11u1f32c32f1d1f53c43f1k53c43f11i253c431p3432a2432o25434443321n33333333332n433a333a332n43b333b32n43333333332n43a33a33a22n23a3a3a3a22n12332222221o1221a1221", "i11111t11zzp11u1a11c32c32k1f53c43f1c11f53c43f11i253c431e11i3432a2432o25434443321n33333333332n433a333a332n43b333b32n43333333332n43333a33322n23a3a3a3a22n12a32222a21o1221a1221", "k111t11111t11zzn1a11c32c32k1a11c53c43j11f53c43f11b11e253c431e11i3432a2432o25434443321n33333333332n433a333a332n43b333b32n43333333332n43333a33322n2333a3a3222n12a32222a21o1a21a12a1", "i1a11t11a111t11111d11n11zv32c32k1a11c53c43j11a11c53c43g1b11e253c431e11b11e3432a2432e11h25434443321n33333333332n433a333a332n43b333b32n43333333332n43333a33322n2333a3a3222n12332222221o1221a1221", "k1u11a11q1b11a111d11i1d11111d11h11d11w32c32r53c43j11a11c53c43g1b11a11b253c431f1b11e3432a2432e111a11d25434443321d11h33333333332n433a333a332n43b333b32n43333333332n43333a33322n2333a3a3222n12332222221o1221a1221", "zj11q1b11a11p11b11a111d11h111b111111d11g111d32c32b11n53c43m11c53c43g1b11a11b253c431f1b11e3432a2432f11a11d25434443321d111a11d33333333332d111g433a333a332n43b333b32n43a33333a32n43a33a33a22n2333a3a3222n12332222221o1221a1221", "j11w11d11r11c11k11e11p11b11a111d11g1111b13211132b11g111d53c43b11f1111d53c43j11a11b253c431f1b11a11b3432a2432f11a11d25434443321e11a11d33333333332d111a11d433a333a332d111g43b333b32n43333333332n43a33a33a22n23a3a3a3a22n12332222221o1221a1221", "j112v111d1q11d111q11c121q11p11b13211132l111b153a1143b11f11111b153c43b11f1111c253c431a11e111a11b3432a2432h111a11a25434443321e11g33333333332d111a11d433a333a332d111a11d43b333b32d111g43333333332e11g43a33a33a22n23a3a3a3a22n12332222221o1221a1221", "zj11c12q111c1121o112c1121o111c1111n3211a32121j11c5311143a11j11b153a1143b11f11111b253c431a11f1111c3432a2432a11f11111a25434443321g111a11a33333333332e11121d433a333a332d111111d43b333b32d111g43333333332d111g43333a33322e11g23a3a3a3a22n12a32222a21o1221a1221", "zzn11q11d1111o111c1121n3212a321111n53111431121n5311143121j11b253c43111i111b3432a2432a11f11111a2543444332111f11111a3333333333211f11a11a433a333a332g111d43b333b32d111111d43333333332d11111e43333a33322d111g2333a3a3222e1h12a32222a21e1i1a21a12a1", "zzzzzd321b321111n5311a431221n53111431111m253121431121i11b3432a2432111i11a2543444332111f11111a3333333333211f11111a433a333a33211f11111a43b333b32h11d43333333332d111111d43333a33322d111a1e2333a3a3222e1b2e12332222221e1i1221a1221", "k11zzzzq32c32r531b43r5311a431111m253111431111m343212432121l2543444332121i11a3333333333211h111a433a333a33211f11111a43b333b3211f12111a4333333333211f11d43333a33322d11b11d2333a3a3222d11h12332222221e1i1221a1221", "k11w11w12zzr32c32r53c43k1f53c43k1e253111431p34321243211m25434443321111k33333333332221i11433a333a332a11i1143b333b32121f1111143a33333a32111f1111143a33a33a22211f1111a2333a3a3222e11b11c12332222221e11h1221a1221", "i1w11zy11w12t32c32r53c43k1f53c43k1e253a11431i11e343212432o25434443321n333333333321m433a333a332111k43b333b32221i1143333333332121f1111143a33a33a22a21f1111123a3a3a3a22111f1211a12332222221211b11c1d1221a1221a11c1", "zg11w11zzt32b132r53b143r53b143q253c431j11d3432a2432j11c25434443321i11c33333333332n433a333a33211l43b333b3211l4333333333211h11a143333a333221111f11a123a3a3a3a221121f111112a32222a21b11g111a1221a1221b121b1d111l21c1s11", "zzf11w11w11v32c32r53c43r53b143q253b1431p3432a2432j11c25434443321i11c33333333332i11c433a333a332n43b333b32n4333333333211l43333a3332211h11a123a3a3a3a2211h11a112a32222a211111g11111221a1221a1221g1111b11a11c1111b1e11f12d121v111v21", "i1b11zzb1zm11u3211a32r5311a43m1d53c43q253c431p3432a2432o25434443321n33333333332j11b433a333a332j11b43b333b32j11b43333333332n43333a33322a11k2333a3a3222a11h11a12a32222a21a11i1a11a21a12a1m1a11b11f1111h111b11f1111i1c11a11c1121p12e21", "i11111a1q11b11w11d11w1zk3211a32r5311a43m1d5311a43j1b1c253c431i1a11c3432a2432o25434443321n33333333332n433a333a332j11b43b333b32j11b43333333332j11b43333a33322n2333a3a3222n12332222221a11i1a11221a1221b11i1a11j11k11b11s11b11f1111j1b11f1111p11c12r12"], "tired": ["zzzzzd22c22r42c32r42c32q242c321p2322a2322o24333332221n23333322221n33332222222n3c222c2n33222222222n3222c2222n22222222221n11222222211o1111a1111", "zzzzze22c22r42c32r42c32q242c321p2322a2322o24333332221n23333322221m33332222222n3c222c2n33222222222n3222c2222n22222222221n11222222211o1111a1111", "zzzzzf22c22q42c32r42c32q242c321p2322a2322o24333332221n23333322221n33332222222n3c222c2m33222222222n3222c2222n22222222221n11222222211o1111a1111", "zzzzze22c22r42c32r42c32q242c321p2322a2322o24333332221n23333322221n33332222222m3c222c2n33222222222n3222c2222n22222222221n11222222211o1111a1111", "zzzzze22c22r42c32r42c32q242c321p2322a2322o24333332221m23333322221n33332222222n3c222c2n33222222222n3222c2222n22222222221n11222222211o1111a1111"], "asleep": ["zzzzzd21c21r32c22r32c22q132c221p2221a1221o13222222211n22222222221n22222222221n22b222b21n22222222221c5j22222a22211n12222222111n11221111111o1111a1111", "j11zzzzk1f21c21k1f32c22r32c22q132c221p2221a1221o13222222211n22222222221n22222222221n22b222b21n22222222221c5j22222a22211n12222222111n11221111111o1111a1111", "j11c1zzzzg1f21c21k1f32c22r32c22q132c221p2221a1221o13222222211n22222222221n22222222221n22b222b21c5j22222222221b555i22222a22211c5j12222222111n11221111111o1111a1111", "i111c1zzzzg1f21c21k1f32c22r32c22q132c221p2221a1221o13222222211n22222222221n22222222221n22b222b21c5j22222222221b555i22222a22211c5j12222222111n11221111111o1111a1111", "i111c1q1zzi1ze1f21c21k1f32c22r32c22q132c221p2221a1221o13222222211n22222222221n22222222221n22b222b21b555i22222222221a5c5h22222a22211b555i12222222111n11221111111o1111a1111", "i111c1q11e1zzb1ze1f21c21k1f32c22r32c22q132c221p2221a1221o13222222211n22222222221n22222222221n22b222b21b555i22222222221a5c5h22222a22211b555i12222222111n11221111111o1111a1111", "i111c1q11e11zza1g1w1f21c21k1f32c22r32c22q132c221p2221a1221o13222222211n22222222221n22222222221n22b222b21b555i22222222221a5c5h22222a22211b555i12222222111n11221111111o1111a1111", "i111c1q1111c11zza1g1w1f21c21k1f32c22r32c22q132c221p2221a1221o13222222211n22222222221n22222222221n22b222b21a3c3h22222222221n22222a22211a3c3h12222222111n11221111111o1111a1111", "i111c1q1111c11zza1g1zd21c21k1f32c22j1g32c22q132c221p2221a1221o13222222211n22222222221n22222222221n22b222b21a3c3h22222222221n22222a22211a3c3h12222222111n11221111111o1111a1111", "i111c1q1111c11za1y1g1w11e21c21k1f32c22j11f32c22q132c221p2221a1221o13222222211n22222222221n22222222221n22b222b21n22222222221c5j22222a22211n12222222111n11221111111o1111a1111", "i111b11q1111b111z11y1g1p11e11e21c21k1f32c22j11f32c22q132c221p2221a1221o13222222211n22222222221n22222222221n22b222b21n22222222221c5j22222a22211n12222222111n11221111111o1111a1111", "i111b11q1111b111w1b11x11g1p11e11e21c21k1f32c22j11f32c22q132c221p2221a1221o13222222211n22222222221n22b2222221n22a9222b21c5j22222222221b555i22222a22211c5j12222222111n11221111111o1111a1111", "j11b11q1111b111p1111c11a11w111g1p11e11e21c21k1f32c22j11f32c22q132c221p2221a1221o13222222211n22222222221n22b2222221n22a9222b21c2j22222222221b222i22222a22211c2j12222222111n11221111111o1111a1111", "j11b11q1111b1111o1111c11a11w111g1p11e11e21c21k11e32c22j11f32c22q132c221p2221a1221o13222222211n22222222221n22b2222221n22a9222b21c1j22222222221b111i22222a22211c1j12222222111n11221111111o1111a1111", "zg1111b1111o1111b1111y111g1n1111e11e21c21k11e32c22j11f32c22j1f132c221p2221a1221o13222222211n22222222221n22b2222221n22a9222b21n22222222221n22222a22211n12222222111n11221111111o1111a1111", "zg1111b1111o1111b1111v11a111v1111e11e21c21k11e32c22j11f32c22j11e132c221p2221a1221o13222222211n22222222221n22b2222221n22a9222b21n22222222221n22222a22211n12222222111n11221111111o1111a1111", "zg1111c111o1111c111q11c11c1v1111e11e21c21k11e32c22j11f32c22j11e132c221p2221a1221o13222222211n22222222221n22b2222221n22a9222b21n22222222221n22222a22211n12222222111n11221111111o1111a1111", "zg1111c111o1111c111q11c11z1111e1f21c21b1111e111d32c22j111e32c22j11e132c221p2221a1221o13222222211n22222222221n22b2222221n22a9222b21n22222222221n22222a22211n12222222111n11221111111o1111a1111", "zg1111c111o1111c111q11c11z1111e1f21c21b1111e111d32c22j1111d32c22j11e132c221i11e2221a1221o13222222211n22222222221n22222222221n22b222b21n22222222221c2j22222a22211n12222222111n11221111111o1111a1111", "zg1a11c111o1111c111o1a11c11w11a1111e1f21c21b1111e111d32c22b11f1111d32c22j11e132c221i11e2221a1221o13222222211n22222222221n22222222221n22b222b21n22222222221c4j22222a22211n12222222111n11221111111o1111a1111", "zi11u1111c111o1111b111r11b111c11l21c21b1111e111d32c22b11f1111d32c22j11e132c221i11e2221a1221o13222222211n22222222221n22222222221n22b222b21c5j22222222221b555i22222a22211c5j12222222111n11221111111o1111a1111", "zzf1a11c111o1a11b1111q11b111c11l21c21b1111e1f32c22b11f1111d32c22j1111c132c221i11e2221a1221i11d13222222211n22222222221n22222222221n22b222b21c5j22222222221b555i22222a22211c5j12222222111n11221111111o1111a1111", "zze11a11c111n11a11c111q11b111c11l21c21d11e1f32c22b11f1111d32c22b11f1111c132c221i11e2221a1221i11d13222222211n22222222221n22222222221n22b222b21b555i22222222221a5c5h22222a22211b555i12222222111n11221111111o1111a1111", "zze11a11c111n11a11c111q11b111c11l21c21d11l32c22b11f1111d32c22b11f1111c132c221i11e2221a1221i11d13222222211h11d22222222221n22222222221n22b222b21b555i22222222221a5c5h22222a22211b555i12222222111n11221111111o1111a1111", "zze11a11c111n11a11c111q11c11q211b211c11l32c22d11e111d32c22b11f1111c132c221a11f11e2221a1221i11d13222222211h11d22222222221n22222222221n22b222b21a3c3h22222222221n22222a22211a3c3h12222222111n11221111111o1111a1111"], "clap": ["zzzzd32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n43333333332n43b333b32n43333333332n4333c3322n2333c3222n12332222221o1221a1221zo111111111", "zzzza32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n439a333a932n43b333b32n43333333332n4333c3322n2333c3222n12332222221o1221a1221zo111111111", "zzzza32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n439a333a932n43b333b32n43333333332n4333c3322n2333c3222n12332222221o1221a12214zn111111111", "zzzza32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n439a333a932n43b333b32n43333333332n4333c3322n2333c3222n12332222221o1221a12213zn111111111", "zzzza32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n439a333a932n43b333b32n43333333332n4333c3322n2333c3222n123322222212n1221a122133zm111111111", "zzzzb32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n439a333a932n43b333b32n43333333332n4333c3322n2333c3222n123322222212n1221a122122zm111111111", "zzzzc32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n439a333a932n43b333b32n43333333332n4333c3322n2333c3222n12332222221o1221a1221zo111111111", "zzzzd32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n439a333a932n43b333b32n43333333332n4333c3322n2333c3222n12332222221o1221a1221zo111111111", "zzzze32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n439a333a932n43b333b32n43333333332n4333c3322n2333c3222n12332222221o1221a1221zo111111111", "zzzzzd32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n43333333332n43b333b32n43333333332n4333c3322n23333333222n12332222221o1221a1221", "zzzzzd32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n439a3339a32n43b333b32n43333333332n4333c3322n23333333222n12332222221o1221a1221"], "wind": ["zzzf3211a32q15312143q15311a43q253c431p3432a2432o25434443321n33333333332n43333333332n43b333b32n43333333332n4333c3322n2333c3222n12332222221o1221a1221zzo1111111", "zzi11u3211132q15311143q15311a43q253c431p3432a2432o25434443321n33333333332n439a333a932n43b333b32n43333333332n4333c3322n2333c3222n12332222221o1221a1221zzo1111111", "zi111u11111s13211132q15311143r53c43q253c431p3432a2432o25434443321n33333333332n439a333a932n43b333b32n43333333332n4333c3322n2333c3222n12332222221o1221a1221zzo1111111", "k11v1111b11p1121111221n1321113211o15311143r53c43q253c431p3432a2432o25434443321n33333333332n439a333a932n43b333b32n43333333332n4333c3322n2333c3222n12332222221o1221a1221zzo1111111", "k11u11211a112o11111111111n1321113211p53a1143r53c43q253c431p3432a2432o25434443321n33333333332n439a333a932n43b333b32n43333333332n4333c3322n2333c3222n12332222221o1221a1221zzo1111111", "i1111111r111111111o1111111111o1321a132r53c43r53c43q253c431p3432a2432o25434443321n33333333332n439a333a932n43b333b32n43333333332n4333c3322n2333c3222n12332222221o1221a1221zzo1111111", "i1111111p11111112111n111111111r32b132r53c43r53c43q253c431p3432a2432o25434443321n33333333332n439a333a932n43b333b32n43333333332n4333c3322n2333c3222n12332222221o1221a1221zzo1111111zzzq1x1", "i1111111p11111a1111p1111b11r32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n439a333a932n43b333b32n43333333332n4333c3322n2333c3222n12332222221o1221a1221zr1v1111111t1x1ze1", "i111a111p11111a1111p111c11r32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n439a333a932n43b333b32n43333333332n4333c3322n23331b3222n12332222221o1221a1221s1zu1111111b1x1x1x1", "i1111111q11111a11s11v32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n439a333a932n43b333b32n43333333332n4333c3322n2333c3222n12332222221o1221a1221a1x1x1o1111111b1zzn1x1x1", "i1111111q11111211v11s32c32r531b43r531b43q2531b431p3432a2432o25434443321n33333333332n439a333a932n43b333b32n433333333321m4333c33221m2333c32221m123322222211n1221a1221a1zzm1111111s1i1n1i1n1", "i1111211t11111t1a11s321b32r53c43r53c43q253c431p3432a2432o254344433211m333333333321m439a333a9321m43b333b321m433333333321m4333c3322n2333c3222n12332222221o1221a1221r1i1n1i11l1111111d11w11", "l1211v11zr32c32r53c43r53c43b1n253c431a1n3432a2432a1m254344433211m333333333321m439a333a932n43b333b32n43333333332n4333c3322b1k2333c3222b11j12332222221b11k1221a1221c11x1zk1111111", "i111111r112111t11g1o32c32b1o53c43b1o53c43b1n253c431a1n3432a2432o25434443321n33333333332b1k4391333a932b11j43a1333b32b11j43333333332b11j4333c3322c1j2333c3222n12332222221o1221a1221zzo1111111", "i12111r121111t1111f1o32c32b1o53c43r53c43q253c431c11k3432a2432c11j25434443321b11j33333333332b11j439a333a932n43b333b32n43333333332n4333c3322n2333c3222n12332222221o1221a1221zzo1111111", "i1211t1111v1y1i1m32c32d11l53c43d11l53c43q253c431p3432a2432o25434443321n33333333332n43333333332n43b333b32n43333333332n4333c3322n23333333222n12332222221o1221a1221zo111111111c1x1x1", "i1111u111w1x1w32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n439a3339a32n43b333b32n43333333332n4333c3322n23333333222b1k12332222221b1l1221a1221c1x1l111111111", "i111zzzs32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n439a3339a32n43b333b32b1k43333333332b1k4333c3322b1k23333333222b1k12332222221o1221a1221zo111111111", "i11zzzt32c32r53c43r53c43q253c431p3432a2432c1k25434443321b1k33333333332b1k43333333332b1k43b333b32n43333333332n4333c3322n23333333222n12332222221o1221a1221zo111111111", "zzzze32c32r53c43d1m53c43d1l253c431c1l3432a2432c1k25434443321n33333333332n439a3339a32n43b333b32n43333333332n4333c3322n23333333222n12332222221o1221a1221zo111111111", "zzzq1m32c32d1m53c43r53c43q253c431p3432a2432o25434443321n33333333332n439a3339a32n43b333b32n43333333332n4333c3322n23333333222n12332222221o1221a1221zo111111111", "zzzze32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n439a3339a32n43b333b32n43333333332n4333c3322n23333333222n12332222221o1221a1221zo111111111", "zzzzzd32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n439a3339a32n43b333b32n43333333332n4333c3322n23333333222n12332222221o1221a1221"], "tilt": ["zzj32c32r53c43r53c43q253c431p343b2432o254a4443321n33333333332n433b333b2n43333333332n43333333332n4333c3322n23333a33222n12332222221o1221a1221zzzo11111", "zzk32c32r53c43r53c43q253c431p343b2432o254a4443321n33333333332n433b333b2n43333333332n43333333332n4333c3322n23333a33222n12332222221o1221a1221zzzo11111", "zzzj32c32r53c43r53c43q253c431p343b2432o254a4443321n33333333332n433b333b2n43333333332n43333333332n4333c3322n23333a33222n12332222221o1221a1221zzo1111111", "zzj32c32r53c43r53c43q253c431p3432b432o2543444a321n33333333332n4b333b332n43333333332n43333333332n4333c3322n23333a33222n12332222221o1221a1221zzzo11111", "zzg32c32r53c43r53c43q253c431p3432b432o2543444a321n33333333332n4b333b332n43333333332n43333333332n4333c3322n23333a33222n12332222221o1221a1221zzzo11111", "zzzd32c32r53c43r53c43q253c431p3432b432o2543444a321n33333333332n4b333b332n43333333332n43333333332n4333c3322n23333a33222n12332222221o1221a1221zzo1111111", "zzc32c32r53c43r53c43q253c431p3432b432o2543444a321n33333333332n4b333b332n43333333332n43333333332n4333c3322n23333a33222n12332222221o1221a1221zzzo11111", "zzzb32c32r53c43r53c43q253c431p3432b432o2543444a321n33333333332n4b333b332n43333333332n43333333332n4333c3322n23333a33222n12332222221o1221a1221zzo1111111", "zzzb32c32r53c43r53c43q253c431p343b2432o254a4443321n33333333332n433b333b2n43333333332n43333333332n4333c3322n23333a33222n12332222221o1221a1221zzo1111111", "zzf32c32r53c43r53c43q253c431p343b2432o254a4443321n33333333332n433b333b2n43333333332n43333333332n4333c3322n23333a33222n12332222221o1221a1221zzzo11111", "zzi32c32r53c43r53c43q253c431p343b2432o254a4443321n33333333332n433b333b2n43333333332n43333333332n4333c3322n23333a33222n12332222221o1221a1221zzzo11111", "zzzh32c32r53c43r53c43q253c431p343b2432o254a4443321n33333333332n433b333b2n43333333332n43333333332n4333c3322n23333a33222n12332222221o1221a1221zzo1111111"], "dizzy": ["zzzzzd32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n439a3339a32n43b333b32n43333333332n4333c3322n23333333222n12332222221o1221a1221", "zzzzzd3211a3211p4311a4311p4311a4211o24311a42211n3432a2432o25434443321n33333333332n43333333332n43b333b32n43333333332n43333b3322n2333a333222n12332222221o1221a1221", "zzzzzb2221a2121p3222a3221p3222a3221o13222a32311p3432a2432o25434443321n33333333332n4a3a333a3a2n43a33333a32n4a3a333a3a2n43333b3322n2333a333222n12332222221o1221a1221", "zzzzzb3211a3211p5311a4311p5311a4311o25311a42111p3432a2432o25434443321n33333333332n4a3a333a3a2n43a33333a32n4a3a333a3a2n43333b3322n2333a333222n12332222221o1221a1221", "zzzzzf32c32r53c43r53c43q253c431n3432a2432o25434443321n33333333332n4a3a333a3a2n43a33333a32n4a3a333a3a2n43333b3322n2333a333222n12332222221o1221a1221", "zzzzzb32c32r53c43r53c43q253c431r3432a2432o25434443321n33333333332n4a3a333a3a2n43a33333a32n4a3a333a3a2n43333b3322n2333a333222n12332222221o1221a1221", "zzzzzd1122a1122p2142a2132p2142a2132o12232a21321n3432a2432o25434443321n33333333332n43333333332n43b333b32n43333333332n4333c3322n23333333222n12332222221o1221a1221", "zzzzzd3211a2211p4211a4211p4211a4211o24311a32211n3432a2432o25434443321n33333333332n439a3339a32n43b333b32n43333333332n4333c3322n23333333222n12332222221o1221a1221", "zzzzzd32c32r53c43r53c43q253c431p3432a2432o25434443321n33333333332n43333333332n43b333b32n43333333332n4333c3322n23333333222n12332222221o1221a1221"]};
+function dec(s) { const o = []; for (const ch of s) { if (ch >= "0" && ch <= "9") o.push(+ch / 9); else for (let i = 0; i < ch.charCodeAt(0) - 96; i++) o.push(0); } while (o.length < 625) o.push(0); return o; }
+function paint(cv, g) {
+  const c = cv.getContext("2d"), s = cv.width / 25; c.clearRect(0, 0, cv.width, cv.height);
+  for (let y = 0; y < 25; y++) for (let x = 0; x < 25; x++) {
+    if (MASK[y * 25 + x] !== "1") continue;
+    const v = Math.min(1, g[y * 25 + x]), b = v > 0 ? Math.round(34 + 221 * Math.sqrt(v)) : 26;
+    c.fillStyle = `rgb(${b},${b},${b})`; c.beginPath(); c.arc((x + .5) * s, (y + .5) * s, s * .4, 0, 7); c.fill();
+  }
+}
+const lean = t => t < 1000 ? 0 : t < 3000 ? 0.8 * Math.min(1, (t - 1000) / 500) : t < 4500 ? 0 : t < 6500 ? -0.8 * Math.min(1, (t - 4500) / 500) : 0;
+const CARDS = [
+  { id: "calm", old: "calm", title: "Покой", how: "Уши живут сами: одно дёрнулось, одно повернулось «радаром», нос работает (мигает один LED, лицо не двигается), взгляд в сторону, моргание. Порядок случайный.", ms: 9000, awake: true },
+  { id: "lean", old: "tilt", title: "Наклон", how: "Сегодня — общий прыжок HOP. Будет: уши свисают в нижнюю сторону по гравитации, с пружинкой, взгляд туда же. Работает в любом бодром состоянии.", ms: 8000, inp: lean, awake: true },
+  { id: "still", old: "calm", title: "Телефон лежит спокойно", how: "Через несколько секунд без движения приседает и устраивается «буханкой», уши расслабляются. Тронешь — встаёт.", ms: 9000, pre: b => { b.still = 5200; b.idle.next = 1e9; } },
+  { id: "happy", old: "happy", title: "Радость — «бинки»", how: "Заячий прыжок счастья: присел, взлетел, в воздухе дёрнулся в обе стороны (уши летят следом), приземлился — уши сложились и распрямились.", ms: 2600, mode: "happy" },
+  { id: "habit", old: "habit", title: "Привычка — умывание", how: "Трёт нос лапками, потом тянет ухо вниз и гладит его лапкой; отпускает — ухо пружинит обратно.", ms: 4400, mode: "habit" },
+  { id: "hungry", old: "hungry", title: "Голод", how: "Встаёт столбиком и принюхивается (нос частит, уши ловят по очереди), потом садится, уши врозь, просит ртом. Облачко-мысль о еде остаётся как сейчас.", ms: 3600, mode: "hungry" },
+  { id: "sad", old: "sad", title: "Грусть", how: "Оба уха висят вдоль щёк, веки опущены, слеза. Дождь рисует движок, как и сейчас.", ms: 3200, mode: "sad" },
+  { id: "tired", old: "tired", title: "Усталость", how: "Уши оседают всё ниже вместе с веками, зевок; вздрагивает — уши торчком, глаза круглые — и снова оседает.", ms: 3600, mode: "tired" },
+  { id: "asleep", old: "asleep", title: "Сон", how: "Буханка, уши лежат «самолётиком», нос иногда подрагивает, ухо дёргается во сне. Знак сна рисует движок.", ms: 4000, mode: "asleep" },
+  { id: "clap", old: "clap", title: "Хлопок / громкий звук", how: "Мгновенно встаёт столбиком, уши вытянуты, замер. Уши по очереди поворачиваются — слушает. Дважды топает лапой (две вибрации) и садится.", ms: 3600, ev: "clap" },
+  { id: "blow", old: "wind", title: "Подули", how: "Пригибается, жмурится, уши прижаты и трепещут; ветер стих — отряхивает уши.", ms: 3400, ev: "blow" },
+  { id: "shake", old: "dizzy", title: "Встряхнули", how: "Уши мотает из стороны в сторону, сам зажмурился и присел; потом глаза бегают, уши качаются до покоя. Без общих «звёздочек».", ms: 2600, ev: "shake" },
+];
+const host = document.getElementById("cards"), live = [];
+for (const c of CARDS) {
+  const el = document.createElement("section"); el.className = "card";
+  el.innerHTML = `<header><h2>${c.title}</h2></header><div class="pair"><div class="side"><canvas width="250" height="250"></canvas><em>сегодня</em></div><div class="side next"><canvas width="250" height="250"></canvas><em>предложение</em></div></div><p class="how">${c.how}</p>`;
+  host.appendChild(el); const cvs = el.querySelectorAll("canvas");
+  live.push({ c, a: cvs[0], b: cvs[1], old: OLD[c.old].map(dec), t: 1e9, bun: null, fired: false });
+}
+const stage = { cv: document.getElementById("stage"), bun: new Bunny(11), tilt: 0, dev: 0 };
+stage.cv.addEventListener("pointermove", e => { const r = stage.cv.getBoundingClientRect(); stage.tilt = Math.max(-1, Math.min(1, ((e.clientX - r.left) / r.width - .5) * 2.4)); });
+stage.cv.addEventListener("pointerleave", () => stage.tilt = 0);
+addEventListener("deviceorientation", e => { if (e.gamma != null) stage.dev = Math.max(-1, Math.min(1, e.gamma / 40)); });
+document.querySelectorAll("[data-ev]").forEach(b => b.onclick = () => stage.bun.fire(b.dataset.ev));
+const moods = [["calm", "Покой"], ["happy", "Радость"], ["habit", "Умывание"], ["hungry", "Голод"], ["sad", "Грусть"], ["tired", "Усталость"], ["asleep", "Сон"]], mh = document.getElementById("moods");
+moods.forEach(([m, n], i) => { const b = document.createElement("button"); b.textContent = n; if (!i) b.className = "on"; b.onclick = () => { stage.bun.ev = null; stage.bun.set(m); mh.querySelectorAll("button").forEach(x => x.className = ""); b.className = "on"; }; mh.appendChild(b); });
+document.getElementById("flat").onclick = e => { stage.bun.flat = !stage.bun.flat; e.target.className = stage.bun.flat ? "" : "on"; e.target.textContent = stage.bun.flat ? "Плоский" : "Объём (как в игре)"; };
+const game = { cv: document.getElementById("game"), g: new Garden(5), tilt: 0, nod: false, auto: true };
+game.cv.addEventListener("pointermove", e => { const r = game.cv.getBoundingClientRect(); game.auto = false; game.tilt = Math.max(-1, Math.min(1, ((e.clientX - r.left) / r.width - .5) * 2.4)); });
+game.cv.addEventListener("pointerleave", () => { game.tilt = 0; game.auto = true; });
+game.cv.addEventListener("pointerdown", () => { game.nod = true; });
+const DT = 40; let last = performance.now(), acc = DT, clock = 0;
+function tick(now) {
+  acc += Math.max(0, Math.min(200, now - last)); last = now;
+  while (acc >= DT) {
+    acc -= DT; clock += DT;
+    for (const L of live) {
+      if (L.t >= L.c.ms) { L.t = 0; L.fired = false; L.bun = new Bunny(7 + Math.floor(clock / 1000)); if (L.c.mode) L.bun.set(L.c.mode); if (L.c.pre) L.c.pre(L.bun); }
+      if (L.c.ev && !L.fired && L.t >= 200) { L.bun.fire(L.c.ev); L.fired = true; }
+      if (L.c.awake) L.bun.still = 0;
+      L.bun.step(DT, L.c.inp ? { tilt: L.c.inp(L.t) } : {}); L.t += DT;
+    }
+    stage.bun.step(DT, { tilt: Math.abs(stage.tilt) > 0.01 ? stage.tilt : stage.dev });
+    const G = game.g; let inp = { tilt: game.tilt, nod: game.nod }; game.nod = false;
+    if (game.auto) { const d = G.sx - G.x; inp = { tilt: G.near() ? 0 : d > 0 ? .5 : -.5, nod: G.near() && G.hop < 0 && G.pull < 0 && G.munch < 0 && clock % 600 === 0 }; }
+    G.step(DT, inp);
+  }
+  for (const L of live) { const g = new Float32Array(625); L.bun.draw(g); paint(L.b, g); paint(L.a, L.old[Math.floor(clock / 160) % L.old.length]); }
+  let g = new Float32Array(625); stage.bun.draw(g); paint(stage.cv, g);
+  g = new Float32Array(625); game.g.draw(g); paint(game.cv, g);
+  document.getElementById("bzz").textContent = game.g.tick > 0 ? "≈ тик вибрации" : "";
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+</script>
