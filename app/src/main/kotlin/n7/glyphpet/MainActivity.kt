@@ -16,6 +16,11 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.ScrollState
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.PreviewParameter
+import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -238,10 +243,13 @@ private fun Root(
 // ---------------------------------------------------------------------------------------------
 
 @Composable
-private fun Intro(onDone: () -> Unit) {
+private fun Intro(
+    onDone: () -> Unit,
     // A phone without the matrix gets the same story told for the app: the circle on screen is its Glyph button.
-    val glyphPhone = hasGlyphToys(LocalContext.current)
-    var step by remember { mutableIntStateOf(0) }
+    glyphPhone: Boolean = hasGlyphToys(LocalContext.current),
+    firstStep: Int = 0,
+) {
+    var step by remember { mutableIntStateOf(firstStep) }
     val egg = remember { PetEngine.toCells(PetEngine().still(Scene(null, Mood.CONTENT, egg = EggView(EggStage.CRACKED, golden = false)))) }
     val pet = remember { PetEngine.toCells(SpeciesRenderer.render(SpeciesCatalog.get("cat")!!, Face.LOVE)) }
     val crowd = remember {
@@ -271,14 +279,30 @@ private fun Intro(onDone: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
             SectionLabel("${step + 1} / ${pages.size}")
-            Spacer(Modifier.weight(1f))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)) {
-                val size = if (pictures.size == 1) 240.dp else 100.dp
-                pictures.forEach { GlyphMatrix(cells = it, modifier = Modifier.size(size)) }
+            // A small phone or a big font: the story scrolls, the pictures get smaller, and the button below always
+            // stays on screen (it used to be pushed off it, and the intro could not be left).
+            BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                val room = maxHeight
+                val size = if (pictures.size == 1) {
+                    minOf(240.dp, room * 0.4f)
+                } else {
+                    minOf(100.dp, (maxWidth - 24.dp) / pictures.size, room * 0.25f)
+                }
+                val scroll = remember(step) { ScrollState(0) }
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(scroll)
+                        .heightIn(min = room),
+                    verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically),
+                ) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)) {
+                        pictures.forEach { GlyphMatrix(cells = it, modifier = Modifier.size(size)) }
+                    }
+                    Text(if (title == R.string.intro_3_title) stringResource(title, SpeciesCatalog.all.size) else stringResource(title), style = N7Type.Headline, color = N7Colors.Ink)
+                    Text(stringResource(text), style = N7Type.Body, color = N7Colors.InkMuted)
+                }
             }
-            Text(if (title == R.string.intro_3_title) stringResource(title, SpeciesCatalog.all.size) else stringResource(title), style = N7Type.Headline, color = N7Colors.Ink)
-            Text(stringResource(text), style = N7Type.Body, color = N7Colors.InkMuted)
-            Spacer(Modifier.weight(1f))
             N7Button(
                 text = stringResource(if (step < pages.lastIndex) R.string.intro_next else R.string.intro_start),
                 modifier = Modifier.fillMaxWidth(),
@@ -286,6 +310,22 @@ private fun Intro(onDone: () -> Unit) {
             )
         }
     }
+}
+
+private class IntroSteps : PreviewParameterProvider<Int> {
+    override val values = (0 until 5).asSequence()
+}
+
+/**
+ * Every intro page on a small phone with a big font and on a common one, rendered with `android preview render
+ * --component-tree`: the button must be inside the screen on each.
+ */
+@Preview(name = "small 320x480 font 1.3", widthDp = 320, heightDp = 480, fontScale = 1.3f, locale = "ru")
+@Preview(name = "small 360x640 font 2.0", widthDp = 360, heightDp = 640, fontScale = 2f, locale = "ru")
+@Preview(name = "common 411x891", widthDp = 411, heightDp = 891, locale = "ru")
+@Composable
+private fun IntroPreview(@PreviewParameter(IntroSteps::class) step: Int) {
+    N7GlyphTheme { Intro(onDone = {}, glyphPhone = true, firstStep = step) }
 }
 
 // ---------------------------------------------------------------------------------------------
